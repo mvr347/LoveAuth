@@ -1,0 +1,280 @@
+﻿# Префикс — используется в каждом сообщении через {prefix}
+prefix: "<gradient:#ff6eb4:#a855f7><bold>LoveAuth</bold></gradient><dark_gray> » </dark_gray>"
+
+# ── Общие ───────────────────────────────────
+general:
+  no-permission: "{prefix}<red>У вас недостаточно прав."
+  player-only: "{prefix}<red>Эта команда только для игроков."
+  unknown-command: "{prefix}<red>Неизвестная подкоманда. Используйте <white>/loveauth help</white>."
+  player-not-found: "{prefix}<red>Игрок <white>{player}</white> не найден."
+  reloaded: "{prefix}<green>Конфигурация и языковые файлы успешно перезагружены."
+  reload-error: "{prefix}<red>Ошибка при перезагрузке: <white>{error}</white>"
+  database-error: "{prefix}<red>Внутренняя ошибка базы данных. Попробуйте позже."
+  invalid-input: "{prefix}<red>Некорректный ввод."
+  wait-action: "{prefix}<yellow>Подождите перед следующим действием."
+  command-usage: "{prefix}<red>Использование: <white>{usage}</white>"
+  player-kicked: "{prefix}<yellow>Игрок <white>{player}</white> отключён."
+  restart-kick: "{prefix}<red>Сервер перезапускает систему авторизации. Подключитесь позже."
+
+# ── Авторизация ─────────────────────────────
+auth:
+  already-logged-in: "{prefix}<yellow>Вы уже авторизованы."
+  not-logged-in: "{prefix}<red>Сначала авторизуйтесь."
+  timeout: "{prefix}<red>Время авторизации истекло. Подключитесь снова."
+  success: "{prefix}<green>Добро пожаловать, <white>{player}</white>!"
+  session-restored: "{prefix}<green>Сессия восстановлена. Добро пожаловать!"
+  not-registered: "{prefix}<red>Аккаунт ещё не зарегистрирован."
+  already-registered: "{prefix}<yellow>Аккаунт уже зарегистрирован."
+  premium-skip: "{prefix}<green>Premium-вход подтверждён."
+  rate-limited: "{prefix}<red>Слишком много действий. Попробуйте через несколько секунд."
+
+# ── Вход по паролю ──────────────────────────
+login:
+  prompt-chat: "{prefix}<gray>Введите ваш пароль в чат:"
+  prompt-anvil: "{prefix}<gray>Введите пароль в поле наковальни."
+  success: "{prefix}<green>Вы успешно вошли!"
+  fail: "{prefix}<red>Неверный пароль. Осталось попыток: <white>{attempts}</white>."
+  fail-last: "{prefix}<dark_red>Неверный пароль. Это была последняя попытка!"
+  password-disabled: "{prefix}<red>Вход по паролю отключён для этого аккаунта."
+
+# ── Регистрация ─────────────────────────────
+register:
+  prompt-password: "{prefix}<gray>Придумайте пароль и введите его в чат:"
+  prompt-confirm: "{prefix}<gray>Повторите пароль для подтверждения:"
+  password-mismatch: "{prefix}<red>Пароли не совпадают. Начните заново."
+  password-too-short: "{prefix}<red>Пароль слишком короткий. Минимум 6 символов."
+  success: "{prefix}<green>Регистрация успешна! Добро пожаловать, <white>{player}</white>!"
+
+# ── Блокировки ──────────────────────────────
+block:
+  ip-locked: "{prefix}<red>Ваш IP заблокирован на <white>{minutes}</white> мин. из-за подозрительной активности."
+  account-locked: "{prefix}<dark_red>Ваш аккаунт заблокирован. Обратитесь к администратору."
+  account-unlocked: "{prefix}<green>Аккаунт игрока <white>{player}</white> разблокирован."
+  password-required: "{prefix}<red>Нельзя отключить пароль без привязанного Discord."
+
+# ── Очередь ─────────────────────────────────
+queue:
+  position: "{prefix}<gray>Вы в очереди. Позиция: <white>{position}</white> из <white>{total}</white>."
+  wait-time: "{prefix}<gray>Примерное время ожидания: <white>{time}</white>."
+  connecting: "{prefix}<green>Ваша очередь подошла! Подключаемся..."
+  left: "{prefix}<yellow>Вы покинули очередь."
+  not-in-queue: "{prefix}<yellow>Игрок не находится в очереди."
+
+# ── Защита ──────────────────────────────────
+protection:
+  command-blocked: "{prefix}<red>Эта команда недоступна до авторизации."
+
+# ── Кики ────────────────────────────────────
+kick:
+  closed-gui: "<gradient:#ff6eb4:#a855f7>LoveAuth</gradient> <dark_gray>»</dark_gray> <red>Вы закрыли меню авторизации. Подключитесь снова."
+  timeout: "<gradient:#ff6eb4:#a855f7>LoveAuth</gradient> <dark_gray>»</dark_gray> <red>Время авторизации истекло. Подключитесь снова."
+
+# ── Discord ──────────────────────────────────
+discord:
+  not-enabled: "{prefix}<red>Discord-интеграция отключена на этом сервере."
+  bind-instructions: "{prefix}<gray>Введите команду <white>/link {code}</white> в Discord-боте."
+  bind-success: "{prefix}<green>Discord-аккаунт успешно привязан!"
+  bind-fail: "{prefix}<red>Неверный или устаревший код. Попробуйте снова."
+  already-bound: "{prefix}<yellow>Discord уже привязан к вашему аккаунту."
+  login-started: "{prefix}<gray>Подтвердите вход в Discord-боте."
+  confirmation-sent: "{prefix}<gray>Код подтверждения отправлен в ваш Discord."
+  prompt-confirmation: "{prefix}<gray>Введите 6-значный код из Discord:"
+  wrong-code: "{prefix}<red>Неверный код подтверждения."
+  unlinked: "{prefix}<yellow>Discord успешно отвязан."
+
+# ── GUI: общие ──────────────────────────────
+gui:
+  close-button: "<red>✖ Закрыть"
+  back-button: "<gray>← Вернуться"
+  confirm-button: "<green>✔ Подтвердить"
+  cancel-button: "<red>✖ Отмена"
+  filler-name: " "
+  unavailable: "<red>Недоступно"
+
+# ── GUI: выбор метода входа ──────────────────
+gui.auth-method:
+  title: "<gradient:#ff6eb4:#a855f7>Авторизация</gradient>"
+  password-button: "<green><bold>🔑 Войти по паролю</bold>"
+  password-lore:
+    - "<gray>Введите ваш пароль"
+    - "<gray>для входа на сервер"
+  discord-button: "<#7289da><bold>🎮 Войти через Discord</bold>"
+  discord-lore:
+    - "<gray>Привяжите аккаунт Discord"
+    - "<gray>для быстрого входа"
+  discord-disabled-lore:
+    - "<red>Discord-интеграция"
+    - "<red>отключена на сервере"
+
+# ── GUI: подменю пароля ──────────────────────
+gui.password:
+  title: "<gradient:#ff6eb4:#a855f7>Вход по паролю</gradient>"
+  enter-button: "<green><bold>🔑 Ввести пароль"
+  enter-lore:
+    - "<gray>Нажмите, чтобы"
+    - "<gray>ввести пароль"
+
+# ── GUI: подменю Discord ─────────────────────
+gui.discord:
+  title: "<gradient:#7289da:#a855f7>Discord</gradient>"
+  bind-button: "<#7289da><bold>🔗 Привязать Discord"
+  bind-lore:
+    - "<gray>Привяжите ваш"
+    - "<gray>Discord-аккаунт"
+  unlink-button: "<red><bold>🔗 Отвязать Discord"
+  unlink-lore:
+    - "<gray>Разорвать связь с"
+    - "<gray>Discord-аккаунтом"
+  toggle-password-on: "<yellow><bold>🔒 Включить пароль"
+  toggle-password-off: "<yellow><bold>🔓 Выключить пароль"
+  toggle-lore:
+    - "<gray>Включить или выключить"
+    - "<gray>вход по паролю"
+
+# ── GUI: регистрация ─────────────────────────
+gui.register:
+  title: "<gradient:#ff6eb4:#a855f7>Регистрация</gradient>"
+  register-button: "<green><bold>📝 Зарегистрироваться"
+  register-lore:
+    - "<gray>Создайте аккаунт"
+    - "<gray>для игры на сервере"
+
+# ── GUI: Premium при первом входе ────────────
+gui.premium-welcome:
+  title: "<gradient:#ffd700:#ff6eb4>Добро пожаловать!</gradient>"
+  add-password-button: "<green><bold>🔑 Добавить пароль"
+  add-password-lore:
+    - "<gray>Защитите аккаунт паролем"
+  bind-discord-button: "<#7289da><bold>🎮 Привязать Discord"
+  bind-discord-lore:
+    - "<gray>Привяжите Discord-аккаунт"
+  skip-button: "<gray><bold>→ Пропустить"
+  skip-lore:
+    - "<gray>Войти без настройки"
+
+# ── GUI: управление аккаунтом ────────────────
+gui.account:
+  title: "<gradient:#ff6eb4:#a855f7>Мой аккаунт</gradient>"
+  set-password: "<green><bold>🔑 Привязать пароль"
+  set-password-lore:
+    - "<gray>Установить пароль"
+    - "<gray>для защиты аккаунта"
+  change-password: "<yellow><bold>🔑 Сменить пароль"
+  change-password-lore:
+    - "<gray>Изменить текущий пароль"
+  delete-password: "<red><bold>✖ Удалить пароль"
+  delete-password-lore:
+    - "<gray>Удалить пароль (требуется"
+    - "<gray>привязанный Discord)"
+  session-info: "<aqua><bold>⏱ Управление сессией"
+  session-lore:
+    - "<gray>Текущая сессия: <white>{status}</white>"
+    - "<gray>Истекает: <white>{expires}</white>"
+    - "<gray>Нажмите для настройки"
+  session-unavailable: "<dark_gray><bold>⏱ Сессии недоступны"
+  session-unavailable-lore:
+    - "<gray>Установите пароль чтобы"
+    - "<gray>управлять сессиями"
+  input-method: "<light_purple><bold>⌨ Метод ввода пароля"
+  input-method-lore:
+    - "<gray>Текущий метод: <white>{method}</white>"
+    - "<gray>Нажмите для смены"
+  logout: "<red><bold>🚪 Выйти из аккаунта"
+  logout-lore:
+    - "<gray>Завершить текущую сессию"
+  session-active: "активна"
+  session-disabled: "отключена"
+  session-expired: "истекла"
+  input-chat: "чат"
+  input-anvil: "наковальня"
+  input-sign: "табличка"
+
+# ── GUI: очередь ────────────────────────────
+gui.queue:
+  title: "<gradient:#ff6eb4:#a855f7>Очередь</gradient>"
+  position-item: "<white><bold>📋 Позиция в очереди"
+  position-lore:
+    - "<gray>Ваша позиция: <white>{position}</white>"
+    - "<gray>Всего в очереди: <white>{total}</white>"
+    - "<gray>Ожидание: <white>~{time}</white>"
+  refresh-button: "<green>↻ Обновить"
+
+# ── GUI: подтверждение ───────────────────────
+gui.confirm:
+  title: "<red>Подтверждение действия"
+  description-item: "<white><bold>⚠ Вы уверены?"
+  change-password: "<white><bold>Изменить пароль?"
+  reset-session: "<white><bold>Сбросить сессию?"
+  logout: "<white><bold>Выйти из аккаунта?"
+  admin-panel: "<white><bold>Открыть админ-панель?"
+
+# ── GUI: Админ-панель ────────────────────────
+gui.admin:
+  title: "<gradient:#ff0000:#a855f7>Админ-панель</gradient>"
+  locked-accounts: "<red><bold>🔒 Заблокированные аккаунты"
+  locked-accounts-lore:
+    - "<gray>Количество: <white>{count}</white>"
+  unlock-player: "<green><bold>🔓 Разблокировать игрока"
+  unlock-player-lore:
+    - "<gray>Введите ник в чат"
+  stats: "<aqua><bold>📊 Статистика"
+  stats-lore:
+    - "<gray>Онлайн: <white>{online}</white>"
+    - "<gray>Зарегистрировано: <white>{registered}</white>"
+    - "<gray>Заблокировано: <white>{locked}</white>"
+  sessions: "<yellow><bold>⏱ Управление сессиями"
+  sessions-lore:
+    - "<gray>Активных сессий: <white>{sessions}</white>"
+  admin-password-prompt: "{prefix}<gray>Введите ваш admin-пароль для подтверждения:"
+  admin-password-set-prompt: "{prefix}<gray>Введите новый admin-пароль:"
+  admin-password-not-set: "{prefix}<red>Сначала установите admin-пароль: <white>/ladmin setadminpass</white>."
+  admin-password-invalid: "{prefix}<red>Неверный admin-пароль."
+  admin-password-set: "{prefix}<green>Admin-пароль сохранён."
+  unlock-prompt: "{prefix}<gray>Введите ник игрока для разблокировки:"
+  session-reset-prompt: "{prefix}<gray>Введите ник игрока для сброса сессии:"
+
+# ── Команды ──────────────────────────────────
+commands:
+  help-header: "<gradient:#ff6eb4:#a855f7>══ LoveAuth — Команды ══</gradient>"
+  help-entry: "<gray> <white>/loveauth {command}</white> — {description}"
+  help-help: "список команд"
+  help-register: "открыть регистрацию"
+  help-login: "открыть вход"
+  help-account: "управление аккаунтом"
+  help-password-change: "сменить пароль"
+  help-session-info: "информация о сессии"
+  help-session-reset: "сбросить сессию"
+  help-reload: "перезагрузить конфиг"
+  password-changed: "{prefix}<green>Пароль успешно изменён."
+  password-removed: "{prefix}<yellow>Пароль удалён. Теперь вход только через Discord."
+  session-reset: "{prefix}<yellow>Сессия сброшена."
+  session-info: "{prefix}<gray>Сессия истекает: <white>{expires}</white>."
+  session-none: "{prefix}<yellow>Активная сессия не найдена."
+  input-method-changed: "{prefix}<green>Метод ввода изменён: <white>{method}</white>."
+  admin-unlock: "{prefix}<green>Аккаунт <white>{player}</white> разблокирован."
+  admin-info-header: "{prefix}<white>Информация об игроке <yellow>{player}</yellow>:"
+  admin-info-uuid: "  <gray>UUID: <white>{uuid}"
+  admin-info-registered: "  <gray>Зарегистрирован: <white>{date}"
+  admin-info-locked: "  <gray>Статус: <white>{status}"
+  admin-info-ip: "  <gray>Последний IP: <white>{ip}"
+  admin-info-password: "  <gray>Пароль: <white>{status}"
+  admin-kick-reason: "{prefix}<red>Вы были отключены администратором."
+
+# ── Логи (в консоль, не для игроков) ─────────
+log:
+  plugin-enable: "[LoveAuth] Плагин успешно запущен. Версия: {version}"
+  plugin-disable: "[LoveAuth] Плагин остановлен."
+  db-connected: "[LoveAuth] Подключение к базе данных установлено."
+  key-generated: "[LoveAuth] Сгенерирован новый master-key и pepper — сохранены в config.yml."
+  config-warn-bcrypt: "[LoveAuth] ВНИМАНИЕ: bcrypt-strength меньше 10 — небезопасно!"
+  config-warn-session: "[LoveAuth] ВНИМАНИЕ: duration-days вне диапазона 1–28, использовано значение 7."
+  account-locked: "[LoveAuth] Аккаунт заблокирован: {player} (причина: {reason})"
+  ip-blocked: "[LoveAuth] IP заблокирован: {ip} на {minutes} минут."
+  auth-success: "[LoveAuth] Успешный вход: {player} ({ip})"
+  register-success: "[LoveAuth] Регистрация: {player} ({ip})"
+  error: "[LoveAuth] Ошибка: {message}"
+  listener-error: "[LoveAuth] Ошибка обработчика события: {message}"
+  database-error: "[LoveAuth] Ошибка базы данных: {message}"
+  discord-disabled: "[LoveAuth] Discord-интеграция отключена."
+  limbo-created: "[LoveAuth] Limbo-мир готов: {world}"
+  placeholder-registered: "[LoveAuth] PlaceholderAPI expansion зарегистрирован."

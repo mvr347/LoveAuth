@@ -1,0 +1,30 @@
+﻿name: LoveAuth
+version: '${version}'
+main: me.lovelace.loveAuth.LoveAuth
+api-version: '1.21'
+authors: [ Lovelace ]
+depend: []
+softdepend: [ PlaceholderAPI ]
+commands:
+  loveauth:
+    aliases: [ auth ]
+    description: Главная команда LoveAuth
+    usage: /loveauth <подкоманда>
+  ladmin:
+    description: Панель администратора LoveAuth
+    usage: /ladmin <подкоманда>
+permissions:
+  loveauth.admin:
+    description: Полный доступ к административным командам LoveAuth
+    default: op
+    children:
+      loveauth.reload: true
+  loveauth.reload:
+    description: Перезагрузка конфигурации LoveAuth (/loveauth reload)
+    default: op
+  loveauth.queue.bypass:
+    description: Пропуск очереди
+    default: false
+  loveauth.queue.priority.<число>:
+    description: Приоритет в очереди (меньше = выше)
+    default: false
