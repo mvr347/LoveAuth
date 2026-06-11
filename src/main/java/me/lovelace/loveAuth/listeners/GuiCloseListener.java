@@ -32,7 +32,8 @@ public final class GuiCloseListener implements Listener {
             return;
         }
 
-        if (Bukkit.getOnlineMode()) { // Premium check
+        // ✅ ИСПРАВИТЬ — проверять UUID версию игрока (как в AuthManager.isPremium)
+        if (player.getUniqueId().version() == 4) {
              plugin.getAuthManager().markAuthenticated(player, true);
              return;
         }

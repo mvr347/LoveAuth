@@ -1,4 +1,4 @@
-﻿package me.lovelace.loveAuth.limbo;
+package me.lovelace.loveAuth.limbo;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;

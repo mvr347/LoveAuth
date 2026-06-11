@@ -5,6 +5,8 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerQuitEvent;
 
+import java.util.UUID;
+
 public final class PlayerQuitListener implements Listener {
     private final LoveAuth plugin;
 
@@ -14,9 +16,10 @@ public final class PlayerQuitListener implements Listener {
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        plugin.getAuthManager().cleanup(event.getPlayer().getUniqueId());
-        plugin.getQueueManager().removeFromQueue(event.getPlayer().getUniqueId());
-        plugin.getChatInputHandler().cleanup(event.getPlayer().getUniqueId());
-        plugin.getAnvilInputHandler().cleanup(event.getPlayer().getUniqueId());
+        UUID uuid = event.getPlayer().getUniqueId();
+        plugin.getAuthManager().cleanup(uuid);
+        plugin.getQueueManager().removeFromQueue(uuid);
+        plugin.getChatInputHandler().cleanup(uuid);
+        plugin.getSignInputHandler().cleanup(uuid);
     }
 }

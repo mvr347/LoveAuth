@@ -80,6 +80,17 @@
             <version>2.11.6</version>
             <scope>provided</scope>
         </dependency>
+        <dependency>
+            <groupId>net.dv8tion</groupId>
+            <artifactId>JDA</artifactId>
+            <version>5.2.1</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>club.minnced</groupId>
+                    <artifactId>opus-java</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
     </dependencies>
 
     <build>
@@ -125,6 +136,10 @@
                             <pattern>de.mkammerer.argon2</pattern>
                             <shadedPattern>me.lovelace.loveAuth.libs.argon2</shadedPattern>
                         </relocation>
+                        <relocation>
+                            <pattern>net.dv8tion.jda</pattern>
+                            <shadedPattern>me.lovelace.loveAuth.libs.jda</shadedPattern>
+                        </relocation>
                     </relocations>
                     <filters>
                         <filter>
@@ -149,3 +164,4 @@
         </plugins>
     </build>
 </project>
+

@@ -6,12 +6,11 @@ import me.lovelace.loveAuth.LoveAuth;
 import me.lovelace.loveAuth.auth.AuthManager;
 import me.lovelace.loveAuth.config.ConfigManager;
 import me.lovelace.loveAuth.discord.DiscordAuthManager;
-import me.lovelace.loveAuth.input.AnvilInputHandler;
 import me.lovelace.loveAuth.input.ChatInputHandler;
 import me.lovelace.loveAuth.input.InputMethod;
+import me.lovelace.loveAuth.input.SignInputHandler;
 import me.lovelace.loveAuth.lang.LangManager;
 import me.lovelace.loveAuth.queue.QueueManager;
-import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
@@ -30,11 +29,10 @@ public final class GuiManager {
     private final QueueManager queue;
     private final DiscordAuthManager discord;
     private final ChatInputHandler chatInput;
-    private final AnvilInputHandler anvilInput;
+    private final SignInputHandler signInput;
     
-    // Cooldown with multi-click protection
     private final Cache<UUID, Long> cooldowns = Caffeine.newBuilder()
-            .expireAfterWrite(Duration.ofMillis(800)) // Increased cooldown
+            .expireAfterWrite(Duration.ofMillis(800))
             .build();
 
     public GuiManager(
@@ -45,7 +43,7 @@ public final class GuiManager {
             QueueManager queue,
             DiscordAuthManager discord,
             ChatInputHandler chatInput,
-            AnvilInputHandler anvilInput
+            SignInputHandler signInput
     ) {
         this.plugin = plugin;
         this.lang = lang;
@@ -54,7 +52,7 @@ public final class GuiManager {
         this.queue = queue;
         this.discord = discord;
         this.chatInput = chatInput;
-        this.anvilInput = anvilInput;
+        this.signInput = signInput;
     }
 
     public void openAuthMethod(Player player) { if (!checkCooldown(player)) new AuthMethodGui(player, lang, config, auth, discord).open(); }
@@ -72,8 +70,13 @@ public final class GuiManager {
 
     public void awaitInput(Player player, InputMethod method, String promptKey, Consumer<String> callback) {
         player.closeInventory();
-        if (method == InputMethod.ANVIL) anvilInput.awaitInput(player, promptKey, callback);
-        else chatInput.awaitInput(player, promptKey, callback);
+        if (method == InputMethod.SIGN) {
+            signInput.awaitInput(player, new String[]{lang.plain(promptKey), "^^^^^^^^^^^^^^^", "---------------", "               "}, lines -> {
+                if (lines[0] != null && !lines[0].isBlank()) callback.accept(lines[0]);
+            });
+        } else {
+            chatInput.awaitInput(player, promptKey, callback);
+        }
     }
 
     public boolean checkCooldown(Player player) {

@@ -1,4 +1,4 @@
-﻿package me.lovelace.loveAuth.gui;
+package me.lovelace.loveAuth.gui;
 
 import me.lovelace.loveAuth.auth.AuthManager;
 import me.lovelace.loveAuth.database.DatabaseManager;

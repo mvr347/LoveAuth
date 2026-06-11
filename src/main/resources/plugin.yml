@@ -1,4 +1,4 @@
-﻿name: LoveAuth
+name: LoveAuth
 version: '${version}'
 main: me.lovelace.loveAuth.LoveAuth
 api-version: '1.21'

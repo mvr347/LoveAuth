@@ -1,8 +1,9 @@
-﻿package me.lovelace.loveAuth.listeners;
+package me.lovelace.loveAuth.listeners;
 
 import me.lovelace.loveAuth.LoveAuth;
 import me.lovelace.loveAuth.auth.AuthManager;
 import me.lovelace.loveAuth.gui.AccountGui;
+import me.lovelace.loveAuth.gui.AdminGui;
 import me.lovelace.loveAuth.gui.ConfirmGui;
 import me.lovelace.loveAuth.gui.SessionGui;
 import me.lovelace.loveAuth.lang.LangManager;
@@ -56,6 +57,8 @@ public final class GuiClickListener implements Listener {
                 });
             } else if (slot == 22) {
                 new SessionGui(player, plugin.getLangManager(), auth).open();
+            } else if (slot == 23) {
+                auth.switchInputMethod(player).thenRun(() -> Bukkit.getScheduler().runTask(plugin, accountGui::refresh));
             } else if (slot == 24) {
                 plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
                     if (record.map(r -> r.hasDiscord()).orElse(false)) {
@@ -76,6 +79,63 @@ public final class GuiClickListener implements Listener {
                 plugin.getGuiManager().openConfirm(player, "gui.confirm.logout", 
                     () -> auth.forceLogout(player.getUniqueId()).thenRun(() -> Bukkit.getScheduler().runTask(plugin, () -> player.kick(plugin.getLangManager().component("commands.session-reset")))), 
                     () -> accountGui.open());
+            }
+            return;
+        }
+
+        if (holder instanceof AdminGui) {
+            event.setCancelled(true);
+            if (!player.hasPermission("loveauth.admin")) return;
+            int slot = event.getRawSlot();
+
+            switch (slot) {
+                case 20 -> { // Заблокированные аккаунты
+                    plugin.getDatabaseManager().getLockedUsernames().thenAccept(list -> {
+                        Bukkit.getScheduler().runTask(plugin, () -> {
+                            if (list.isEmpty()) {
+                                plugin.getLangManager().send(player, "gui.admin.no-locked");
+                            } else {
+                                plugin.getLangManager().send(player, "gui.admin.locked-list-header");
+                                list.forEach(name -> player.sendMessage(
+                                    plugin.getLangManager().component("gui.admin.locked-list-entry",
+                                        Map.of("player", name))));
+                            }
+                        });
+                    });
+                }
+                case 22 -> { // Разблокировать игрока
+                    player.closeInventory();
+                    plugin.getLangManager().send(player, "gui.admin.unlock-prompt");
+                    plugin.getChatInputHandler().awaitInput(player, "gui.admin.unlock-prompt", name ->
+                        plugin.getDatabaseManager().findPlayerByName(name).thenAccept(record -> {
+                            if (record.isEmpty()) {
+                                plugin.getLangManager().send(player, "general.player-not-found", Map.of("player", name));
+                            } else {
+                                plugin.getBruteForceProtection().unlockAccount(record.get().uuid())
+                                    .thenRun(() -> plugin.getLangManager().send(player,
+                                        "commands.admin-unlock", Map.of("player", name)));
+                            }
+                        })
+                    );
+                }
+                case 24 -> { // Статистика — обновить GUI
+                    plugin.getGuiManager().openAdmin(player);
+                }
+                case 31 -> { // Управление сессиями — сброс сессии по нику
+                    player.closeInventory();
+                    plugin.getLangManager().send(player, "gui.admin.session-reset-prompt");
+                    plugin.getChatInputHandler().awaitInput(player, "gui.admin.session-reset-prompt", name ->
+                        plugin.getDatabaseManager().findPlayerByName(name).thenAccept(record -> {
+                            if (record.isEmpty()) {
+                                plugin.getLangManager().send(player, "general.player-not-found", Map.of("player", name));
+                            } else {
+                                plugin.getSessionManager().invalidate(record.get().uuid())
+                                    .thenRun(() -> plugin.getLangManager().send(player,
+                                        "commands.session-reset-for", Map.of("player", name)));
+                            }
+                        })
+                    );
+                }
             }
             return;
         }

@@ -9,7 +9,6 @@ import me.lovelace.loveAuth.config.ConfigManager;
 import me.lovelace.loveAuth.database.DatabaseManager;
 import me.lovelace.loveAuth.discord.DiscordAuthManager;
 import me.lovelace.loveAuth.gui.GuiManager;
-import me.lovelace.loveAuth.input.AnvilInputHandler;
 import me.lovelace.loveAuth.input.ChatInputHandler;
 import me.lovelace.loveAuth.input.SignInputHandler;
 import me.lovelace.loveAuth.lang.LangManager;
@@ -47,7 +46,6 @@ public final class LoveAuth extends JavaPlugin {
     private GuiManager guiManager;
     private DiscordAuthManager discordAuthManager;
     private ChatInputHandler chatInputHandler;
-    private AnvilInputHandler anvilInputHandler;
     private SignInputHandler signInputHandler;
 
     public static LoveAuth getInstance() { return instance; }
@@ -81,10 +79,10 @@ public final class LoveAuth extends JavaPlugin {
         queueManager.start();
         authManager = new AuthManager(this, configManager, langManager, databaseManager, sessionManager, bruteForceProtection, limboManager, logManager, masterKey, pepper);
         discordAuthManager = new DiscordAuthManager(this, configManager, langManager, databaseManager, authManager);
+        discordAuthManager.initialize();
         chatInputHandler = new ChatInputHandler(this, langManager);
-        anvilInputHandler = new AnvilInputHandler(this, langManager);
         signInputHandler = new SignInputHandler(this);
-        guiManager = new GuiManager(this, langManager, configManager, authManager, queueManager, discordAuthManager, chatInputHandler, anvilInputHandler);
+        guiManager = new GuiManager(this, langManager, configManager, authManager, queueManager, discordAuthManager, chatInputHandler, signInputHandler);
 
         registerListeners();
         registerCommands();
@@ -97,6 +95,7 @@ public final class LoveAuth extends JavaPlugin {
     public void onDisable() {
         if (sessionManager != null) sessionManager.saveActiveSessions();
         if (queueManager != null) queueManager.stop();
+        if (discordAuthManager != null) discordAuthManager.shutdown();
         if (databaseManager != null) databaseManager.close();
         instance = null;
     }
@@ -110,7 +109,6 @@ public final class LoveAuth extends JavaPlugin {
         pm.registerEvents(new GuiClickListener(this), this);
         pm.registerEvents(new GuiCloseListener(this), this);
         pm.registerEvents(chatInputHandler, this);
-        pm.registerEvents(anvilInputHandler, this);
         pm.registerEvents(signInputHandler, this);
     }
 
@@ -136,6 +134,5 @@ public final class LoveAuth extends JavaPlugin {
     public GuiManager getGuiManager() { return guiManager; }
     public DiscordAuthManager getDiscordAuthManager() { return discordAuthManager; }
     public ChatInputHandler getChatInputHandler() { return chatInputHandler; }
-    public AnvilInputHandler getAnvilInputHandler() { return anvilInputHandler; }
     public SignInputHandler getSignInputHandler() { return signInputHandler; }
 }

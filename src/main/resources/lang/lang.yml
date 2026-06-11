@@ -1,4 +1,4 @@
-﻿# Префикс — используется в каждом сообщении через {prefix}
+# Префикс — используется в каждом сообщении через {prefix}
 prefix: "<gradient:#ff6eb4:#a855f7><bold>LoveAuth</bold></gradient><dark_gray> » </dark_gray>"
 
 # ── Общие ───────────────────────────────────
@@ -31,7 +31,6 @@ auth:
 # ── Вход по паролю ──────────────────────────
 login:
   prompt-chat: "{prefix}<gray>Введите ваш пароль в чат:"
-  prompt-anvil: "{prefix}<gray>Введите пароль в поле наковальни."
   success: "{prefix}<green>Вы успешно вошли!"
   fail: "{prefix}<red>Неверный пароль. Осталось попыток: <white>{attempts}</white>."
   fail-last: "{prefix}<dark_red>Неверный пароль. Это была последняя попытка!"
@@ -72,7 +71,7 @@ kick:
 # ── Discord ──────────────────────────────────
 discord:
   not-enabled: "{prefix}<red>Discord-интеграция отключена на этом сервере."
-  bind-instructions: "{prefix}<gray>Введите команду <white>/link {code}</white> в Discord-боте."
+  bind-instructions: "{prefix}<gray>Введите в личные сообщения боту: <click:copy_to_clipboard:'/link {code}'><white><underlined>/link {code}</underlined></click> <gray>(нажмите чтобы скопировать)"
   bind-success: "{prefix}<green>Discord-аккаунт успешно привязан!"
   bind-fail: "{prefix}<red>Неверный или устаревший код. Попробуйте снова."
   already-bound: "{prefix}<yellow>Discord уже привязан к вашему аккаунту."
@@ -81,6 +80,28 @@ discord:
   prompt-confirmation: "{prefix}<gray>Введите 6-значный код из Discord:"
   wrong-code: "{prefix}<red>Неверный код подтверждения."
   unlinked: "{prefix}<yellow>Discord успешно отвязан."
+  not-bound: "{prefix}<red>У вас не привязан Discord-аккаунт."
+  link-invalid-code: "❌ Неверный или устаревший код. Попробуйте снова через /loveauth account"
+  link-success-dm: "✅ Аккаунт Minecraft успешно привязан!"
+  login-embed-title: "🔐 Запрос на вход"
+  login-embed-desc: "Игрок **{player}** пытается войти на сервер.\nЭто вы?"
+  login-btn-confirm: "Подтвердить вход"
+  login-btn-deny: "Отклонить"
+  login-dm-sent: "{prefix}<gray>Запрос на вход отправлен в Discord. Подтвердите там."
+  login-timeout: "<gradient:#ff6eb4:#a855f7>LoveAuth</gradient> <dark_gray>»</dark_gray> <red>Время ожидания входа через Discord истекло."
+  login-approved: "{prefix}<green>Вход через Discord подтверждён!"
+  login-denied-kick: "<gradient:#ff6eb4:#a855f7>LoveAuth</gradient> <dark_gray>»</dark_gray> <red>Вход отклонён через Discord."
+  login-confirmed-dm: "✅ Вход подтверждён. Добро пожаловать на сервер!"
+  login-denied-dm: "❌ Вход отклонён."
+  login-expired: "⏰ Запрос устарел."
+  confirmation-code-msg: "🔐 Код подтверждения для действия **{action}**:\n`{code}`\n\nВведите этот код в чат Minecraft."
+  action-unlink: "отвязки Discord"
+  action-remove_password: "удаления пароля"
+  action-lock_account: "блокировки аккаунта"
+  account-locked-self: "{prefix}<yellow>Ваш аккаунт заблокирован по вашему запросу."
+  help-header: "📋 **Команды LoveAuth бота:**"
+  help-link: "`/link КОД` — привязать аккаунт Minecraft"
+  help-help: "`/help` — показать это сообщение"
 
 # ── GUI: общие ──────────────────────────────
 gui:
@@ -168,7 +189,8 @@ gui.account:
     - "<gray>привязанный Discord)"
   delete-password-locked: "<dark_gray><bold>✖ Удалить пароль"
   delete-password-locked-lore:
-    - "<red>Требуется привязанный Discord"
+    - "<red>Сначала привяжите Discord"
+    - "<red>чтобы удалить пароль"
   lock-account: "<dark_red><bold>🔒 Заблокировать аккаунт"
   lock-account-lore:
     - "<gray>Заблокировать аккаунт вручную"
@@ -194,7 +216,6 @@ gui.account:
   session-disabled: "отключена"
   session-expired: "истекла"
   input-chat: "чат"
-  input-anvil: "наковальня"
   input-sign: "табличка"
 
 # ── GUI: очередь ────────────────────────────
@@ -241,6 +262,9 @@ gui.admin:
   admin-password-set: "{prefix}<green>Admin-пароль сохранён."
   unlock-prompt: "{prefix}<gray>Введите ник игрока для разблокировки:"
   session-reset-prompt: "{prefix}<gray>Введите ник игрока для сброса сессии:"
+  no-locked: "{prefix}<green>Заблокированных аккаунтов нет."
+  locked-list-header: "{prefix}<red>Заблокированные аккаунты:"
+  locked-list-entry: "  <gray>- <white>{player}"
 
 # ── Команды ──────────────────────────────────
 commands:
@@ -269,6 +293,7 @@ commands:
   admin-info-ip: "  <gray>Последний IP: <white>{ip}"
   admin-info-password: "  <gray>Пароль: <white>{status}"
   admin-kick-reason: "{prefix}<red>Вы были отключены администратором."
+  session-reset-for: "{prefix}<green>Сессия игрока <white>{player}</white> сброшена."
 
 # ── Логи (в консоль, не для игроков) ─────────
 log:
@@ -285,6 +310,10 @@ log:
   error: "[LoveAuth] Ошибка: {message}"
   listener-error: "[LoveAuth] Ошибка обработчика события: {message}"
   database-error: "[LoveAuth] Ошибка базы данных: {message}"
-  discord-disabled: "[LoveAuth] Discord-интеграция отключена."
+  discord-disabled: "[LoveAuth] Discord-интеграция отключена (discord.enabled=false)."
+  discord-no-token: "[LoveAuth] ПРЕДУПРЕЖДЕНИЕ: Discord включён, но bot-token не указан!"
+  discord-ready: "[LoveAuth] Discord-бот запущен: {tag}"
+  discord-start-error: "[LoveAuth] Ошибка запуска Discord-бота: {message}"
+  discord-dm-error: "[LoveAuth] Ошибка отправки DM в Discord: {message}"
   limbo-created: "[LoveAuth] Limbo-мир готов: {world}"
   placeholder-registered: "[LoveAuth] PlaceholderAPI expansion зарегистрирован."

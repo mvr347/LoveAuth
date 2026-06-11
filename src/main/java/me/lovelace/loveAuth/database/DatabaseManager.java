@@ -1,4 +1,4 @@
-﻿package me.lovelace.loveAuth.database;
+package me.lovelace.loveAuth.database;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
@@ -107,7 +107,6 @@ public final class DatabaseManager {
                     ip_hash TEXT
                 );
                 """);
-        // Update check for old tables
         try { statement.execute("ALTER TABLE players ADD COLUMN session_duration INTEGER DEFAULT 7;"); } catch (SQLException ignored) {}
     }
 
@@ -220,6 +219,18 @@ public final class DatabaseManager {
                  PreparedStatement statement = connection.prepareStatement("UPDATE players SET password_hash = ?, password_enabled = 1 WHERE uuid = ?")) {
                 statement.setString(1, passwordHash);
                 statement.setString(2, uuid.toString());
+                statement.executeUpdate();
+            }
+            return null;
+        });
+    }
+
+    public CompletableFuture<Void> setAdminPassword(UUID uuid, String passwordHash) {
+        return supplyAsync(() -> {
+            try (Connection connection = getConnection();
+                 PreparedStatement statement = connection.prepareStatement("INSERT INTO admin_passwords (uuid, password_hash) VALUES (?, ?) ON CONFLICT(uuid) DO UPDATE SET password_hash = excluded.password_hash")) {
+                statement.setString(1, uuid.toString());
+                statement.setString(2, passwordHash);
                 statement.executeUpdate();
             }
             return null;
@@ -408,13 +419,23 @@ public final class DatabaseManager {
             try (Connection connection = getConnection()) {
                 int registered = count(connection, "SELECT COUNT(*) FROM players");
                 int sessions = count(connection, "SELECT COUNT(*) FROM sessions WHERE expires_at > " + Instant.now().getEpochSecond());
-                return new StatsRecord(registered, 0, sessions);
+                int locked = count(connection, "SELECT COUNT(*) FROM players WHERE is_locked = 1");
+                return new StatsRecord(registered, locked, sessions);
             }
         });
     }
 
     public CompletableFuture<List<String>> getLockedUsernames() {
-        return CompletableFuture.completedFuture(new ArrayList<>());
+        return supplyAsync(() -> {
+            List<String> list = new ArrayList<>();
+            try (Connection connection = getConnection();
+                 PreparedStatement statement = connection.prepareStatement("SELECT username FROM players WHERE is_locked = 1")) {
+                try (ResultSet resultSet = statement.executeQuery()) {
+                    while (resultSet.next()) list.add(resultSet.getString("username"));
+                }
+            }
+            return list;
+        });
     }
 
     public CompletableFuture<Void> saveKnownSession(SessionRecord sessionRecord) {

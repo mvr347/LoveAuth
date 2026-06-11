@@ -1,4 +1,4 @@
-﻿package me.lovelace.loveAuth.config;
+package me.lovelace.loveAuth.config;
 
 import me.lovelace.loveAuth.LoveAuth;
 import me.lovelace.loveAuth.input.InputMethod;

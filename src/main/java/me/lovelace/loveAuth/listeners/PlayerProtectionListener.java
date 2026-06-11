@@ -47,8 +47,14 @@ public final class PlayerProtectionListener implements Listener {
         Player player = event.getPlayer();
         if (plugin.getAuthManager().isAuthenticated(player.getUniqueId())) return;
         
+        Location to = event.getTo();
+        if (to == null || to.getWorld() == null) {
+            event.setCancelled(true);
+            return;
+        }
+
         // Allow teleports to Limbo world
-        if (event.getTo().getWorld().getName().equals(plugin.getConfigManager().getLimboWorldName())) return;
+        if (to.getWorld().getName().equals(plugin.getConfigManager().getLimboWorldName())) return;
         
         event.setCancelled(true);
     }

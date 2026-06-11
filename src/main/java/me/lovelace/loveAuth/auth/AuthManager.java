@@ -1,4 +1,4 @@
-﻿package me.lovelace.loveAuth.auth;
+package me.lovelace.loveAuth.auth;
 
 import me.lovelace.loveAuth.LoveAuth;
 import me.lovelace.loveAuth.config.ConfigManager;
@@ -74,7 +74,20 @@ public final class AuthManager {
             }
             limboManager.sendToLimbo(player);
             startTimeout(player);
-            plugin.getGuiManager().openAuthMethod(player);
+
+            boolean hasPassword = record.hasPassword() && record.passwordEnabled();
+            boolean hasDiscord = record.hasDiscord();
+
+            if (!hasPassword && hasDiscord) {
+                plugin.getDiscordAuthManager().requestDiscordLogin(player)
+                    .thenAccept(sent -> Bukkit.getScheduler().runTask(plugin, () -> {
+                        if (!sent) {
+                            plugin.getGuiManager().openAuthMethod(player);
+                        }
+                    }));
+            } else {
+                plugin.getGuiManager().openAuthMethod(player);
+            }
         }));
     }
 
@@ -226,7 +239,7 @@ public final class AuthManager {
 
     public void requestPasswordChange(Player player) {
         resolveInputMethod(player).thenAccept(m -> Bukkit.getScheduler().runTask(plugin, () -> {
-            lang.send(player, "register.prompt-password"); // Added explicit prompt
+            lang.send(player, "register.prompt-password");
             plugin.getGuiManager().awaitInput(player, m, "register.prompt-password", p -> {
                 updatePassword(player, p).thenRun(() -> {
                     if (player.isOnline()) plugin.getGuiManager().openAccount(player);
