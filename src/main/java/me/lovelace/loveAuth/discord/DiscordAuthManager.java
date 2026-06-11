@@ -1,10 +1,11 @@
-package me.lovelace.loveAuth.discord;
+﻿package me.lovelace.loveAuth.discord;
 
 import me.lovelace.loveAuth.LoveAuth;
 import me.lovelace.loveAuth.auth.AuthManager;
 import me.lovelace.loveAuth.config.ConfigManager;
 import me.lovelace.loveAuth.database.DatabaseManager;
 import me.lovelace.loveAuth.lang.LangManager;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
 import java.util.Map;
@@ -68,6 +69,10 @@ public final class DiscordAuthManager {
         switch (action) {
             case "UNLINK" -> database.setDiscordId(player.getUniqueId(), null).thenRun(() -> lang.send(player, "discord.unlinked"));
             case "REMOVE_PASSWORD" -> database.setPasswordEnabled(player.getUniqueId(), false).thenRun(() -> lang.send(player, "commands.password-removed"));
+            case "LOCK_ACCOUNT" -> database.setLocked(player.getUniqueId(), true).thenRun(() -> {
+                lang.send(player, "commands.account-locked");
+                Bukkit.getScheduler().runTask(plugin, () -> player.kick(lang.component("block.account-locked")));
+            });
         }
     }
 
@@ -82,6 +87,16 @@ public final class DiscordAuthManager {
                 }
             });
         }
+    }
+
+    public void handleBotUnlockCommand(String discordId) {
+        database.findPlayerByDiscordId(discordId).thenAccept(record -> {
+            if (record.isPresent()) {
+                database.setLocked(record.get().uuid(), false).thenRun(() -> {
+                    plugin.getLogger().info("[Discord] Account " + record.get().username() + " unlocked via Discord by " + discordId);
+                });
+            }
+        });
     }
 
     private String generateCode(int length) {

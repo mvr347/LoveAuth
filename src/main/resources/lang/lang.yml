@@ -166,6 +166,14 @@ gui.account:
   delete-password-lore:
     - "<gray>Удалить пароль (требуется"
     - "<gray>привязанный Discord)"
+  delete-password-locked: "<dark_gray><bold>✖ Удалить пароль"
+  delete-password-locked-lore:
+    - "<red>Требуется привязанный Discord"
+  lock-account: "<dark_red><bold>🔒 Заблокировать аккаунт"
+  lock-account-lore:
+    - "<gray>Заблокировать аккаунт вручную"
+    - "<gray>для защиты от взлома"
+    - "<gray>(Требуется Discord)"
   session-info: "<aqua><bold>⏱ Управление сессией"
   session-lore:
     - "<gray>Текущая сессия: <white>{status}</white>"
@@ -205,6 +213,7 @@ gui.confirm:
   description-item: "<white><bold>⚠ Вы уверены?"
   change-password: "<white><bold>Изменить пароль?"
   reset-session: "<white><bold>Сбросить сессию?"
+  lock-account: "<white><bold>Заблокировать аккаунт?"
   logout: "<white><bold>Выйти из аккаунта?"
   admin-panel: "<white><bold>Открыть админ-панель?"
 
@@ -247,6 +256,7 @@ commands:
   help-reload: "перезагрузить конфиг"
   password-changed: "{prefix}<green>Пароль успешно изменён."
   password-removed: "{prefix}<yellow>Пароль удалён. Теперь вход только через Discord."
+  account-locked: "{prefix}<red>Ваш аккаунт был заблокирован вручную."
   session-reset: "{prefix}<yellow>Сессия сброшена."
   session-info: "{prefix}<gray>Сессия истекает: <white>{expires}</white>."
   session-none: "{prefix}<yellow>Активная сессия не найдена."

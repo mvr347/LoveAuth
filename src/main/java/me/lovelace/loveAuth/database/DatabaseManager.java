@@ -1,4 +1,4 @@
-package me.lovelace.loveAuth.database;
+﻿package me.lovelace.loveAuth.database;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
@@ -129,6 +129,20 @@ public final class DatabaseManager {
             try (Connection connection = getConnection();
                  PreparedStatement statement = connection.prepareStatement("SELECT * FROM players WHERE lower(username) = lower(?)")) {
                 statement.setString(1, username);
+                try (ResultSet resultSet = statement.executeQuery()) {
+                    if (!resultSet.next()) return Optional.empty();
+                    return Optional.of(readPlayer(resultSet));
+                }
+            }
+        });
+    }
+
+    public CompletableFuture<Optional<PlayerRecord>> findPlayerByDiscordId(String discordId) {
+        String encrypted = SecurityUtils.encrypt(discordId, masterKey);
+        return supplyAsync(() -> {
+            try (Connection connection = getConnection();
+                 PreparedStatement statement = connection.prepareStatement("SELECT * FROM players WHERE discord_id = ?")) {
+                statement.setString(1, encrypted);
                 try (ResultSet resultSet = statement.executeQuery()) {
                     if (!resultSet.next()) return Optional.empty();
                     return Optional.of(readPlayer(resultSet));
