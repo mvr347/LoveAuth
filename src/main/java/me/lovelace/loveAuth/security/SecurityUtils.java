@@ -25,12 +25,12 @@ public final class SecurityUtils {
 
     private SecurityUtils() {}
 
-    public static String hashPassword(String password) {
-        return ARGON2.hash(10, 65536, 1, password.toCharArray());
+    public static String hashPassword(String password, String pepper) {
+        return ARGON2.hash(10, 65536, 1, (password + (pepper != null ? pepper : "")).toCharArray());
     }
 
-    public static boolean verifyPassword(String raw, String hash) {
-        return ARGON2.verify(hash, raw.toCharArray());
+    public static boolean verifyPassword(String raw, String hash, String pepper) {
+        return ARGON2.verify(hash, (raw + (pepper != null ? pepper : "")).toCharArray());
     }
 
     public static String encrypt(String plaintext, SecretKey key) {

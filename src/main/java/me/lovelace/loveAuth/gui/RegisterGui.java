@@ -33,7 +33,18 @@ public final class RegisterGui implements LoveAuthHolder {
             registerMeta.lore(lang.lore("gui.register.register-lore"));
             register.setItemMeta(registerMeta);
         }
-        inventory.setItem(13, register);
+        inventory.setItem(11, register);
+        
+        if (auth.getPlugin().getConfigManager().isDiscordEnabled()) {
+            ItemStack discord = new ItemStack(Material.BLUE_STAINED_GLASS);
+            ItemMeta discordMeta = discord.getItemMeta();
+            if (discordMeta != null) {
+                discordMeta.displayName(lang.component("gui.discord.bind-button"));
+                discordMeta.lore(lang.lore("gui.discord.bind-lore"));
+                discord.setItemMeta(discordMeta);
+            }
+            inventory.setItem(15, discord);
+        }
 
         player.openInventory(inventory);
     }

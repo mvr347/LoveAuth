@@ -7,10 +7,11 @@ depend: []
 softdepend: [ PlaceholderAPI ]
 commands:
   loveauth:
-    aliases: [ auth ]
+    aliases: [ auth, авторизация, регистрация, вход ]
     description: Главная команда LoveAuth
     usage: /loveauth <подкоманда>
   ladmin:
+    aliases: [ ладмин, админ ]
     description: Панель администратора LoveAuth
     usage: /ladmin <подкоманда>
 permissions:

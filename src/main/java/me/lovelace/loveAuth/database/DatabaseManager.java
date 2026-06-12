@@ -74,7 +74,8 @@ public final class DatabaseManager {
                     input_method TEXT NOT NULL DEFAULT 'SIGN',
                     session_duration INTEGER DEFAULT 7,
                     registered_at INTEGER NOT NULL,
-                    last_login INTEGER
+                    last_login INTEGER,
+                    last_ip TEXT
                 );
                 """);
         statement.execute("""
@@ -88,7 +89,8 @@ public final class DatabaseManager {
                 CREATE TABLE IF NOT EXISTS ip_blocks (
                     ip_hash TEXT PRIMARY KEY,
                     blocked_until INTEGER NOT NULL,
-                    attempt_count INTEGER NOT NULL DEFAULT 0
+                    attempt_count INTEGER NOT NULL DEFAULT 0,
+                    raw_ip TEXT
                 );
                 """);
         statement.execute("""
@@ -108,6 +110,8 @@ public final class DatabaseManager {
                 );
                 """);
         try { statement.execute("ALTER TABLE players ADD COLUMN session_duration INTEGER DEFAULT 7;"); } catch (SQLException ignored) {}
+        try { statement.execute("ALTER TABLE players ADD COLUMN last_ip TEXT;"); } catch (SQLException ignored) {}
+        try { statement.execute("ALTER TABLE ip_blocks ADD COLUMN raw_ip TEXT;"); } catch (SQLException ignored) {}
     }
 
     public CompletableFuture<Optional<PlayerRecord>> findPlayer(UUID uuid) {
@@ -237,6 +241,19 @@ public final class DatabaseManager {
         });
     }
 
+    public CompletableFuture<Optional<String>> getAdminPassword(UUID uuid) {
+        return supplyAsync(() -> {
+            try (Connection connection = getConnection();
+                 PreparedStatement statement = connection.prepareStatement("SELECT password_hash FROM admin_passwords WHERE uuid = ?")) {
+                statement.setString(1, uuid.toString());
+                try (ResultSet resultSet = statement.executeQuery()) {
+                    if (resultSet.next()) return Optional.of(resultSet.getString("password_hash"));
+                }
+            }
+            return Optional.empty();
+        });
+    }
+
     public CompletableFuture<Void> setSessionDuration(UUID uuid, int days) {
         return supplyAsync(() -> {
             try (Connection connection = getConnection();
@@ -249,13 +266,14 @@ public final class DatabaseManager {
         });
     }
 
-    public CompletableFuture<Void> updateLastLogin(UUID uuid) {
+    public CompletableFuture<Void> updateLastLogin(UUID uuid, String ip) {
         long now = Instant.now().getEpochSecond();
         return supplyAsync(() -> {
             try (Connection connection = getConnection();
-                 PreparedStatement statement = connection.prepareStatement("UPDATE players SET last_login = ? WHERE uuid = ?")) {
+                 PreparedStatement statement = connection.prepareStatement("UPDATE players SET last_login = ?, last_ip = ? WHERE uuid = ?")) {
                 statement.setLong(1, now);
-                statement.setString(2, uuid.toString());
+                statement.setString(2, ip);
+                statement.setString(3, uuid.toString());
                 statement.executeUpdate();
             }
             return null;
@@ -372,13 +390,14 @@ public final class DatabaseManager {
         return supplyAsync(() -> {
             try (Connection connection = getConnection();
                  PreparedStatement statement = connection.prepareStatement("""
-                         INSERT INTO ip_blocks (ip_hash, blocked_until, attempt_count)
-                         VALUES (?, ?, ?)
+                         INSERT INTO ip_blocks (ip_hash, blocked_until, attempt_count, raw_ip)
+                         VALUES (?, ?, ?, ?)
                          ON CONFLICT(ip_hash) DO UPDATE SET blocked_until = excluded.blocked_until, attempt_count = excluded.attempt_count
                          """)) {
                 statement.setString(1, ipHash);
                 statement.setLong(2, blockedUntil);
                 statement.setInt(3, attemptCount);
+                statement.setString(4, ip);
                 statement.executeUpdate();
             }
             return null;
@@ -394,6 +413,29 @@ public final class DatabaseManager {
                 statement.executeUpdate();
             }
             return null;
+        });
+    }
+
+    public CompletableFuture<Void> clearAllIpBlocks() {
+        return supplyAsync(() -> {
+            try (Connection connection = getConnection();
+                 PreparedStatement statement = connection.prepareStatement("DELETE FROM ip_blocks")) {
+                statement.executeUpdate();
+            }
+            return null;
+        });
+    }
+    
+    public CompletableFuture<Optional<String>> getRawIpFromBlocked(String partialIp) {
+        return supplyAsync(() -> {
+            try (Connection connection = getConnection();
+                 PreparedStatement statement = connection.prepareStatement("SELECT raw_ip FROM ip_blocks WHERE raw_ip LIKE ? LIMIT 1")) {
+                statement.setString(1, "%" + partialIp + "%");
+                try (ResultSet resultSet = statement.executeQuery()) {
+                    if (resultSet.next()) return Optional.ofNullable(resultSet.getString("raw_ip"));
+                }
+            }
+            return Optional.empty();
         });
     }
 
@@ -430,6 +472,20 @@ public final class DatabaseManager {
             List<String> list = new ArrayList<>();
             try (Connection connection = getConnection();
                  PreparedStatement statement = connection.prepareStatement("SELECT username FROM players WHERE is_locked = 1")) {
+                try (ResultSet resultSet = statement.executeQuery()) {
+                    while (resultSet.next()) list.add(resultSet.getString("username"));
+                }
+            }
+            return list;
+        });
+    }
+    
+    public CompletableFuture<List<String>> getAlts(String ip) {
+        return supplyAsync(() -> {
+            List<String> list = new ArrayList<>();
+            try (Connection connection = getConnection();
+                 PreparedStatement statement = connection.prepareStatement("SELECT username FROM players WHERE last_ip = ?")) {
+                statement.setString(1, ip);
                 try (ResultSet resultSet = statement.executeQuery()) {
                     while (resultSet.next()) list.add(resultSet.getString("username"));
                 }
@@ -484,7 +540,8 @@ public final class DatabaseManager {
                 InputMethod.valueOf(resultSet.getString("input_method")),
                 resultSet.getInt("session_duration"),
                 resultSet.getLong("registered_at"),
-                resultSet.getLong("last_login")
+                resultSet.getLong("last_login"),
+                resultSet.getString("last_ip")
         );
     }
 
@@ -511,7 +568,7 @@ public final class DatabaseManager {
         T get() throws Exception;
     }
 
-    public record PlayerRecord(UUID uuid, String username, String passwordHash, String discordId, boolean locked, boolean passwordEnabled, InputMethod inputMethod, int sessionDuration, long registeredAt, long lastLogin) {
+    public record PlayerRecord(UUID uuid, String username, String passwordHash, String discordId, boolean locked, boolean passwordEnabled, InputMethod inputMethod, int sessionDuration, long registeredAt, long lastLogin, String lastIp) {
         public boolean hasPassword() { return passwordHash != null && !passwordHash.isBlank(); }
         public boolean hasDiscord() { return discordId != null && !discordId.isBlank(); }
     }

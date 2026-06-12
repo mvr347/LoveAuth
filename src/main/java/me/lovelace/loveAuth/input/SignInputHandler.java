@@ -57,7 +57,9 @@ public final class SignInputHandler implements Listener {
     }
 
     public void cleanup(UUID uuid) {
-        awaitingInput.remove(uuid);
+        Consumer<String[]> callback = awaitingInput.remove(uuid);
+        if (callback != null) callback.accept(new String[]{"", "", "", ""});
+        
         BlockData data = blockStates.remove(uuid);
         if (data != null) data.block().setType(data.oldType());
     }

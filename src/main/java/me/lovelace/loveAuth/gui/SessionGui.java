@@ -1,6 +1,7 @@
 package me.lovelace.loveAuth.gui;
 
 import me.lovelace.loveAuth.auth.AuthManager;
+import me.lovelace.loveAuth.database.DatabaseManager;
 import me.lovelace.loveAuth.lang.LangManager;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -26,32 +27,36 @@ public final class SessionGui implements LoveAuthHolder {
 
     public void open() {
         this.inventory = Bukkit.createInventory(this, 27, lang.component("gui.account.session-info"));
+        refresh();
+        player.openInventory(inventory);
+    }
+
+    public void refresh() {
         GuiManager.fillBackground(inventory, lang);
 
-        int[] days = {0, 1, 3, 7, 14, 28};
-        int[] slots = {10, 11, 12, 13, 14, 15};
+        auth.getPlugin().getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
+            int currentDays = record.map(DatabaseManager.PlayerRecord::sessionDuration).orElse(7);
+            
+            Bukkit.getScheduler().runTask(auth.getPlugin(), () -> {
+                ItemStack cycleBtn = new ItemStack(currentDays == 0 ? Material.BARRIER : Material.CLOCK);
+                ItemMeta cycleMeta = cycleBtn.getItemMeta();
+                if (cycleMeta != null) {
+                    String nameKey = currentDays == 0 ? "gui.session.disable" : "gui.session.days";
+                    cycleMeta.displayName(lang.component(nameKey, Map.of("days", String.valueOf(currentDays))));
+                    cycleMeta.lore(lang.lore("gui.session.cycle-lore"));
+                    cycleBtn.setItemMeta(cycleMeta);
+                }
+                inventory.setItem(13, cycleBtn);
 
-        for (int i = 0; i < days.length; i++) {
-            int d = days[i];
-            ItemStack item = new ItemStack(d == 0 ? Material.BARRIER : Material.CLOCK);
-            ItemMeta meta = item.getItemMeta();
-            if (meta != null) {
-                String key = d == 0 ? "gui.session.disable" : "gui.session.days";
-                meta.displayName(lang.component(key, Map.of("days", String.valueOf(d))));
-                item.setItemMeta(meta);
-            }
-            inventory.setItem(slots[i], item);
-        }
-
-        ItemStack back = new ItemStack(Material.ARROW);
-        ItemMeta backMeta = back.getItemMeta();
-        if (backMeta != null) {
-            backMeta.displayName(lang.component("gui.back-button"));
-            back.setItemMeta(backMeta);
-        }
-        inventory.setItem(22, back);
-
-        player.openInventory(inventory);
+                ItemStack back = new ItemStack(Material.ARROW);
+                ItemMeta backMeta = back.getItemMeta();
+                if (backMeta != null) {
+                    backMeta.displayName(lang.component("gui.back-button"));
+                    back.setItemMeta(backMeta);
+                }
+                inventory.setItem(22, back);
+            });
+        });
     }
 
     @Override

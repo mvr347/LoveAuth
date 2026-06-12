@@ -41,8 +41,10 @@ register:
   prompt-password: "{prefix}<gray>Придумайте пароль и введите его в чат:"
   prompt-confirm: "{prefix}<gray>Повторите пароль для подтверждения:"
   password-mismatch: "{prefix}<red>Пароли не совпадают. Начните заново."
-  password-too-short: "{prefix}<red>Пароль слишком короткий. Минимум 6 символов."
+  password-too-short: "{prefix}<red>Пароль слишком короткий. Минимум 3 символа."
   success: "{prefix}<green>Регистрация успешна! Добро пожаловать, <white>{player}</white>!"
+  password-length: "{prefix}<red>Пароль должен быть от 3 до 25 символов."
+  password-invalid-chars: "{prefix}<red>Пароль содержит недопустимые символы или смайлики."
 
 # ── Блокировки ──────────────────────────────
 block:
@@ -71,14 +73,14 @@ kick:
 # ── Discord ──────────────────────────────────
 discord:
   not-enabled: "{prefix}<red>Discord-интеграция отключена на этом сервере."
-  bind-instructions: "{prefix}<gray>Введите в личные сообщения боту: <click:copy_to_clipboard:'/link {code}'><white><underlined>/link {code}</underlined></click> <gray>(нажмите чтобы скопировать)"
+  bind-instructions: "{prefix}<gray>Код для привязки: <click:copy_to_clipboard:'/link {code}'><hover:show_text:'<gray>Нажмите, чтобы скопировать <white>/link {code}'><white><underlined>{code}</underlined></white></hover></click> <gray>(отправьте в DM боту)"
   bind-success: "{prefix}<green>Discord-аккаунт успешно привязан!"
   bind-fail: "{prefix}<red>Неверный или устаревший код. Попробуйте снова."
   already-bound: "{prefix}<yellow>Discord уже привязан к вашему аккаунту."
   login-started: "{prefix}<gray>Подтвердите вход в Discord-боте."
-  confirmation-sent: "{prefix}<gray>Код подтверждения отправлен в ваш Discord."
-  prompt-confirmation: "{prefix}<gray>Введите 6-значный код из Discord:"
-  wrong-code: "{prefix}<red>Неверный код подтверждения."
+  confirmation-sent: "{prefix}<gray>Код подтверждения отправлен в ваш Discord (действителен 1 мин)."
+  prompt-confirmation: "{prefix}<gray>Введите код из Discord:"
+  wrong-code: "{prefix}<red>Неверный или устаревший код подтверждения."
   unlinked: "{prefix}<yellow>Discord успешно отвязан."
   not-bound: "{prefix}<red>У вас не привязан Discord-аккаунт."
   link-invalid-code: "❌ Неверный или устаревший код. Попробуйте снова через /loveauth account"
@@ -94,14 +96,32 @@ discord:
   login-confirmed-dm: "✅ Вход подтверждён. Добро пожаловать на сервер!"
   login-denied-dm: "❌ Вход отклонён."
   login-expired: "⏰ Запрос устарел."
-  confirmation-code-msg: "🔐 Код подтверждения для действия **{action}**:\n`{code}`\n\nВведите этот код в чат Minecraft."
+  confirmation-code-msg: "🔐 Код подтверждения для действия **{action}**:\n`{code}`\n\nВведите этот код в чат Minecraft. Код исчезнет через 1 минуту."
   action-unlink: "отвязки Discord"
   action-remove_password: "удаления пароля"
   action-lock_account: "блокировки аккаунта"
   account-locked-self: "{prefix}<yellow>Ваш аккаунт заблокирован по вашему запросу."
   help-header: "📋 **Команды LoveAuth бота:**"
-  help-link: "`/link КОД` — привязать аккаунт Minecraft"
+  help-link: "`/link <код>` — привязать аккаунт"
+  help-unlink: "`/unlink` — отвязать аккаунт"
+  help-lock: "`/lock` — заблокировать аккаунт"
+  help-unlock: "`/unlock` — разблокировать аккаунт"
+  help-password-change: "`/password change <новый_пароль>` — изменить пароль"
+  help-password-delete: "`/password delete` — удалить пароль"
+  help-password-set: "`/password set <пароль>` — установить новый пароль"
+  help-info: "`/info` — информация об аккаунте"
   help-help: "`/help` — показать это сообщение"
+  link-usage: "❌ Использование: /link <код>"
+  not-bound-dm: "❌ У вас нет привязанного аккаунта Minecraft."
+  unlinked-dm: "✅ Аккаунт отвязан."
+  unlocked-dm: "✅ Ваш аккаунт разблокирован."
+  locked-dm: "✅ Ваш аккаунт заблокирован."
+  info-title: "📊 Информация об аккаунте"
+  info-player: "Игрок"
+  info-status: "Статус"
+  lock-btn-alert: "Это не я! ЗАБЛОКИРОВАТЬ АККАУНТ"
+  password-changed-dm: "✅ Пароль успешно изменён."
+  password-deleted-dm: "✅ Пароль удалён. Теперь вход только через Discord."
 
 # ── GUI: общие ──────────────────────────────
 gui:
@@ -218,6 +238,17 @@ gui.account:
   input-chat: "чат"
   input-sign: "табличка"
 
+# ── GUI: сессии ─────────────────────────────
+gui.session:
+  disable: "<red><bold>✖ Отключить сессию"
+  days: "<aqua><bold>⏱ Длительность: <white>{days} дн."
+  cycle-lore:
+    - "<gray>ЛКМ: <green>+1 день"
+    - "<gray>ПКМ: <red>-1 день"
+    - "<gray>Максимум: <white>28 дней"
+    - "<gray>(Настройка будет применена"
+    - "<gray>при следующем входе)"
+
 # ── GUI: очередь ────────────────────────────
 gui.queue:
   title: "<gradient:#ff6eb4:#a855f7>Очередь</gradient>"
@@ -265,6 +296,10 @@ gui.admin:
   no-locked: "{prefix}<green>Заблокированных аккаунтов нет."
   locked-list-header: "{prefix}<red>Заблокированные аккаунты:"
   locked-list-entry: "  <gray>- <white>{player}"
+  clear-ip-blocks: "<light_purple><bold>🔥 Очистить IP-блоки"
+  clear-ip-blocks-lore:
+    - "<gray>Разблокировать все IP-адреса"
+    - "<gray>попавшие под брутфорс-фильтр"
 
 # ── Команды ──────────────────────────────────
 commands:
@@ -294,6 +329,9 @@ commands:
   admin-info-password: "  <gray>Пароль: <white>{status}"
   admin-kick-reason: "{prefix}<red>Вы были отключены администратором."
   session-reset-for: "{prefix}<green>Сессия игрока <white>{player}</white> сброшена."
+  ip-blocks-cleared: "{prefix}<green>Все блокировки IP-адресов были очищены."
+  ip-unblocked: "{prefix}<green>IP-адрес <white>{ip}</white> разблокирован."
+  ip-not-found: "{prefix}<red>Заблокированный IP не найден."
 
 # ── Логи (в консоль, не для игроков) ─────────
 log:

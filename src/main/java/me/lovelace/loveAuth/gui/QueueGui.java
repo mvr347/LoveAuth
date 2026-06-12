@@ -26,6 +26,11 @@ public final class QueueGui implements LoveAuthHolder {
 
     public void open() {
         this.inventory = Bukkit.createInventory(this, 27, lang.component("gui.queue.title"));
+        refresh();
+        player.openInventory(inventory);
+    }
+
+    public void refresh() {
         GuiManager.fillBackground(inventory, lang);
 
         int pos = queue.getPosition(player.getUniqueId());
@@ -52,8 +57,6 @@ public final class QueueGui implements LoveAuthHolder {
             refresh.setItemMeta(refreshMeta);
         }
         inventory.setItem(22, refresh);
-
-        player.openInventory(inventory);
     }
 
     @Override

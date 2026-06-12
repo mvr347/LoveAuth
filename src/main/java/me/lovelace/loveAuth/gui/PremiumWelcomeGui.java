@@ -12,6 +12,8 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Map;
+
 public final class PremiumWelcomeGui implements LoveAuthHolder {
     private final Player player;
     private final LangManager lang;

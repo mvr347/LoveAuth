@@ -29,53 +29,39 @@ public final class AdminGui implements LoveAuthHolder {
 
     public void open() {
         this.inventory = Bukkit.createInventory(this, 54, lang.component("gui.admin.title"));
+        refresh();
+        player.openInventory(inventory);
+    }
+
+    public void refresh() {
         GuiManager.fillBackground(inventory, lang);
 
         plugin.getDatabaseManager().getLockedUsernames().thenAccept(lockedList -> {
-            ItemStack locked = new ItemStack(Material.BARRIER);
-            ItemMeta lockedMeta = locked.getItemMeta();
-            if (lockedMeta != null) {
-                lockedMeta.displayName(lang.component("gui.admin.locked-accounts"));
-                lockedMeta.lore(lang.lore("gui.admin.locked-accounts-lore", Map.of("count", Integer.toString(lockedList.size()))));
-                locked.setItemMeta(lockedMeta);
-            }
-            inventory.setItem(20, locked);
+            Bukkit.getScheduler().runTask(plugin, () -> setItem(20, Material.BARRIER, "gui.admin.locked-accounts", "gui.admin.locked-accounts-lore", Map.of("count", Integer.toString(lockedList.size()))));
         });
 
-        ItemStack unlock = new ItemStack(Material.HOPPER);
-        ItemMeta unlockMeta = unlock.getItemMeta();
-        if (unlockMeta != null) {
-            unlockMeta.displayName(lang.component("gui.admin.unlock-player"));
-            unlockMeta.lore(lang.lore("gui.admin.unlock-player-lore"));
-            unlock.setItemMeta(unlockMeta);
-        }
-        inventory.setItem(22, unlock);
+        setItem(22, Material.HOPPER, "gui.admin.unlock-player", "gui.admin.unlock-player-lore");
 
         plugin.getDatabaseManager().getStats().thenAccept(stats -> {
-            ItemStack statsItem = new ItemStack(Material.JUKEBOX);
-            ItemMeta statsMeta = statsItem.getItemMeta();
-            if (statsMeta != null) {
-                statsMeta.displayName(lang.component("gui.admin.stats"));
-                statsMeta.lore(lang.lore("gui.admin.stats-lore", Map.of(
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                setItem(24, Material.JUKEBOX, "gui.admin.stats", "gui.admin.stats-lore", Map.of(
                         "online", Integer.toString(Bukkit.getOnlinePlayers().size()),
                         "registered", Integer.toString(stats.registered()),
                         "locked", Integer.toString(stats.locked())
-                )));
-                statsItem.setItemMeta(statsMeta);
-            }
-            inventory.setItem(24, statsItem);
+                ));
 
-            ItemStack sessions = new ItemStack(Material.CLOCK);
-            ItemMeta sessionsMeta = sessions.getItemMeta();
-            if (sessionsMeta != null) {
-                sessionsMeta.displayName(lang.component("gui.admin.sessions"));
-                sessionsMeta.lore(lang.lore("gui.admin.sessions-lore", Map.of("sessions", Integer.toString(stats.sessions()))));
-                sessions.setItemMeta(sessionsMeta);
-            }
-            inventory.setItem(31, sessions);
+                setItem(31, Material.CLOCK, "gui.admin.sessions", "gui.admin.sessions-lore", Map.of("sessions", Integer.toString(stats.sessions())));
+                setItem(32, Material.BLAZE_POWDER, "gui.admin.clear-ip-blocks", "gui.admin.clear-ip-blocks-lore");
+            });
         });
+    }
 
-        player.openInventory(inventory);
+    private void setItem(int slot, Material m, String nameKey, String loreKey) { setItem(slot, m, nameKey, loreKey, Map.of()); }
+    private void setItem(int slot, Material m, String nameKey, String loreKey, Map<String, String> p) {
+        ItemStack item = new ItemStack(m);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) { meta.displayName(lang.component(nameKey, p)); meta.lore(lang.lore(loreKey, p)); item.setItemMeta(meta); }
+        inventory.setItem(slot, item);
     }
 
     @Override

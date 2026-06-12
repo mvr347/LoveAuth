@@ -130,6 +130,7 @@ public final class LoveAuth extends JavaPlugin {
     public BruteForceProtection getBruteForceProtection() { return bruteForceProtection; }
     public LimboManager getLimboManager() { return limboManager; }
     public QueueManager getQueueManager() { return queueManager; }
+    public String getPepper() { return pepper; }
     public AuthManager getAuthManager() { return authManager; }
     public GuiManager getGuiManager() { return guiManager; }
     public DiscordAuthManager getDiscordAuthManager() { return discordAuthManager; }

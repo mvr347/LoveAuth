@@ -2,10 +2,7 @@ package me.lovelace.loveAuth.listeners;
 
 import me.lovelace.loveAuth.LoveAuth;
 import me.lovelace.loveAuth.auth.AuthManager;
-import me.lovelace.loveAuth.gui.AccountGui;
-import me.lovelace.loveAuth.gui.AdminGui;
-import me.lovelace.loveAuth.gui.ConfirmGui;
-import me.lovelace.loveAuth.gui.SessionGui;
+import me.lovelace.loveAuth.gui.*;
 import me.lovelace.loveAuth.lang.LangManager;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
@@ -13,6 +10,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.InventoryView;
@@ -60,13 +58,7 @@ public final class GuiClickListener implements Listener {
             } else if (slot == 23) {
                 auth.switchInputMethod(player).thenRun(() -> Bukkit.getScheduler().runTask(plugin, accountGui::refresh));
             } else if (slot == 24) {
-                plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
-                    if (record.map(r -> r.hasDiscord()).orElse(false)) {
-                        plugin.getDiscordAuthManager().sendConfirmationCode(player, "UNLINK");
-                    } else {
-                        plugin.getDiscordAuthManager().startBinding(player);
-                    }
-                });
+                new DiscordGui(player, plugin.getLangManager(), plugin.getConfigManager(), plugin.getDiscordAuthManager(), auth).open();
             } else if (slot == 25) {
                 plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
                     if (record.map(r -> r.hasDiscord()).orElse(false)) {
@@ -83,13 +75,45 @@ public final class GuiClickListener implements Listener {
             return;
         }
 
-        if (holder instanceof AdminGui) {
+        if (holder instanceof DiscordGui discordGui) {
+            event.setCancelled(true);
+            int slot = event.getRawSlot();
+            if (slot == 11) new AccountGui(player, plugin.getLangManager(), plugin.getAuthManager()).open();
+            else if (slot == 13) {
+                plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
+                    if (record.map(r -> r.hasDiscord()).orElse(false)) {
+                        plugin.getDiscordAuthManager().sendConfirmationCode(player, "UNLINK");
+                    } else {
+                        plugin.getDiscordAuthManager().startBinding(player);
+                    }
+                });
+            } else if (slot == 15) {
+                plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
+                    if (record.map(r -> r.hasDiscord()).orElse(false)) {
+                        boolean next = !record.get().passwordEnabled();
+                        plugin.getDatabaseManager().setPasswordEnabled(player.getUniqueId(), next).thenRun(() -> Bukkit.getScheduler().runTask(plugin, discordGui::refresh));
+                    } else {
+                        plugin.getLangManager().send(player, "block.password-required");
+                    }
+                });
+            }
+            return;
+        }
+
+        if (holder instanceof PasswordGui) {
+            event.setCancelled(true);
+            if (event.getRawSlot() == 11) plugin.getGuiManager().openAuthMethod(player);
+            else if (event.getRawSlot() == 13) plugin.getAuthManager().requestPasswordLogin(player);
+            return;
+        }
+
+        if (holder instanceof AdminGui adminGui) {
             event.setCancelled(true);
             if (!player.hasPermission("loveauth.admin")) return;
             int slot = event.getRawSlot();
 
             switch (slot) {
-                case 20 -> { // Заблокированные аккаунты
+                case 20 -> {
                     plugin.getDatabaseManager().getLockedUsernames().thenAccept(list -> {
                         Bukkit.getScheduler().runTask(plugin, () -> {
                             if (list.isEmpty()) {
@@ -103,7 +127,7 @@ public final class GuiClickListener implements Listener {
                         });
                     });
                 }
-                case 22 -> { // Разблокировать игрока
+                case 22 -> {
                     player.closeInventory();
                     plugin.getLangManager().send(player, "gui.admin.unlock-prompt");
                     plugin.getChatInputHandler().awaitInput(player, "gui.admin.unlock-prompt", name ->
@@ -118,10 +142,10 @@ public final class GuiClickListener implements Listener {
                         })
                     );
                 }
-                case 24 -> { // Статистика — обновить GUI
-                    plugin.getGuiManager().openAdmin(player);
+                case 24 -> {
+                    adminGui.refresh();
                 }
-                case 31 -> { // Управление сессиями — сброс сессии по нику
+                case 31 -> {
                     player.closeInventory();
                     plugin.getLangManager().send(player, "gui.admin.session-reset-prompt");
                     plugin.getChatInputHandler().awaitInput(player, "gui.admin.session-reset-prompt", name ->
@@ -136,6 +160,12 @@ public final class GuiClickListener implements Listener {
                         })
                     );
                 }
+                case 32 -> {
+                    plugin.getDatabaseManager().clearAllIpBlocks().thenRun(() -> {
+                        plugin.getLangManager().send(player, "commands.ip-blocks-cleared");
+                        Bukkit.getScheduler().runTask(plugin, adminGui::refresh);
+                    });
+                }
             }
             return;
         }
@@ -143,21 +173,34 @@ public final class GuiClickListener implements Listener {
         if (holder instanceof SessionGui sessionGui) {
             event.setCancelled(true);
             int slot = event.getRawSlot();
-            int[] daysMap = {0, 1, 3, 7, 14, 28};
-            int[] slotsMap = {10, 11, 12, 13, 14, 15};
-
-            for (int i = 0; i < slotsMap.length; i++) {
-                if (slot == slotsMap[i]) {
-                    int days = daysMap[i];
-                    plugin.getDatabaseManager().setSessionDuration(player.getUniqueId(), days).thenRun(() -> {
-                        plugin.getAuthManager().getSessionManager().invalidate(player.getUniqueId()).thenRun(() -> {
-                            Bukkit.getScheduler().runTask(plugin, () -> player.kick(plugin.getLangManager().component("commands.session-reset")));
+            if (slot == 22) {
+                new AccountGui(player, plugin.getLangManager(), plugin.getAuthManager()).open();
+                return;
+            }
+            if (slot == 13) {
+                ClickType click = event.getClick();
+                plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
+                    int current = record.map(r -> r.sessionDuration()).orElse(7);
+                    int next;
+                    if (click.isLeftClick()) {
+                        next = current + 1;
+                        if (next > 28) next = 0;
+                    } else if (click.isRightClick()) {
+                        next = current - 1;
+                        if (next < 0) next = 28;
+                    } else return;
+                    
+                    final int finalNext = next;
+                    plugin.getDatabaseManager().setSessionDuration(player.getUniqueId(), finalNext).thenRun(() -> {
+                        Bukkit.getScheduler().runTask(plugin, () -> {
+                            sessionGui.refresh();
+                            if (finalNext == 0 && current != 0) {
+                                plugin.getAuthManager().getSessionManager().invalidate(player.getUniqueId());
+                            }
                         });
                     });
-                    return;
-                }
+                });
             }
-            if (slot == 22) new AccountGui(player, plugin.getLangManager(), plugin.getAuthManager()).open();
             return;
         }
 
@@ -173,13 +216,11 @@ public final class GuiClickListener implements Listener {
                 else auth.requestRegistration(player);
             }
             else if (event.getRawSlot() == 14) plugin.getGuiManager().openDiscord(player);
-        } else if (isGui(title, "gui.password.title")) {
-            event.setCancelled(true);
-            if (event.getRawSlot() == 11) plugin.getGuiManager().openAuthMethod(player);
-            else if (event.getRawSlot() == 13) auth.requestPasswordLogin(player);
         } else if (isGui(title, "gui.register.title")) {
             event.setCancelled(true);
-            if (event.getRawSlot() == 13) auth.requestRegistration(player);
+            int slot = event.getRawSlot();
+            if (slot == 11) auth.requestRegistration(player);
+            else if (slot == 15) plugin.getDiscordAuthManager().startBinding(player);
         } else if (isGui(title, "gui.premium-welcome.title")) {
             event.setCancelled(true);
             if (event.getRawSlot() == 11) auth.requestRegistration(player);

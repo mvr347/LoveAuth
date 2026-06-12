@@ -89,7 +89,10 @@ public final class BruteForceProtection {
     }
 
     public CompletableFuture<Void> unlockAccount(UUID uuid) {
-        return database.setLocked(uuid, false).exceptionally(error -> {
+        return database.setLocked(uuid, false).thenRun(() -> {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null) plugin.getLangManager().send(p, "block.account-unlocked", Map.of("player", p.getName()));
+        }).exceptionally(error -> {
             log.errorKey("log.database-error", Map.of("message", safeMessage(error)), error);
             return null;
         });

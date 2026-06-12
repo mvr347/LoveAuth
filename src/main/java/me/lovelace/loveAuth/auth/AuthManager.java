@@ -20,6 +20,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 
 public final class AuthManager {
     private final LoveAuth plugin;
@@ -37,6 +38,8 @@ public final class AuthManager {
     private final Set<UUID> registeredCache = ConcurrentHashMap.newKeySet();
     private final Set<String> registrationLock = ConcurrentHashMap.newKeySet();
     private final Map<UUID, BukkitTask> timeoutTasks = new ConcurrentHashMap<>();
+    
+    private static final Pattern PASSWORD_PATTERN = Pattern.compile("^[a-zA-Z0-9._\\-!@#$%^&*()]{3,25}$");
 
     public AuthManager(LoveAuth plugin, ConfigManager config, LangManager lang, DatabaseManager database, SessionManager sessionManager, BruteForceProtection bruteForce, LimboManager limboManager, LogManager log, SecretKey masterKey, String pepper) {
         this.plugin = plugin; this.config = config; this.lang = lang; this.database = database; this.sessionManager = sessionManager; this.bruteForce = bruteForce; this.limboManager = limboManager; this.log = log; this.masterKey = masterKey; this.pepper = pepper;
@@ -70,10 +73,22 @@ public final class AuthManager {
             if (valid) {
                 markAuthenticated(player, true);
                 lang.send(player, "auth.session-restored");
+                log.database(player.getUniqueId(), "SESSION_RESTORE", player.getName(), ip);
                 return;
             }
             limboManager.sendToLimbo(player);
             startTimeout(player);
+
+            if (config.isPremiumSkipEnabled() && isPremium(player)) {
+                boolean hasPassword = record.hasPassword() && record.passwordEnabled();
+                boolean hasDiscord = record.hasDiscord();
+                if (!hasPassword && !hasDiscord) {
+                    markAuthenticated(player, true);
+                    lang.send(player, "auth.premium-skip");
+                    log.database(player.getUniqueId(), "PREMIUM_SKIP", player.getName(), ip);
+                    return;
+                }
+            }
 
             boolean hasPassword = record.hasPassword() && record.passwordEnabled();
             boolean hasDiscord = record.hasDiscord();
@@ -101,8 +116,7 @@ public final class AuthManager {
         }
     }
 
-    private boolean isPremium(Player player) {
-        // Version 4 is online-mode UUID
+    public boolean isPremium(Player player) {
         return player.getUniqueId().version() == 4;
     }
 
@@ -112,7 +126,7 @@ public final class AuthManager {
         return database.findPlayer(player.getUniqueId()).thenCompose(record -> {
             if (record.isEmpty()) return CompletableFuture.completedFuture(false);
             DatabaseManager.PlayerRecord pr = record.get();
-            return supplyAsync(() -> SecurityUtils.verifyPassword(password, pr.passwordHash())).thenCompose(valid -> {
+            return supplyAsync(() -> SecurityUtils.verifyPassword(password, pr.passwordHash(), pepper)).thenCompose(valid -> {
                 if (valid) return handleLoginSuccess(player, ip).thenApply(unused -> true);
                 return handleLoginFailure(player, ip).thenApply(unused -> false);
             });
@@ -122,10 +136,11 @@ public final class AuthManager {
     private CompletableFuture<Void> handleLoginSuccess(Player player, String ip) {
         return bruteForce.recordSuccess(ip)
                 .thenCompose(unused -> sessionManager.create(player.getUniqueId(), ip))
-                .thenCompose(unused -> database.updateLastLogin(player.getUniqueId()))
+                .thenCompose(unused -> database.updateLastLogin(player.getUniqueId(), ip))
                 .thenRun(() -> Bukkit.getScheduler().runTask(plugin, () -> {
                     markAuthenticated(player, false);
                     lang.send(player, "login.success");
+                    log.database(player.getUniqueId(), "LOGIN_SUCCESS", player.getName(), ip);
                 }));
     }
 
@@ -133,6 +148,7 @@ public final class AuthManager {
         return bruteForce.recordFailure(player, player.getUniqueId(), ip).thenAccept(result -> Bukkit.getScheduler().runTask(plugin, () -> {
             if (result.type() == BruteForceProtection.FailureType.FAILED) {
                 lang.send(player, "login.fail", Map.of("attempts", Integer.toString(result.remainingAttempts())));
+                log.database(player.getUniqueId(), "LOGIN_FAIL", player.getName(), ip);
                 if (player.isOnline()) requestPasswordLogin(player);
             } else {
                 player.kick(lang.component("block.ip-locked"));
@@ -141,20 +157,38 @@ public final class AuthManager {
     }
 
     public CompletableFuture<Boolean> register(Player player, String password) {
+        if (!validatePassword(player, password)) return CompletableFuture.completedFuture(false);
         if (isRegisteredCached(player.getUniqueId())) return CompletableFuture.completedFuture(false);
         String name = player.getName().toLowerCase();
         if (!registrationLock.add(name)) return CompletableFuture.completedFuture(false);
 
+        String ip = getIp(player);
         return database.isRegistered(player.getUniqueId()).thenCompose(registered -> {
             if (registered) { registrationLock.remove(name); return CompletableFuture.completedFuture(false); }
-            return supplyAsync(() -> SecurityUtils.hashPassword(password))
+            return supplyAsync(() -> SecurityUtils.hashPassword(password, pepper))
                 .thenCompose(hash -> database.registerPlayer(player.getUniqueId(), player.getName(), hash, false, config.getDefaultInputMethod()))
+                .thenCompose(v -> database.updateLastLogin(player.getUniqueId(), ip))
                 .thenRun(() -> {
                     registrationLock.remove(name);
                     registeredCache.add(player.getUniqueId());
-                    Bukkit.getScheduler().runTask(plugin, () -> markAuthenticated(player, true));
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        markAuthenticated(player, true);
+                        log.database(player.getUniqueId(), "REGISTER_SUCCESS", player.getName(), ip);
+                    });
                 }).thenApply(v -> true);
         }).exceptionally(e -> { registrationLock.remove(name); return false; });
+    }
+
+    public boolean validatePassword(Player player, String password) {
+        if (password == null || password.length() < 3 || password.length() > 25) {
+            lang.send(player, "register.password-length");
+            return false;
+        }
+        if (!PASSWORD_PATTERN.matcher(password).matches()) {
+            lang.send(player, "register.password-invalid-chars");
+            return false;
+        }
+        return true;
     }
 
     public void markAuthenticated(Player player, boolean createSession) {
@@ -186,7 +220,7 @@ public final class AuthManager {
     public boolean isAuthenticated(UUID uuid) { return authenticated.contains(uuid); }
     public boolean isRegisteredCached(UUID uuid) { return registeredCache.contains(uuid); }
     public SessionManager getSessionManager() { return sessionManager; }
-    private String getIp(Player player) { return player.getAddress().getAddress().getHostAddress(); }
+    public String getIp(Player player) { return player.getAddress().getAddress().getHostAddress(); }
     private <T> CompletableFuture<T> supplyAsync(java.util.concurrent.Callable<T> s) {
         CompletableFuture<T> f = new CompletableFuture<>();
         plugin.getServer().getAsyncScheduler().runNow(plugin, t -> { try { f.complete(s.call()); } catch (Exception e) { f.completeExceptionally(e); } });
@@ -203,6 +237,10 @@ public final class AuthManager {
         if (isRegisteredCached(player.getUniqueId())) return;
         resolveInputMethod(player).thenAccept(m -> Bukkit.getScheduler().runTask(plugin, () -> 
             plugin.getGuiManager().awaitInput(player, m, "register.prompt-password", p1 -> {
+                if (!validatePassword(player, p1)) {
+                    requestRegistration(player);
+                    return;
+                }
                 plugin.getGuiManager().awaitInput(player, m, "register.prompt-confirm", p2 -> {
                     if (p1.equals(p2)) register(player, p1);
                     else {
@@ -232,7 +270,7 @@ public final class AuthManager {
         return CompletableFuture.completedFuture(p != null);
     }
     public CompletableFuture<Void> forceRegister(UUID uuid, String pass) {
-        return supplyAsync(() -> SecurityUtils.hashPassword(pass))
+        return supplyAsync(() -> SecurityUtils.hashPassword(pass, pepper))
             .thenCompose(h -> database.registerPlayer(uuid, "Unknown", h, false, config.getDefaultInputMethod()))
             .thenRun(() -> registeredCache.add(uuid));
     }
@@ -241,16 +279,24 @@ public final class AuthManager {
         resolveInputMethod(player).thenAccept(m -> Bukkit.getScheduler().runTask(plugin, () -> {
             lang.send(player, "register.prompt-password");
             plugin.getGuiManager().awaitInput(player, m, "register.prompt-password", p -> {
-                updatePassword(player, p).thenRun(() -> {
-                    if (player.isOnline()) plugin.getGuiManager().openAccount(player);
-                });
+                if (validatePassword(player, p)) {
+                    updatePassword(player, p).thenRun(() -> {
+                        if (player.isOnline()) plugin.getGuiManager().openAccount(player);
+                    });
+                } else {
+                    requestPasswordChange(player);
+                }
             });
         }));
     }
 
     public CompletableFuture<Boolean> updatePassword(Player player, String pass) {
-        return supplyAsync(() -> SecurityUtils.hashPassword(pass))
+        return supplyAsync(() -> SecurityUtils.hashPassword(pass, pepper))
             .thenCompose(h -> database.updatePassword(player.getUniqueId(), h))
-            .thenApply(v -> { lang.send(player, "commands.password-changed"); return true; });
+            .thenApply(v -> { 
+                lang.send(player, "commands.password-changed");
+                log.database(player.getUniqueId(), "PASSWORD_CHANGE", player.getName(), getIp(player));
+                return true; 
+            });
     }
 }

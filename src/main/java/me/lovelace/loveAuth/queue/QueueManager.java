@@ -2,9 +2,11 @@ package me.lovelace.loveAuth.queue;
 
 import me.lovelace.loveAuth.LoveAuth;
 import me.lovelace.loveAuth.config.ConfigManager;
+import me.lovelace.loveAuth.gui.QueueGui;
 import me.lovelace.loveAuth.lang.LangManager;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.LinkedList;
@@ -101,12 +103,15 @@ public final class QueueManager {
             }
         }
 
-        // Update GUI for everyone in queue
         for (UUID uuid : queue) {
             Player player = Bukkit.getPlayer(uuid);
             if (player != null && player.isOnline()) {
-                // The GUI update is handled by the QueueGui task or refresh button
-                // but we can send a message if needed
+                InventoryHolder holder = player.getOpenInventory().getTopInventory().getHolder();
+                if (holder instanceof QueueGui queueGui) {
+                    queueGui.refresh();
+                } else if (!plugin.getAuthManager().isAuthenticated(uuid)) {
+                    plugin.getGuiManager().openQueue(player);
+                }
             }
         }
     }

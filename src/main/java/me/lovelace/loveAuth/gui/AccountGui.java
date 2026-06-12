@@ -45,11 +45,15 @@ public final class AccountGui implements LoveAuthHolder {
             Bukkit.getScheduler().runTask(auth.getPlugin(), () -> {
                 boolean hasDiscord = pr.hasDiscord();
 
-                // PASSWORD (Slots 19, 20, 21)
+                // Slot 20: Change Password
                 if (!pr.hasPassword() || !pr.passwordEnabled()) {
                     setItem(20, Material.TRIPWIRE_HOOK, "gui.account.set-password", "gui.account.set-password-lore");
                 } else {
-                    setItem(19, Material.TRIPWIRE_HOOK, "gui.account.change-password", "gui.account.change-password-lore");
+                    setItem(20, Material.TRIPWIRE_HOOK, "gui.account.change-password", "gui.account.change-password-lore");
+                }
+
+                // Slot 21: Delete Password (Discord only)
+                if (pr.hasPassword() && pr.passwordEnabled()) {
                     if (hasDiscord) {
                         setItem(21, Material.BARRIER, "gui.account.delete-password", "gui.account.delete-password-lore");
                     } else {
@@ -57,17 +61,7 @@ public final class AccountGui implements LoveAuthHolder {
                     }
                 }
 
-                // DISCORD (Slot 24)
-                setItem(24, hasDiscord ? Material.CHAINMAIL_CHESTPLATE : Material.CHAIN, 
-                    hasDiscord ? "gui.discord.unlink-button" : "gui.discord.bind-button",
-                    hasDiscord ? "gui.discord.unlink-lore" : "gui.discord.bind-lore");
-
-                // LOCK ACCOUNT (Slot 25)
-                if (hasDiscord) {
-                    setItem(25, Material.IRON_BARS, "gui.account.lock-account", "gui.account.lock-account-lore");
-                }
-
-                // SESSION (Slot 22)
+                // Slot 22: Session Info
                 if (pr.hasPassword() && pr.passwordEnabled()) {
                     auth.getSessionManager().getExpiry(player.getUniqueId()).thenAccept(expiry -> {
                         String status = expiry.isPresent() ? lang.plain("gui.account.session-active") : lang.plain("gui.account.session-disabled");
@@ -78,13 +72,23 @@ public final class AccountGui implements LoveAuthHolder {
                     setItem(22, Material.GRAY_DYE, "gui.account.session-unavailable", "gui.account.session-unavailable-lore");
                 }
 
-                // INPUT METHOD (Slot 23)
+                // Slot 23: Input Method
                 auth.resolveInputMethod(player).thenAccept(method -> {
                     String mStr = lang.plain(method == me.lovelace.loveAuth.input.InputMethod.CHAT ? "gui.account.input-chat" : "gui.account.input-sign");
                     Bukkit.getScheduler().runTask(auth.getPlugin(), () -> setItem(23, Material.OAK_SIGN, "gui.account.input-method", "gui.account.input-method-lore", Map.of("method", mStr)));
                 });
 
-                // LOGOUT (Slot 31)
+                // Slot 24: Discord Settings
+                setItem(24, hasDiscord ? Material.CHAINMAIL_CHESTPLATE : Material.CHAIN, 
+                    hasDiscord ? "gui.discord.unlink-button" : "gui.discord.bind-button",
+                    hasDiscord ? "gui.discord.unlink-lore" : "gui.discord.bind-lore");
+
+                // Slot 25: Lock Account (Discord only)
+                if (hasDiscord) {
+                    setItem(25, Material.IRON_BARS, "gui.account.lock-account", "gui.account.lock-account-lore");
+                }
+
+                // Slot 31: Logout
                 setItem(31, Material.IRON_DOOR, "gui.account.logout", "gui.account.logout-lore");
             });
         });

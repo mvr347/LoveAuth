@@ -12,8 +12,6 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Map;
-
 public final class DiscordGui implements LoveAuthHolder {
     private final Player player;
     private final LangManager lang;
@@ -32,6 +30,11 @@ public final class DiscordGui implements LoveAuthHolder {
 
     public void open() {
         this.inventory = Bukkit.createInventory(this, 27, lang.component("gui.discord.title"));
+        refresh();
+        player.openInventory(inventory);
+    }
+
+    public void refresh() {
         GuiManager.fillBackground(inventory, lang);
 
         ItemStack back = new ItemStack(Material.ARROW);
@@ -42,26 +45,30 @@ public final class DiscordGui implements LoveAuthHolder {
         }
         inventory.setItem(11, back);
 
-        ItemStack bind = new ItemStack(Material.CHAIN);
-        ItemMeta bindMeta = bind.getItemMeta();
-        if (bindMeta != null) {
-            bindMeta.displayName(lang.component("gui.discord.bind-button"));
-            bindMeta.lore(lang.lore("gui.discord.bind-lore"));
-            bind.setItemMeta(bindMeta);
-        }
-        inventory.setItem(13, bind);
+        auth.getPlugin().getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
+            boolean hasDiscord = record.map(r -> r.hasDiscord()).orElse(false);
+            boolean passEnabled = record.map(r -> r.passwordEnabled()).orElse(true);
 
-        auth.isAuthenticated(player.getUniqueId());
-        ItemStack toggle = new ItemStack(Material.LEVER);
-        ItemMeta toggleMeta = toggle.getItemMeta();
-        if (toggleMeta != null) {
-            toggleMeta.displayName(lang.component("gui.discord.toggle-password-on"));
-            toggleMeta.lore(lang.lore("gui.discord.toggle-lore"));
-            toggle.setItemMeta(toggleMeta);
-        }
-        inventory.setItem(15, toggle);
+            Bukkit.getScheduler().runTask(auth.getPlugin(), () -> {
+                ItemStack bind = new ItemStack(hasDiscord ? Material.CHAINMAIL_CHESTPLATE : Material.CHAIN);
+                ItemMeta bindMeta = bind.getItemMeta();
+                if (bindMeta != null) {
+                    bindMeta.displayName(lang.component(hasDiscord ? "gui.discord.unlink-button" : "gui.discord.bind-button"));
+                    bindMeta.lore(lang.lore(hasDiscord ? "gui.discord.unlink-lore" : "gui.discord.bind-lore"));
+                    bind.setItemMeta(bindMeta);
+                }
+                inventory.setItem(13, bind);
 
-        player.openInventory(inventory);
+                ItemStack toggle = new ItemStack(passEnabled ? Material.LEVER : Material.REDSTONE_TORCH);
+                ItemMeta toggleMeta = toggle.getItemMeta();
+                if (toggleMeta != null) {
+                    toggleMeta.displayName(lang.component(passEnabled ? "gui.discord.toggle-password-off" : "gui.discord.toggle-password-on"));
+                    toggleMeta.lore(lang.lore("gui.discord.toggle-lore"));
+                    toggle.setItemMeta(toggleMeta);
+                }
+                inventory.setItem(15, toggle);
+            });
+        });
     }
 
     @Override

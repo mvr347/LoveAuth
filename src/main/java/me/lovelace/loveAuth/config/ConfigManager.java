@@ -99,4 +99,6 @@ public final class ConfigManager {
     public String getDiscordGuildId() { return config.getString("discord.guild-id", ""); }
     public String getLanguage() { return config.getString("language", "lang"); }
     public boolean isPremiumSkipEnabled() { return config.getBoolean("auth.premium-skip", true); }
+    public List<String> getDiscordAdminIds() { return config.getStringList("discord.admin-ids"); }
 }
+
