@@ -101,4 +101,3 @@ public final class ConfigManager {
     public boolean isPremiumSkipEnabled() { return config.getBoolean("auth.premium-skip", true); }
     public List<String> getDiscordAdminIds() { return config.getStringList("discord.admin-ids"); }
 }
-

@@ -27,6 +27,7 @@ auth:
   already-registered: "{prefix}<yellow>Аккаунт уже зарегистрирован."
   premium-skip: "{prefix}<green>Premium-вход подтверждён."
   rate-limited: "{prefix}<red>Слишком много действий. Попробуйте через несколько секунд."
+  premium-skip-reminder: "{prefix}<gray>Вы можете настроить пароль или Discord в любой момент: <click:run_command:'/loveauth account'><white><underlined>/loveauth account</underlined></white></click>"
 
 # ── Вход по паролю ──────────────────────────
 login:
@@ -84,6 +85,7 @@ discord:
   unlinked: "{prefix}<yellow>Discord успешно отвязан."
   not-bound: "{prefix}<red>У вас не привязан Discord-аккаунт."
   link-invalid-code: "❌ Неверный или устаревший код. Попробуйте снова через /loveauth account"
+  already-bound-other: "❌ Этот Discord уже привязан к другому аккаунту."
   link-success-dm: "✅ Аккаунт Minecraft успешно привязан!"
   login-embed-title: "🔐 Запрос на вход"
   login-embed-desc: "Игрок **{player}** пытается войти на сервер.\nЭто вы?"
@@ -96,10 +98,13 @@ discord:
   login-confirmed-dm: "✅ Вход подтверждён. Добро пожаловать на сервер!"
   login-denied-dm: "❌ Вход отклонён."
   login-expired: "⏰ Запрос устарел."
-  confirmation-code-msg: "🔐 Код подтверждения для действия **{action}**:\n`{code}`\n\nВведите этот код в чат Minecraft. Код исчезнет через 1 минуту."
-  action-unlink: "отвязки Discord"
-  action-remove_password: "удаления пароля"
-  action-lock_account: "блокировки аккаунта"
+  confirm-action-title: "❓ Подтверждение действия"
+  action-btn-confirm: "Подтвердить"
+  action-btn-deny: "Отмена"
+  confirmation-sent-buttons: "{prefix}<gray>Запрос подтверждения отправлен в Discord."
+  action-unlink: "Вы действительно хотите отвязать Discord?"
+  action-remove_password: "Вы действительно хотите удалить пароль?"
+  action-lock_account: "Вы действительно хотите заблокировать свой аккаунт?"
   account-locked-self: "{prefix}<yellow>Ваш аккаунт заблокирован по вашему запросу."
   help-header: "📋 **Команды LoveAuth бота:**"
   help-link: "`/link <код>` — привязать аккаунт"
@@ -116,12 +121,15 @@ discord:
   unlinked-dm: "✅ Аккаунт отвязан."
   unlocked-dm: "✅ Ваш аккаунт разблокирован."
   locked-dm: "✅ Ваш аккаунт заблокирован."
+  amnesty-done-dm: "✅ Все блокировки сняты (амнистия)."
   info-title: "📊 Информация об аккаунте"
   info-player: "Игрок"
   info-status: "Статус"
   lock-btn-alert: "Это не я! ЗАБЛОКИРОВАТЬ АККАУНТ"
   password-changed-dm: "✅ Пароль успешно изменён."
   password-deleted-dm: "✅ Пароль удалён. Теперь вход только через Discord."
+  admin-embed-title: "🛡️ Подтверждение админ-действия"
+  admin-embed-desc: "Вы пытаетесь выполнить команду: **{cmd}**\nЭто вы?"
 
 # ── GUI: общие ──────────────────────────────
 gui:
@@ -171,6 +179,10 @@ gui.discord:
   toggle-lore:
     - "<gray>Включить или выключить"
     - "<gray>вход по паролю"
+  toggle-locked: "<dark_gray><bold>🔒 Управление паролем"
+  toggle-locked-lore:
+    - "<red>Привяжите Discord чтобы"
+    - "<red>управлять этой настройкой"
 
 # ── GUI: регистрация ─────────────────────────
 gui.register:
@@ -300,6 +312,7 @@ gui.admin:
   clear-ip-blocks-lore:
     - "<gray>Разблокировать все IP-адреса"
     - "<gray>попавшие под брутфорс-фильтр"
+  discord-confirm-sent: "{prefix}<gray>Запрос подтверждения отправлен в ваш Discord."
 
 # ── Команды ──────────────────────────────────
 commands:
@@ -332,6 +345,27 @@ commands:
   ip-blocks-cleared: "{prefix}<green>Все блокировки IP-адресов были очищены."
   ip-unblocked: "{prefix}<green>IP-адрес <white>{ip}</white> разблокирован."
   ip-not-found: "{prefix}<red>Заблокированный IP не найден."
+  admin-delete-confirm: "{prefix}<red>Вы действительно хотите УДАЛИТЬ все данные игрока <white>{player}</white>?"
+  admin-delete-confirm-prompt: "{prefix}<gray>Введите <white>ПОДТВЕРЖДАЮ</white> для удаления:"
+  admin-delete-cancelled: "{prefix}<yellow>Удаление отменено."
+  admin-delete-success: "{prefix}<green>Данные игрока <white>{player}</white> полностью удалены."
+  admin-delete-kick: "{prefix}<red>Ваш аккаунт был удалён администратором."
+  amnesty-done: "{prefix}<green>Амнистия проведена: все блокировки сняты."
+
+# ── Title & Action Bar ────────────────────────
+title:
+  login-success-main: "<gradient:#a855f7:#ff6eb4><bold>✓ Добро пожаловать!</bold></gradient>"
+  login-success-sub: "<gray>Вы успешно авторизованы"
+  register-success-main: "<gradient:#22c55e:#a855f7><bold>✓ Аккаунт создан!</bold></gradient>"
+  register-success-sub: "<gray>Добро пожаловать на сервер"
+  account-locked-main: "<dark_red><bold>⛔ Аккаунт заблокирован</bold></dark_red>"
+  account-locked-sub: "<gray>Обратитесь к администратору"
+
+actionbar:
+  queue-position: "<gray>Позиция в очереди: <white>{position}</white>/<white>{total}</white>"
+  discord-bound: "<#7289da>✓ Discord привязан к аккаунту"
+  session-active: "<green>✓ Сессия активна до <white>{expires}</white>"
+  premium-skip: "<gradient:#ffd700:#a855f7>✓ Вход подтверждён лицензией"
 
 # ── Логи (в консоль, не для игроков) ─────────
 log:

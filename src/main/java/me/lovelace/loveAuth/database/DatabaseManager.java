@@ -69,6 +69,7 @@ public final class DatabaseManager {
                     username TEXT NOT NULL,
                     password_hash TEXT,
                     discord_id TEXT,
+                    discord_id_hash TEXT,
                     is_locked INTEGER NOT NULL DEFAULT 0,
                     password_enabled INTEGER NOT NULL DEFAULT 1,
                     input_method TEXT NOT NULL DEFAULT 'SIGN',
@@ -112,6 +113,7 @@ public final class DatabaseManager {
         try { statement.execute("ALTER TABLE players ADD COLUMN session_duration INTEGER DEFAULT 7;"); } catch (SQLException ignored) {}
         try { statement.execute("ALTER TABLE players ADD COLUMN last_ip TEXT;"); } catch (SQLException ignored) {}
         try { statement.execute("ALTER TABLE ip_blocks ADD COLUMN raw_ip TEXT;"); } catch (SQLException ignored) {}
+        try { statement.execute("ALTER TABLE players ADD COLUMN discord_id_hash TEXT;"); } catch (SQLException ignored) {}
     }
 
     public CompletableFuture<Optional<PlayerRecord>> findPlayer(UUID uuid) {
@@ -141,11 +143,11 @@ public final class DatabaseManager {
     }
 
     public CompletableFuture<Optional<PlayerRecord>> findPlayerByDiscordId(String discordId) {
-        String encrypted = SecurityUtils.encrypt(discordId, masterKey);
+        String hash = SecurityUtils.hashIp(discordId, masterKey);
         return supplyAsync(() -> {
             try (Connection connection = getConnection();
-                 PreparedStatement statement = connection.prepareStatement("SELECT * FROM players WHERE discord_id = ?")) {
-                statement.setString(1, encrypted);
+                 PreparedStatement statement = connection.prepareStatement("SELECT * FROM players WHERE discord_id_hash = ?")) {
+                statement.setString(1, hash);
                 try (ResultSet resultSet = statement.executeQuery()) {
                     if (!resultSet.next()) return Optional.empty();
                     return Optional.of(readPlayer(resultSet));
@@ -168,6 +170,16 @@ public final class DatabaseManager {
                  PreparedStatement statement = connection.prepareStatement("UPDATE players SET is_locked = ? WHERE uuid = ?")) {
                 statement.setInt(1, locked ? 1 : 0);
                 statement.setString(2, uuid.toString());
+                statement.executeUpdate();
+            }
+            return null;
+        });
+    }
+
+    public CompletableFuture<Void> unlockAllAccounts() {
+        return supplyAsync(() -> {
+            try (Connection connection = getConnection();
+                 PreparedStatement statement = connection.prepareStatement("UPDATE players SET is_locked = 0")) {
                 statement.executeUpdate();
             }
             return null;
@@ -212,6 +224,25 @@ public final class DatabaseManager {
                 statement.setLong(5, now);
                 statement.setLong(6, now);
                 statement.executeUpdate();
+            }
+            return null;
+        });
+    }
+
+    public CompletableFuture<Void> deletePlayer(UUID uuid) {
+        return supplyAsync(() -> {
+            try (Connection connection = getConnection()) {
+                for (String sql : List.of(
+                    "DELETE FROM sessions WHERE uuid = ?",
+                    "DELETE FROM admin_passwords WHERE uuid = ?",
+                    "DELETE FROM logs WHERE uuid = ?",
+                    "DELETE FROM players WHERE uuid = ?"
+                )) {
+                    try (PreparedStatement s = connection.prepareStatement(sql)) {
+                        s.setString(1, uuid.toString());
+                        s.executeUpdate();
+                    }
+                }
             }
             return null;
         });
@@ -282,11 +313,13 @@ public final class DatabaseManager {
 
     public CompletableFuture<Void> setDiscordId(UUID uuid, String discordId) {
         String encrypted = discordId == null || discordId.isBlank() ? null : SecurityUtils.encrypt(discordId, masterKey);
+        String hash = discordId == null || discordId.isBlank() ? null : SecurityUtils.hashIp(discordId, masterKey);
         return supplyAsync(() -> {
             try (Connection connection = getConnection();
-                 PreparedStatement statement = connection.prepareStatement("UPDATE players SET discord_id = ? WHERE uuid = ?")) {
+                 PreparedStatement statement = connection.prepareStatement("UPDATE players SET discord_id = ?, discord_id_hash = ? WHERE uuid = ?")) {
                 statement.setString(1, encrypted);
-                statement.setString(2, uuid.toString());
+                statement.setString(2, hash);
+                statement.setString(3, uuid.toString());
                 statement.executeUpdate();
             }
             return null;

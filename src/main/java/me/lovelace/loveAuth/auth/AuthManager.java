@@ -73,6 +73,7 @@ public final class AuthManager {
             if (valid) {
                 markAuthenticated(player, true);
                 lang.send(player, "auth.session-restored");
+                lang.sendActionBar(player, "actionbar.session-active", Map.of("expires", "7d"));
                 log.database(player.getUniqueId(), "SESSION_RESTORE", player.getName(), ip);
                 return;
             }
@@ -85,6 +86,7 @@ public final class AuthManager {
                 if (!hasPassword && !hasDiscord) {
                     markAuthenticated(player, true);
                     lang.send(player, "auth.premium-skip");
+                    lang.sendActionBar(player, "actionbar.premium-skip", Map.of());
                     log.database(player.getUniqueId(), "PREMIUM_SKIP", player.getName(), ip);
                     return;
                 }
@@ -109,7 +111,10 @@ public final class AuthManager {
     private void handleFirstJoin(Player player) {
         limboManager.sendToLimbo(player);
         startTimeout(player);
+
         if (config.isPremiumSkipEnabled() && isPremium(player)) {
+            database.createPlayer(player.getUniqueId(), player.getName(), true, config.getDefaultInputMethod())
+                .thenRun(() -> registeredCache.add(player.getUniqueId()));
             plugin.getGuiManager().openPremiumWelcome(player);
         } else {
             plugin.getGuiManager().openRegister(player);
@@ -140,6 +145,7 @@ public final class AuthManager {
                 .thenRun(() -> Bukkit.getScheduler().runTask(plugin, () -> {
                     markAuthenticated(player, false);
                     lang.send(player, "login.success");
+                    lang.showTitle(player, "title.login-success-main", "title.login-success-sub");
                     log.database(player.getUniqueId(), "LOGIN_SUCCESS", player.getName(), ip);
                 }));
     }
@@ -173,6 +179,7 @@ public final class AuthManager {
                     registeredCache.add(player.getUniqueId());
                     Bukkit.getScheduler().runTask(plugin, () -> {
                         markAuthenticated(player, true);
+                        lang.showTitle(player, "title.register-success-main", "title.register-success-sub");
                         log.database(player.getUniqueId(), "REGISTER_SUCCESS", player.getName(), ip);
                     });
                 }).thenApply(v -> true);

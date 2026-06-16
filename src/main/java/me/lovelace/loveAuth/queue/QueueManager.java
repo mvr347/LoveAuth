@@ -106,6 +106,9 @@ public final class QueueManager {
         for (UUID uuid : queue) {
             Player player = Bukkit.getPlayer(uuid);
             if (player != null && player.isOnline()) {
+                int pos = getPosition(uuid);
+                lang.sendActionBar(player, "actionbar.queue-position", Map.of("position", String.valueOf(pos), "total", String.valueOf(getTotal())));
+                
                 InventoryHolder holder = player.getOpenInventory().getTopInventory().getHolder();
                 if (holder instanceof QueueGui queueGui) {
                     queueGui.refresh();

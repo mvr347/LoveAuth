@@ -103,6 +103,9 @@ public final class BruteForceProtection {
             callLockEvent(player, uuid, AccountLockEvent.LockReason.ACCOUNT_LOCKED);
             log.warnKey("log.account-locked", Map.of("player", player.getName(), "reason", "ACCOUNT_LOCKED"));
             log.database(uuid, "ACCOUNT_LOCKED", player.getName(), ip);
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                plugin.getLangManager().showTitle(player, "title.account-locked-main", "title.account-locked-sub");
+            });
             return FailureResult.accountLocked();
         });
     }

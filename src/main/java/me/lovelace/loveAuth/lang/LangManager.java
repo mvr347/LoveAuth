@@ -1,46 +1,39 @@
 package me.lovelace.loveAuth.lang;
 
-import me.lovelace.loveAuth.LoveAuth;
 import me.lovelace.loveAuth.config.ConfigManager;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
+import net.kyori.adventure.title.Title;
 import org.bukkit.command.CommandSender;
-import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.Player;
+import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
-import java.util.ArrayList;
+import java.time.Duration;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public final class LangManager {
-    private final LoveAuth plugin;
-    private final ConfigManager configManager;
+    private final JavaPlugin plugin;
+    private final ConfigManager config;
     private final MiniMessage miniMessage = MiniMessage.miniMessage();
-    private FileConfiguration lang;
+    private YamlConfiguration lang;
 
-    public LangManager(LoveAuth plugin, ConfigManager configManager) {
+    public LangManager(JavaPlugin plugin, ConfigManager config) {
         this.plugin = plugin;
-        this.configManager = configManager;
+        this.config = config;
     }
 
     public void load() {
-        File langDirectory = new File(plugin.getDataFolder(), "lang");
-        if (!langDirectory.exists()) {
-            langDirectory.mkdirs();
-        }
-        File langFile = new File(langDirectory, configManager.getLanguage() + ".yml");
-        if (!langFile.exists()) {
+        String langName = config.getLanguage() + ".yml";
+        File file = new File(plugin.getDataFolder(), "lang/" + langName);
+        if (!file.exists()) {
             plugin.saveResource("lang/lang.yml", false);
         }
-        lang = YamlConfiguration.loadConfiguration(langFile);
-    }
-
-    public void reload() {
-        load();
+        lang = YamlConfiguration.loadConfiguration(file);
     }
 
     public String get(String key) {
@@ -48,8 +41,13 @@ public final class LangManager {
     }
 
     public String get(String key, Map<String, String> placeholders) {
-        String value = lang.getString(key, key);
-        return resolve(value, placeholders);
+        String message = lang.getString(key, key);
+        String prefix = lang.getString("prefix", "");
+        message = message.replace("{prefix}", prefix);
+        for (Map.Entry<String, String> entry : placeholders.entrySet()) {
+            message = message.replace("{" + entry.getKey() + "}", entry.getValue());
+        }
+        return message;
     }
 
     public Component component(String key) {
@@ -65,15 +63,16 @@ public final class LangManager {
     }
 
     public List<Component> lore(String key, Map<String, String> placeholders) {
-        List<String> values = lang.getStringList(key);
-        if (values.isEmpty() && lang.isString(key)) {
-            values = List.of(lang.getString(key, key));
+        List<String> lines = lang.getStringList(key);
+        if (lines.isEmpty()) {
+            return Collections.singletonList(component(key, placeholders));
         }
-        List<Component> components = new ArrayList<>(values.size());
-        for (String value : values) {
-            components.add(miniMessage.deserialize(resolve(value, placeholders)));
-        }
-        return components;
+        return lines.stream().map(line -> {
+            for (Map.Entry<String, String> entry : placeholders.entrySet()) {
+                line = line.replace("{" + entry.getKey() + "}", entry.getValue());
+            }
+            return miniMessage.deserialize(line);
+        }).toList();
     }
 
     public String plain(String key) {
@@ -91,21 +90,17 @@ public final class LangManager {
     public void send(CommandSender sender, String key, Map<String, String> placeholders) {
         sender.sendMessage(component(key, placeholders));
     }
-
-    public Map<String, String> placeholders(String... pairs) {
-        Map<String, String> map = new HashMap<>();
-        for (int i = 0; i + 1 < pairs.length; i += 2) {
-            map.put(pairs[i], pairs[i + 1]);
-        }
-        return map;
+    
+    public void showTitle(Player player, String mainKey, String subKey) {
+        Title title = Title.title(
+            component(mainKey),
+            component(subKey),
+            Title.Times.times(Duration.ofMillis(500), Duration.ofSeconds(3), Duration.ofMillis(500))
+        );
+        player.showTitle(title);
     }
 
-    private String resolve(String value, Map<String, String> placeholders) {
-        String prefix = lang.getString("prefix", "");
-        String resolved = value.replace("{prefix}", prefix);
-        for (Map.Entry<String, String> entry : placeholders.entrySet()) {
-            resolved = resolved.replace("{" + entry.getKey() + "}", entry.getValue());
-        }
-        return resolved;
+    public void sendActionBar(Player player, String key, Map<String, String> placeholders) {
+        player.sendActionBar(component(key, placeholders));
     }
 }

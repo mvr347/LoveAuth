@@ -65,6 +65,8 @@ discord:
   bot-token: ""
   # ID сервера Discord
   guild-id: ""
+  # Список Discord ID администраторов для доступа к /admin в боте
+  admin-ids: []
 
 # ── Язык ────────────────────────────────────
 # Файл языка: plugins/LoveAuth/lang/lang.yml

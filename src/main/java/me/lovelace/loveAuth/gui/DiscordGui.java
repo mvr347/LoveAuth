@@ -59,14 +59,25 @@ public final class DiscordGui implements LoveAuthHolder {
                 }
                 inventory.setItem(13, bind);
 
-                ItemStack toggle = new ItemStack(passEnabled ? Material.LEVER : Material.REDSTONE_TORCH);
-                ItemMeta toggleMeta = toggle.getItemMeta();
-                if (toggleMeta != null) {
-                    toggleMeta.displayName(lang.component(passEnabled ? "gui.discord.toggle-password-off" : "gui.discord.toggle-password-on"));
-                    toggleMeta.lore(lang.lore("gui.discord.toggle-lore"));
-                    toggle.setItemMeta(toggleMeta);
+                if (!hasDiscord) {
+                    ItemStack locked = new ItemStack(Material.GRAY_DYE);
+                    ItemMeta lockedMeta = locked.getItemMeta();
+                    if (lockedMeta != null) {
+                        lockedMeta.displayName(lang.component("gui.discord.toggle-locked"));
+                        lockedMeta.lore(lang.lore("gui.discord.toggle-locked-lore"));
+                        locked.setItemMeta(lockedMeta);
+                    }
+                    inventory.setItem(15, locked);
+                } else {
+                    ItemStack toggle = new ItemStack(passEnabled ? Material.LEVER : Material.REDSTONE_TORCH);
+                    ItemMeta toggleMeta = toggle.getItemMeta();
+                    if (toggleMeta != null) {
+                        toggleMeta.displayName(lang.component(passEnabled ? "gui.discord.toggle-password-off" : "gui.discord.toggle-password-on"));
+                        toggleMeta.lore(lang.lore("gui.discord.toggle-lore"));
+                        toggle.setItemMeta(toggleMeta);
+                    }
+                    inventory.setItem(15, toggle);
                 }
-                inventory.setItem(15, toggle);
             });
         });
     }

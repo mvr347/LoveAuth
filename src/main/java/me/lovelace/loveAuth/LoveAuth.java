@@ -14,6 +14,7 @@ import me.lovelace.loveAuth.input.SignInputHandler;
 import me.lovelace.loveAuth.lang.LangManager;
 import me.lovelace.loveAuth.limbo.LimboManager;
 import me.lovelace.loveAuth.listeners.*;
+import me.lovelace.loveAuth.placeholder.LoveAuthExpansion;
 import me.lovelace.loveAuth.queue.QueueManager;
 import me.lovelace.loveAuth.security.RateLimiter;
 import me.lovelace.loveAuth.security.SecurityUtils;
@@ -47,6 +48,7 @@ public final class LoveAuth extends JavaPlugin {
     private DiscordAuthManager discordAuthManager;
     private ChatInputHandler chatInputHandler;
     private SignInputHandler signInputHandler;
+    private LAdminCommand lAdminCommand;
 
     public static LoveAuth getInstance() { return instance; }
 
@@ -88,6 +90,11 @@ public final class LoveAuth extends JavaPlugin {
         registerCommands();
         LoveAuthAPI.setInstance(new LoveAuthAPI(this));
 
+        if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
+            new LoveAuthExpansion(this).register();
+            logManager.infoKey("log.placeholder-registered");
+        }
+
         logManager.infoKey("log.plugin-enable", Map.of("version", getDescription().getVersion()));
     }
 
@@ -116,9 +123,9 @@ public final class LoveAuth extends JavaPlugin {
         LoveAuthCommand cmd = new LoveAuthCommand(this);
         getCommand("loveauth").setExecutor(cmd);
         getCommand("loveauth").setTabCompleter(cmd);
-        LAdminCommand adm = new LAdminCommand(this);
-        getCommand("ladmin").setExecutor(adm);
-        getCommand("ladmin").setTabCompleter(adm);
+        lAdminCommand = new LAdminCommand(this);
+        getCommand("ladmin").setExecutor(lAdminCommand);
+        getCommand("ladmin").setTabCompleter(lAdminCommand);
     }
 
     public ConfigManager getConfigManager() { return configManager; }
@@ -136,4 +143,5 @@ public final class LoveAuth extends JavaPlugin {
     public DiscordAuthManager getDiscordAuthManager() { return discordAuthManager; }
     public ChatInputHandler getChatInputHandler() { return chatInputHandler; }
     public SignInputHandler getSignInputHandler() { return signInputHandler; }
+    public LAdminCommand getLAdminCommand() { return lAdminCommand; }
 }

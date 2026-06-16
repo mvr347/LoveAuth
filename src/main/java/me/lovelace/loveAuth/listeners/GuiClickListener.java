@@ -48,7 +48,7 @@ public final class GuiClickListener implements Listener {
             } else if (slot == 21) {
                 plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
                     if (record.map(r -> r.hasDiscord()).orElse(false)) {
-                        plugin.getDiscordAuthManager().sendConfirmationCode(player, "REMOVE_PASSWORD");
+                        plugin.getDiscordAuthManager().sendConfirmation(player, "REMOVE_PASSWORD");
                     } else {
                         plugin.getLangManager().send(player, "gui.account.delete-password-locked");
                     }
@@ -63,7 +63,7 @@ public final class GuiClickListener implements Listener {
                 plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
                     if (record.map(r -> r.hasDiscord()).orElse(false)) {
                         plugin.getGuiManager().openConfirm(player, "gui.confirm.lock-account", 
-                            () -> plugin.getDiscordAuthManager().sendConfirmationCode(player, "LOCK_ACCOUNT"), 
+                            () -> plugin.getDiscordAuthManager().sendConfirmation(player, "LOCK_ACCOUNT"), 
                             () -> accountGui.open());
                     }
                 });
@@ -82,7 +82,7 @@ public final class GuiClickListener implements Listener {
             else if (slot == 13) {
                 plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
                     if (record.map(r -> r.hasDiscord()).orElse(false)) {
-                        plugin.getDiscordAuthManager().sendConfirmationCode(player, "UNLINK");
+                        plugin.getDiscordAuthManager().sendConfirmation(player, "UNLINK");
                     } else {
                         plugin.getDiscordAuthManager().startBinding(player);
                     }

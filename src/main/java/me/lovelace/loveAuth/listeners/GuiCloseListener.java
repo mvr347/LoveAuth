@@ -1,11 +1,9 @@
 package me.lovelace.loveAuth.listeners;
 
 import me.lovelace.loveAuth.LoveAuth;
-import me.lovelace.loveAuth.gui.LoveAuthHolder;
-import org.bukkit.Bukkit;
+import me.lovelace.loveAuth.gui.PremiumWelcomeGui;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
-import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 
@@ -16,32 +14,22 @@ public final class GuiCloseListener implements Listener {
         this.plugin = plugin;
     }
 
-    @EventHandler(priority = EventPriority.MONITOR)
+    @EventHandler
     public void onClose(InventoryCloseEvent event) {
         if (!(event.getPlayer() instanceof Player player)) return;
-        if (!player.isOnline()) return;
-        if (plugin.getAuthManager().isAuthenticated(player.getUniqueId())) return;
-        if (!(event.getInventory().getHolder() instanceof LoveAuthHolder)) return;
-
-        InventoryCloseEvent.Reason reason = event.getReason();
-
-        if (reason == InventoryCloseEvent.Reason.PLUGIN || 
-            reason == InventoryCloseEvent.Reason.TELEPORT ||
-            reason == InventoryCloseEvent.Reason.DEATH || 
-            reason == InventoryCloseEvent.Reason.OPEN_NEW) {
+        if (event.getInventory().getHolder() instanceof PremiumWelcomeGui) {
+            InventoryCloseEvent.Reason reason = event.getReason();
+            if (reason == InventoryCloseEvent.Reason.PLAYER || reason == InventoryCloseEvent.Reason.UNKNOWN) {
+                if (!plugin.getAuthManager().isAuthenticated(player.getUniqueId())) {
+                    plugin.getAuthManager().markAuthenticated(player, true);
+                    plugin.getLangManager().send(player, "auth.premium-skip-reminder");
+                }
+            }
             return;
         }
 
-        // ✅ ИСПРАВИТЬ — проверять UUID версию игрока (как в AuthManager.isPremium)
-        if (player.getUniqueId().version() == 4) {
-             plugin.getAuthManager().markAuthenticated(player, true);
-             return;
-        }
+        if (plugin.getAuthManager().isAuthenticated(player.getUniqueId())) return;
 
-        Bukkit.getScheduler().runTask(plugin, () -> {
-            if (player.isOnline() && !plugin.getAuthManager().isAuthenticated(player.getUniqueId())) {
-                player.kick(plugin.getLangManager().component("kick.closed-gui"));
-            }
-        });
+        // Kick logic for other GUIs if needed (usually handled by task timeout, but can be forced here)
     }
 }

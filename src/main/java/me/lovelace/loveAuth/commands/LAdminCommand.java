@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 public final class LAdminCommand implements CommandExecutor, TabCompleter {
     private final LoveAuth plugin;
@@ -33,11 +34,19 @@ public final class LAdminCommand implements CommandExecutor, TabCompleter {
         }
 
         if (sender instanceof Player player && !player.isOp()) {
-            plugin.getDatabaseManager().getAdminPassword(player.getUniqueId()).thenAccept(opt -> {
-                if (opt.isEmpty()) {
-                    plugin.getLangManager().send(player, "gui.admin.admin-password-not-set");
+            plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
+                boolean hasDiscord = record.map(r -> r.hasDiscord()).orElse(false);
+                if (hasDiscord && plugin.getDiscordAuthManager().isEnabled()) {
+                    plugin.getDiscordAuthManager().requestAdminConfirmation(player, args)
+                        .thenAccept(sent -> Bukkit.getScheduler().runTask(plugin, () -> {
+                            if (sent) {
+                                plugin.getLangManager().send(player, "gui.admin.discord-confirm-sent");
+                            } else {
+                                checkAdminPassword(player, args);
+                            }
+                        }));
                 } else {
-                    handleCommand(sender, args);
+                    checkAdminPassword(player, args);
                 }
             });
             return true;
@@ -47,7 +56,24 @@ public final class LAdminCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
-    private void handleCommand(CommandSender sender, String[] args) {
+    private void checkAdminPassword(Player player, String[] args) {
+        plugin.getDatabaseManager().getAdminPassword(player.getUniqueId()).thenAccept(opt -> {
+            if (opt.isEmpty()) {
+                plugin.getLangManager().send(player, "gui.admin.admin-password-not-set");
+                return;
+            }
+            plugin.getLangManager().send(player, "gui.admin.admin-password-prompt");
+            plugin.getChatInputHandler().awaitInput(player, "gui.admin.admin-password-prompt", input -> {
+                if (SecurityUtils.verifyPassword(input, opt.get(), plugin.getPepper())) {
+                    handleCommand(player, args);
+                } else {
+                    plugin.getLangManager().send(player, "gui.admin.admin-password-invalid");
+                }
+            });
+        });
+    }
+
+    public void handleCommand(CommandSender sender, String[] args) {
         if (args.length == 0) {
             if (sender instanceof Player player) {
                 plugin.getGuiManager().openAdmin(player);
@@ -135,8 +161,47 @@ public final class LAdminCommand implements CommandExecutor, TabCompleter {
                     });
                 });
             }
+            case "delete", "удалить" -> {
+                if (args.length < 2) return;
+                String target = args[1];
+                lang.send(sender, "commands.admin-delete-confirm", Map.of("player", target));
+                if (sender instanceof Player p) {
+                    plugin.getChatInputHandler().awaitInput(p, "commands.admin-delete-confirm-prompt", input -> {
+                        if (!input.equalsIgnoreCase("подтверждаю")) { lang.send(sender, "commands.admin-delete-cancelled"); return; }
+                        doDeletePlayer(sender, target);
+                    });
+                } else {
+                    doDeletePlayer(sender, target);
+                }
+            }
+            case "amnesty", "амнистия" -> {
+                plugin.getDatabaseManager().clearAllIpBlocks()
+                    .thenCompose(unused -> plugin.getDatabaseManager().unlockAllAccounts())
+                    .thenRun(() -> {
+                        lang.send(sender, "commands.amnesty-done");
+                        plugin.getLogManager().database(null, "AMNESTY", "By " + sender.getName(), null);
+                    });
+            }
             default -> lang.send(sender, "general.unknown-command");
         }
+    }
+
+    private void doDeletePlayer(CommandSender sender, String target) {
+        LangManager lang = plugin.getLangManager();
+        plugin.getDatabaseManager().findPlayerByName(target).thenAccept(record -> {
+            if (record.isEmpty()) { lang.send(sender, "general.player-not-found", Map.of("player", target)); return; }
+            UUID uuid = record.get().uuid();
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                Player online = Bukkit.getPlayer(uuid);
+                if (online != null) online.kick(lang.component("commands.admin-delete-kick"));
+            });
+            plugin.getDatabaseManager().deletePlayer(uuid).thenRun(() -> {
+                plugin.getAuthManager().cleanup(uuid);
+                plugin.getSessionManager().invalidate(uuid);
+                lang.send(sender, "commands.admin-delete-success", Map.of("player", target));
+                plugin.getLogManager().database(uuid, "PLAYER_DELETED", "By " + sender.getName(), null);
+            });
+        });
     }
 
     private void sendHelp(CommandSender sender) {
@@ -148,15 +213,17 @@ public final class LAdminCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage("§f/ladmin info <player> §7- Detailed info & alts");
         sender.sendMessage("§f/ladmin session reset <player> §7- Reset session");
         sender.sendMessage("§f/ladmin setadminpass §7- Set admin password");
+        sender.sendMessage("§f/ladmin delete <player> §7- Delete player data");
+        sender.sendMessage("§f/ladmin amnesty §7- Clear all blocks");
     }
 
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (!sender.hasPermission("loveauth.admin")) return List.of();
-        if (args.length == 1) return List.of("help", "reload", "unlock", "unblockip", "session", "info", "setadminpass", "помощь", "перезагрузка", "разблокировать", "разблокироватьайпи", "сессия", "инфо", "установитьадминпароль");
+        if (args.length == 1) return List.of("help", "reload", "unlock", "unblockip", "session", "info", "setadminpass", "delete", "amnesty", "помощь", "перезагрузка", "разблокировать", "разблокироватьайпи", "сессия", "инфо", "установитьадминпароль", "удалить", "амнистия");
         if (args.length == 2) {
             String sub = args[0].toLowerCase();
-            if (sub.equals("unlock") || sub.equals("info") || sub.equals("разблокировать") || sub.equals("инфо")) return null;
+            if (sub.equals("unlock") || sub.equals("info") || sub.equals("delete") || sub.equals("разблокировать") || sub.equals("инфо") || sub.equals("удалить")) return null;
             if (sub.equals("session") || sub.equals("сессия")) return List.of("reset", "сброс");
         }
         if (args.length == 3) {
