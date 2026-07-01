@@ -155,7 +155,7 @@ public final class LAdminCommand implements CommandExecutor, TabCompleter {
                 lang.send(player, "gui.admin.admin-password-set-prompt");
                 plugin.getChatInputHandler().awaitInput(player, "gui.admin.admin-password-set-prompt", pass -> {
                     plugin.getServer().getAsyncScheduler().runNow(plugin, t -> {
-                        String hash = SecurityUtils.hashPassword(pass, plugin.getPepper());
+                        String hash = SecurityUtils.hashPassword(pass, plugin.getPepper(), plugin.getConfigManager().getBcryptStrength());
                         plugin.getDatabaseManager().setAdminPassword(player.getUniqueId(), hash)
                             .thenRun(() -> lang.send(player, "gui.admin.admin-password-set"));
                     });

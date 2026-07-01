@@ -24,11 +24,20 @@ public final class SignInputHandler implements Listener {
         this.plugin = plugin;
     }
 
+    public boolean canUseSignAt(Player player) {
+        org.bukkit.Location loc = player.getLocation().clone().add(0, 5, 0);
+        return loc.getBlock().getType() == Material.AIR;
+    }
+
     public void awaitInput(Player player, String[] lines, Consumer<String[]> callback) {
         org.bukkit.Location loc = player.getLocation().clone().add(0, 5, 0);
         Block block = loc.getBlock();
+        if (block.getType() != Material.AIR) {
+            callback.accept(new String[]{"", "", "", ""});
+            return;
+        }
         blockStates.put(player.getUniqueId(), new BlockData(block, block.getType()));
-        
+
         block.setType(Material.OAK_SIGN);
         Sign sign = (Sign) block.getState();
         
