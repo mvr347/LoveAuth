@@ -70,7 +70,7 @@ public final class GuiManager {
 
     public void awaitInput(Player player, InputMethod method, String promptKey, Consumer<String> callback) {
         player.closeInventory();
-        if (method == InputMethod.SIGN) {
+        if (method == InputMethod.SIGN && signInput.canUseSignAt(player)) {
             signInput.awaitInput(player, new String[]{lang.plain(promptKey), "^^^^^^^^^^^^^^^", "---------------", "               "}, lines -> {
                 if (lines[0] != null && !lines[0].isBlank()) callback.accept(lines[0]);
             });

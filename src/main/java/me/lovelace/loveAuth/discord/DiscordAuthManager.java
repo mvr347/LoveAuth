@@ -41,7 +41,6 @@ public final class DiscordAuthManager {
 
     private final Map<String, UUID> pendingLinks = new ConcurrentHashMap<>();
     private final Map<UUID, Long> pendingLogins = new ConcurrentHashMap<>();
-    private final Map<UUID, AdminAction> pendingAdminActions = new ConcurrentHashMap<>();
     private final SecureRandom random = new SecureRandom();
 
     public DiscordAuthManager(LoveAuth plugin, ConfigManager config, LangManager lang, DatabaseManager database, AuthManager auth) {
@@ -158,7 +157,6 @@ public final class DiscordAuthManager {
                 Button ok = Button.success("admin_confirm:" + player.getUniqueId() + ":" + argsBase, lang.plain("discord.action-btn-confirm"));
                 Button no = Button.danger("admin_deny:" + player.getUniqueId(), lang.plain("discord.action-btn-deny"));
                 channel.sendMessageEmbeds(em).setComponents(ActionRow.of(ok, no)).queue(msg -> {
-                    pendingAdminActions.put(player.getUniqueId(), new AdminAction(args));
                     res.complete(true);
                     msg.delete().queueAfter(2, TimeUnit.MINUTES, null, err -> {});
                 }, e -> res.complete(false));
@@ -194,7 +192,13 @@ public final class DiscordAuthManager {
                 if (uuid == null) { e.getChannel().sendMessage(lang.plain("discord.link-invalid-code")).queue(); return; }
                 database.findPlayerByDiscordId(dId).thenAccept(ex -> {
                     if (ex.isPresent() && !ex.get().uuid().equals(uuid)) { e.getChannel().sendMessage(lang.plain("discord.already-bound-other")).queue(); return; }
-                    database.setDiscordId(uuid, dId).thenRun(() -> { e.getChannel().sendMessage(lang.plain("discord.link-success-dm")).queue(); Player p = Bukkit.getPlayer(uuid); if (p != null) { lang.send(p, "discord.bind-success"); plugin.getLogManager().database(uuid, "DISCORD_LINK", p.getName(), p.getAddress().getAddress().getHostAddress()); auth.markAuthenticated(p, true); lang.sendActionBar(p, "actionbar.discord-bound", Map.of()); } });
+                    database.setDiscordId(uuid, dId).thenRun(() -> {
+                        e.getChannel().sendMessage(lang.plain("discord.link-success-dm")).queue();
+                        Bukkit.getScheduler().runTask(plugin, () -> {
+                            Player p = Bukkit.getPlayer(uuid);
+                            if (p != null) { lang.send(p, "discord.bind-success"); plugin.getLogManager().database(uuid, "DISCORD_LINK", p.getName(), p.getAddress().getAddress().getHostAddress()); auth.markAuthenticated(p, true); lang.sendActionBar(p, "actionbar.discord-bound", Map.of()); }
+                        });
+                    });
                 });
             } else if (cmd.equals("/unlink") || cmd.equals("/отвязать")) { database.findPlayerByDiscordId(dId).thenAccept(r -> { if (r.isEmpty()) { e.getChannel().sendMessage(lang.plain("discord.not-bound-dm")).queue(); return; } database.setDiscordId(r.get().uuid(), null).thenRun(() -> { e.getChannel().sendMessage(lang.plain("discord.unlinked-dm")).queue(); }); });
             } else if (cmd.equals("/lock") || cmd.equals("/заблокировать")) { database.findPlayerByDiscordId(dId).thenAccept(r -> { if (r.isEmpty()) { e.getChannel().sendMessage(lang.plain("discord.not-bound-dm")).queue(); return; } database.setLocked(r.get().uuid(), true).thenRun(() -> { e.getChannel().sendMessage(lang.plain("discord.locked-dm")).queue(); Player p = Bukkit.getPlayer(r.get().uuid()); if (p != null) Bukkit.getScheduler().runTask(plugin, () -> p.kick(lang.component("block.account-locked"))); }); });
@@ -207,7 +211,7 @@ public final class DiscordAuthManager {
                     if (sub.equals("change") || sub.equals("set") || sub.equals("изменить") || sub.equals("установить")) {
                         if (args.length < 3) return;
                         if (args[2].length() < 3 || args[2].length() > 25) { e.getChannel().sendMessage(lang.plain("register.password-length")).queue(); return; }
-                        database.updatePassword(r.get().uuid(), SecurityUtils.hashPassword(args[2], plugin.getPepper())).thenRun(() -> e.getChannel().sendMessage(lang.plain("discord.password-changed-dm")).queue());
+                        database.updatePassword(r.get().uuid(), SecurityUtils.hashPassword(args[2], plugin.getPepper(), config.getBcryptStrength())).thenRun(() -> e.getChannel().sendMessage(lang.plain("discord.password-changed-dm")).queue());
                     } else if (sub.equals("delete") || sub.equals("удалить")) database.setPasswordEnabled(r.get().uuid(), false).thenRun(() -> e.getChannel().sendMessage(lang.plain("discord.password-deleted-dm")).queue());
                 });
             } else if (cmd.equals("/info") || cmd.equals("/инфо")) { database.findPlayerByDiscordId(dId).thenAccept(r -> { if (r.isEmpty()) { e.getChannel().sendMessage(lang.plain("discord.not-bound-dm")).queue(); return; } DatabaseManager.PlayerRecord pr = r.get(); plugin.getDatabaseManager().getAlts(pr.lastIp()).thenAccept(alts -> { EmbedBuilder eb = new EmbedBuilder().setTitle(lang.plain("discord.info-title")).addField(lang.plain("discord.info-player"), pr.username(), true).addField(lang.plain("discord.info-status"), pr.locked() ? "Locked" : "Active", true).addField("Alts", String.join(", ", alts), false).setColor(pr.locked() ? java.awt.Color.RED : java.awt.Color.GREEN); e.getChannel().sendMessageEmbeds(eb.build()).queue(); }); });
@@ -252,14 +256,15 @@ public final class DiscordAuthManager {
     }
 
     private String generateCode(int l) { String c = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; StringBuilder s = new StringBuilder(); for (int i = 0; i < l; i++) s.append(c.charAt(random.nextInt(c.length()))); return s.toString(); }
-    private String generateNumericCode(int l) { String c = "ABCDEFGHJKLMNPQRSTUVWXYZ0123456789"; StringBuilder s = new StringBuilder(); for (int i = 0; i < l; i++) s.append(c.charAt(random.nextInt(c.length()))); return s.toString(); }
-    private record AdminAction(String[] args) {}
 
     public void handleBotLinkCommand(String c, String d) {
         UUID u = pendingLinks.remove(c);
         if (u != null) database.findPlayerByDiscordId(d).thenAccept(ex -> {
             if (ex.isPresent()) return;
-            database.setDiscordId(u, d).thenRun(() -> { Player p = Bukkit.getPlayer(u); if (p != null) { lang.send(p, "discord.bind-success"); plugin.getLogManager().database(u, "DISCORD_LINK", p.getName(), p.getAddress().getAddress().getHostAddress()); auth.markAuthenticated(p, true); } });
+            database.setDiscordId(u, d).thenRun(() -> Bukkit.getScheduler().runTask(plugin, () -> {
+                Player p = Bukkit.getPlayer(u);
+                if (p != null) { lang.send(p, "discord.bind-success"); plugin.getLogManager().database(u, "DISCORD_LINK", p.getName(), p.getAddress().getAddress().getHostAddress()); auth.markAuthenticated(p, true); }
+            }));
         });
     }
 

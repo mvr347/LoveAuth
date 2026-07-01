@@ -156,8 +156,10 @@ public final class AuthManager {
                 lang.send(player, "login.fail", Map.of("attempts", Integer.toString(result.remainingAttempts())));
                 log.database(player.getUniqueId(), "LOGIN_FAIL", player.getName(), ip);
                 if (player.isOnline()) requestPasswordLogin(player);
+            } else if (result.type() == BruteForceProtection.FailureType.IP_BLOCKED) {
+                player.kick(lang.component("block.ip-locked", Map.of("minutes", Long.toString(result.lockMinutes()))));
             } else {
-                player.kick(lang.component("block.ip-locked"));
+                player.kick(lang.component("block.account-locked"));
             }
         }));
     }
@@ -171,7 +173,7 @@ public final class AuthManager {
         String ip = getIp(player);
         return database.isRegistered(player.getUniqueId()).thenCompose(registered -> {
             if (registered) { registrationLock.remove(name); return CompletableFuture.completedFuture(false); }
-            return supplyAsync(() -> SecurityUtils.hashPassword(password, pepper))
+            return supplyAsync(() -> SecurityUtils.hashPassword(password, pepper, config.getBcryptStrength()))
                 .thenCompose(hash -> database.registerPlayer(player.getUniqueId(), player.getName(), hash, false, config.getDefaultInputMethod()))
                 .thenCompose(v -> database.updateLastLogin(player.getUniqueId(), ip))
                 .thenRun(() -> {
@@ -277,7 +279,7 @@ public final class AuthManager {
         return CompletableFuture.completedFuture(p != null);
     }
     public CompletableFuture<Void> forceRegister(UUID uuid, String pass) {
-        return supplyAsync(() -> SecurityUtils.hashPassword(pass, pepper))
+        return supplyAsync(() -> SecurityUtils.hashPassword(pass, pepper, config.getBcryptStrength()))
             .thenCompose(h -> database.registerPlayer(uuid, "Unknown", h, false, config.getDefaultInputMethod()))
             .thenRun(() -> registeredCache.add(uuid));
     }
@@ -298,7 +300,7 @@ public final class AuthManager {
     }
 
     public CompletableFuture<Boolean> updatePassword(Player player, String pass) {
-        return supplyAsync(() -> SecurityUtils.hashPassword(pass, pepper))
+        return supplyAsync(() -> SecurityUtils.hashPassword(pass, pepper, config.getBcryptStrength()))
             .thenCompose(h -> database.updatePassword(player.getUniqueId(), h))
             .thenApply(v -> { 
                 lang.send(player, "commands.password-changed");

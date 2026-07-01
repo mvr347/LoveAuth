@@ -31,7 +31,13 @@ public final class LangManager {
         String langName = config.getLanguage() + ".yml";
         File file = new File(plugin.getDataFolder(), "lang/" + langName);
         if (!file.exists()) {
-            plugin.saveResource("lang/lang.yml", false);
+            try {
+                plugin.saveResource("lang/" + langName, false);
+            } catch (IllegalArgumentException e) {
+                plugin.getLogger().warning("Language file 'lang/" + langName + "' is not bundled with the plugin, falling back to default lang.yml");
+                plugin.saveResource("lang/lang.yml", false);
+                file = new File(plugin.getDataFolder(), "lang/lang.yml");
+            }
         }
         lang = YamlConfiguration.loadConfiguration(file);
     }
