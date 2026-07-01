@@ -83,9 +83,9 @@ discord:
   # Включить возможность входа/привязки через Discord-бота
   enabled: true
   # Токен Discord-бота (требуется если enabled: true)
-  bot-token: 'MTQ4MDkzMzEwMTkwMjQ5OTk1MQ.GmS3SU.lrId5BLBbNuuQOomphmsv5BhHejcY68ebAaFOo'
+  bot-token: ''
   # ID сервера Discord
-  guild-id: '1249385485449695334'
+  guild-id: ''
   # Список Discord ID администраторов для доступа к /admin в боте
   admin-ids: []
 
