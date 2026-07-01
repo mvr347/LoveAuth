@@ -20,7 +20,8 @@ import java.util.List;
 
 public final class PlayerProtectionListener implements Listener {
     private final LoveAuth plugin;
-    private final List<String> commandWhitelist = List.of("/loveauth", "/auth", "/login", "/register");
+    private static final List<String> BASE_COMMANDS = List.of("/loveauth", "/auth", "/авторизация", "/регистрация", "/вход");
+    private static final List<String> ALLOWED_SUBCOMMANDS = List.of("register", "регистрация", "login", "вход", "help", "помощь");
 
     public PlayerProtectionListener(LoveAuth plugin) {
         this.plugin = plugin;
@@ -134,10 +135,11 @@ public final class PlayerProtectionListener implements Listener {
         Player player = event.getPlayer();
         if (plugin.getAuthManager().isAuthenticated(player.getUniqueId())) return;
 
-        String message = event.getMessage().toLowerCase();
-        for (String whitelisted : commandWhitelist) {
-            if (message.startsWith(whitelisted)) return;
-        }
+        String[] parts = event.getMessage().substring(1).toLowerCase().split("\\s+");
+        String base = "/" + parts[0];
+        boolean allowed = BASE_COMMANDS.contains(base)
+                && (parts.length == 1 || ALLOWED_SUBCOMMANDS.contains(parts[1]));
+        if (allowed) return;
 
         event.setCancelled(true);
         plugin.getLangManager().send(player, "protection.command-blocked");

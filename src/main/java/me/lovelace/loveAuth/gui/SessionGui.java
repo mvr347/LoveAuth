@@ -3,6 +3,7 @@ package me.lovelace.loveAuth.gui;
 import me.lovelace.loveAuth.auth.AuthManager;
 import me.lovelace.loveAuth.database.DatabaseManager;
 import me.lovelace.loveAuth.lang.LangManager;
+import me.lovelace.loveAuth.util.HeadTextures;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -38,22 +39,25 @@ public final class SessionGui implements LoveAuthHolder {
             int currentDays = record.map(DatabaseManager.PlayerRecord::sessionDuration).orElse(7);
             
             Bukkit.getScheduler().runTask(auth.getPlugin(), () -> {
-                ItemStack cycleBtn = new ItemStack(currentDays == 0 ? Material.BARRIER : Material.CLOCK);
-                ItemMeta cycleMeta = cycleBtn.getItemMeta();
-                if (cycleMeta != null) {
-                    String nameKey = currentDays == 0 ? "gui.session.disable" : "gui.session.days";
-                    cycleMeta.displayName(lang.component(nameKey, Map.of("days", String.valueOf(currentDays))));
-                    cycleMeta.lore(lang.lore("gui.session.cycle-lore"));
-                    cycleBtn.setItemMeta(cycleMeta);
+                String nameKey = currentDays == 0 ? "gui.session.disable" : "gui.session.days";
+                ItemStack cycleBtn;
+                if (currentDays == 0) {
+                    cycleBtn = new ItemStack(Material.BARRIER);
+                    ItemMeta cycleMeta = cycleBtn.getItemMeta();
+                    if (cycleMeta != null) {
+                        cycleMeta.displayName(lang.component(nameKey, Map.of("days", String.valueOf(currentDays))));
+                        cycleMeta.lore(lang.lore("gui.session.cycle-lore"));
+                        cycleBtn.setItemMeta(cycleMeta);
+                    }
+                } else {
+                    cycleBtn = HeadTextures.createSkull(HeadTextures.HEAD_SESSION,
+                            lang.component(nameKey, Map.of("days", String.valueOf(currentDays))),
+                            lang.lore("gui.session.cycle-lore"));
                 }
                 inventory.setItem(13, cycleBtn);
 
-                ItemStack back = new ItemStack(Material.ARROW);
-                ItemMeta backMeta = back.getItemMeta();
-                if (backMeta != null) {
-                    backMeta.displayName(lang.component("gui.back-button"));
-                    back.setItemMeta(backMeta);
-                }
+                ItemStack back = HeadTextures.createSkull(HeadTextures.HEAD_BACK,
+                        lang.component("gui.back-button"), java.util.Collections.emptyList());
                 inventory.setItem(22, back);
             });
         });

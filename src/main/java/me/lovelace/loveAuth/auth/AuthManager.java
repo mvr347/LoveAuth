@@ -9,7 +9,9 @@ import me.lovelace.loveAuth.limbo.LimboManager;
 import me.lovelace.loveAuth.security.SecurityUtils;
 import me.lovelace.loveAuth.session.SessionManager;
 import me.lovelace.loveAuth.util.LogManager;
+import me.lovelace.loveAuth.util.SoundUtils;
 import org.bukkit.Bukkit;
+import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 
@@ -48,22 +50,33 @@ public final class AuthManager {
     public LoveAuth getPlugin() { return plugin; }
 
     public void handleJoin(Player player) {
-        String ip = getIp(player);
-        if (!plugin.getRateLimiter().tryConsume(ip)) {
-            lang.send(player, "auth.rate-limited");
-            return;
-        }
-        database.findPlayer(player.getUniqueId()).thenAccept(record -> Bukkit.getScheduler().runTask(plugin, () -> {
-            if (!player.isOnline()) return;
-            if (record.isPresent()) {
-                handleKnownPlayer(player, record.get(), ip);
-            } else {
-                handleFirstJoin(player);
+        try {
+            String ip = getIp(player);
+            if (!plugin.getRateLimiter().tryConsume(ip)) {
+                lang.send(player, "auth.rate-limited");
+                return;
             }
-        })).exceptionally(error -> {
-            log.errorKey("log.database-error", Map.of("message", error.getMessage() != null ? error.getMessage() : "DB Error"), error);
-            return null;
-        });
+            database.findPlayer(player.getUniqueId()).thenAccept(record -> Bukkit.getScheduler().runTask(plugin, () -> {
+                try {
+                    if (!player.isOnline()) return;
+                    if (record.isPresent()) {
+                        handleKnownPlayer(player, record.get(), ip);
+                    } else {
+                        handleFirstJoin(player);
+                    }
+                } catch (Exception e) {
+                    log.errorKey("log.database-error", Map.of("message", e.getMessage() != null ? e.getMessage() : "Auth error"), e);
+                    if (player.isOnline()) player.kick(lang.component("kick.auth-error"));
+                }
+            })).exceptionally(error -> {
+                log.errorKey("log.database-error", Map.of("message", error.getMessage() != null ? error.getMessage() : "DB Error"), error);
+                if (player.isOnline()) Bukkit.getScheduler().runTask(plugin, () -> player.kick(lang.component("kick.auth-error")));
+                return null;
+            });
+        } catch (Exception e) {
+            log.errorKey("log.database-error", Map.of("message", e.getMessage() != null ? e.getMessage() : "Auth error"), e);
+            if (player.isOnline()) player.kick(lang.component("kick.auth-error"));
+        }
     }
 
     private void handleKnownPlayer(Player player, DatabaseManager.PlayerRecord record, String ip) {
@@ -80,31 +93,40 @@ public final class AuthManager {
             limboManager.sendToLimbo(player);
             startTimeout(player);
 
-            if (config.isPremiumSkipEnabled() && isPremium(player)) {
+            // Opening an inventory in the same tick as the limbo teleport is unreliable -
+            // the client is still processing the dimension-change/respawn packet and may
+            // silently ignore the open-screen packet. Defer by a tick so the teleport has
+            // fully landed client-side before any GUI is shown.
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                if (!player.isOnline()) return;
+
+                if (config.isPremiumSkipEnabled() && isPremium(player)) {
+                    boolean hasPassword = record.hasPassword() && record.passwordEnabled();
+                    boolean hasDiscord = record.hasDiscord();
+                    if (!hasPassword && !hasDiscord) {
+                        markAuthenticated(player, true);
+                        lang.send(player, "auth.premium-skip");
+                        lang.sendActionBar(player, "actionbar.premium-skip", Map.of());
+                        log.database(player.getUniqueId(), "PREMIUM_SKIP", player.getName(), ip);
+                        return;
+                    }
+                }
+
                 boolean hasPassword = record.hasPassword() && record.passwordEnabled();
                 boolean hasDiscord = record.hasDiscord();
-                if (!hasPassword && !hasDiscord) {
-                    markAuthenticated(player, true);
-                    lang.send(player, "auth.premium-skip");
-                    lang.sendActionBar(player, "actionbar.premium-skip", Map.of());
-                    log.database(player.getUniqueId(), "PREMIUM_SKIP", player.getName(), ip);
-                    return;
+
+                if (!hasPassword && hasDiscord) {
+                    plugin.getDiscordAuthManager().requestDiscordLogin(player)
+                        .thenAccept(sent -> Bukkit.getScheduler().runTask(plugin, () -> {
+                            if (!player.isOnline()) return;
+                            if (!sent) {
+                                plugin.getGuiManager().openAuthMethod(player);
+                            }
+                        }));
+                } else {
+                    plugin.getGuiManager().openAuthMethod(player);
                 }
-            }
-
-            boolean hasPassword = record.hasPassword() && record.passwordEnabled();
-            boolean hasDiscord = record.hasDiscord();
-
-            if (!hasPassword && hasDiscord) {
-                plugin.getDiscordAuthManager().requestDiscordLogin(player)
-                    .thenAccept(sent -> Bukkit.getScheduler().runTask(plugin, () -> {
-                        if (!sent) {
-                            plugin.getGuiManager().openAuthMethod(player);
-                        }
-                    }));
-            } else {
-                plugin.getGuiManager().openAuthMethod(player);
-            }
+            }, 1L);
         }));
     }
 
@@ -112,13 +134,18 @@ public final class AuthManager {
         limboManager.sendToLimbo(player);
         startTimeout(player);
 
-        if (config.isPremiumSkipEnabled() && isPremium(player)) {
-            database.createPlayer(player.getUniqueId(), player.getName(), true, config.getDefaultInputMethod())
-                .thenRun(() -> registeredCache.add(player.getUniqueId()));
-            plugin.getGuiManager().openPremiumWelcome(player);
-        } else {
-            plugin.getGuiManager().openRegister(player);
-        }
+        // See the comment in handleKnownPlayer: defer the GUI open by a tick so it
+        // doesn't race the limbo teleport's dimension-change packet.
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (!player.isOnline()) return;
+            if (config.isPremiumSkipEnabled() && isPremium(player)) {
+                database.createPlayer(player.getUniqueId(), player.getName(), true, config.getDefaultInputMethod())
+                    .thenRun(() -> registeredCache.add(player.getUniqueId()));
+                plugin.getGuiManager().openPremiumWelcome(player);
+            } else {
+                plugin.getGuiManager().openRegister(player);
+            }
+        }, 1L);
     }
 
     public boolean isPremium(Player player) {
@@ -147,6 +174,7 @@ public final class AuthManager {
                     lang.send(player, "login.success");
                     lang.showTitle(player, "title.login-success-main", "title.login-success-sub");
                     log.database(player.getUniqueId(), "LOGIN_SUCCESS", player.getName(), ip);
+                    SoundUtils.success(player);
                 }));
     }
 
@@ -155,6 +183,7 @@ public final class AuthManager {
             if (result.type() == BruteForceProtection.FailureType.FAILED) {
                 lang.send(player, "login.fail", Map.of("attempts", Integer.toString(result.remainingAttempts())));
                 log.database(player.getUniqueId(), "LOGIN_FAIL", player.getName(), ip);
+                SoundUtils.error(player);
                 if (player.isOnline()) requestPasswordLogin(player);
             } else if (result.type() == BruteForceProtection.FailureType.IP_BLOCKED) {
                 player.kick(lang.component("block.ip-locked", Map.of("minutes", Long.toString(result.lockMinutes()))));
@@ -183,6 +212,11 @@ public final class AuthManager {
                         markAuthenticated(player, true);
                         lang.showTitle(player, "title.register-success-main", "title.register-success-sub");
                         log.database(player.getUniqueId(), "REGISTER_SUCCESS", player.getName(), ip);
+                        SoundUtils.success(player);
+                        if (config.isRegisterSpawnEnabled()) {
+                            World spawnWorld = Bukkit.getWorld(config.getRegisterSpawnWorld());
+                            if (spawnWorld != null) player.teleport(spawnWorld.getSpawnLocation());
+                        }
                     });
                 }).thenApply(v -> true);
         }).exceptionally(e -> { registrationLock.remove(name); return false; });
@@ -190,11 +224,13 @@ public final class AuthManager {
 
     public boolean validatePassword(Player player, String password) {
         if (password == null || password.length() < 3 || password.length() > 25) {
-            lang.send(player, "register.password-length");
+            lang.sendActionBar(player, "register.password-length", Map.of());
+            SoundUtils.error(player);
             return false;
         }
         if (!PASSWORD_PATTERN.matcher(password).matches()) {
-            lang.send(player, "register.password-invalid-chars");
+            lang.sendActionBar(player, "register.password-invalid-chars", Map.of());
+            SoundUtils.error(player);
             return false;
         }
         return true;
@@ -209,6 +245,7 @@ public final class AuthManager {
 
     public void cleanup(UUID uuid) {
         authenticated.remove(uuid);
+        registeredCache.remove(uuid);
         cancelTimeout(uuid);
         Player p = Bukkit.getPlayer(uuid);
         if (p != null) registrationLock.remove(p.getName().toLowerCase());
@@ -253,7 +290,8 @@ public final class AuthManager {
                 plugin.getGuiManager().awaitInput(player, m, "register.prompt-confirm", p2 -> {
                     if (p1.equals(p2)) register(player, p1);
                     else {
-                        lang.send(player, "register.password-mismatch");
+                        lang.sendActionBar(player, "register.password-mismatch", Map.of());
+                        SoundUtils.error(player);
                         if (player.isOnline()) requestRegistration(player);
                     }
                 });
@@ -286,15 +324,23 @@ public final class AuthManager {
 
     public void requestPasswordChange(Player player) {
         resolveInputMethod(player).thenAccept(m -> Bukkit.getScheduler().runTask(plugin, () -> {
-            lang.send(player, "register.prompt-password");
             plugin.getGuiManager().awaitInput(player, m, "register.prompt-password", p -> {
-                if (validatePassword(player, p)) {
-                    updatePassword(player, p).thenRun(() -> {
-                        if (player.isOnline()) plugin.getGuiManager().openAccount(player);
-                    });
-                } else {
+                if (!validatePassword(player, p)) {
                     requestPasswordChange(player);
+                    return;
                 }
+                database.findPlayer(player.getUniqueId()).thenAccept(record -> {
+                    boolean hasDiscord = record.map(DatabaseManager.PlayerRecord::hasDiscord).orElse(false);
+                    if (hasDiscord) {
+                        supplyAsync(() -> SecurityUtils.hashPassword(p, pepper)).thenAccept(hash -> Bukkit.getScheduler().runTask(plugin, () -> {
+                            if (player.isOnline()) plugin.getDiscordAuthManager().sendPasswordChangeConfirmation(player, hash);
+                        }));
+                    } else {
+                        updatePassword(player, p).thenRun(() -> {
+                            if (player.isOnline()) plugin.getGuiManager().openAccount(player);
+                        });
+                    }
+                });
             });
         }));
     }
@@ -302,10 +348,13 @@ public final class AuthManager {
     public CompletableFuture<Boolean> updatePassword(Player player, String pass) {
         return supplyAsync(() -> SecurityUtils.hashPassword(pass, pepper, config.getBcryptStrength()))
             .thenCompose(h -> database.updatePassword(player.getUniqueId(), h))
-            .thenApply(v -> { 
-                lang.send(player, "commands.password-changed");
+            .thenApply(v -> {
                 log.database(player.getUniqueId(), "PASSWORD_CHANGE", player.getName(), getIp(player));
-                return true; 
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    lang.sendActionBar(player, "commands.password-changed", Map.of());
+                    SoundUtils.success(player);
+                });
+                return true;
             });
     }
 }

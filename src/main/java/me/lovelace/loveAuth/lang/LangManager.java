@@ -11,6 +11,10 @@ import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
@@ -40,6 +44,31 @@ public final class LangManager {
             }
         }
         lang = YamlConfiguration.loadConfiguration(file);
+        mergeMissingKeys(file);
+    }
+
+    /**
+     * Existing installs keep their lang file as-is across updates, so keys added by a
+     * newer plugin version (e.g. new lang.* entries) are silently missing and render as
+     * the raw key instead of text. Backfill anything present in the bundled default that
+     * the on-disk file doesn't have yet, without touching the user's existing edits.
+     */
+    private void mergeMissingKeys(File file) {
+        try (InputStream defaultStream = plugin.getResource("lang/lang.yml")) {
+            if (defaultStream == null) return;
+            YamlConfiguration defaults = YamlConfiguration.loadConfiguration(new InputStreamReader(defaultStream, StandardCharsets.UTF_8));
+            boolean changed = false;
+            for (String key : defaults.getKeys(true)) {
+                if (defaults.isConfigurationSection(key)) continue;
+                if (!lang.isSet(key)) {
+                    lang.set(key, defaults.get(key));
+                    changed = true;
+                }
+            }
+            if (changed) lang.save(file);
+        } catch (IOException e) {
+            plugin.getLogger().warning("Failed to merge missing lang keys: " + e.getMessage());
+        }
     }
 
     public String get(String key) {

@@ -6,7 +6,7 @@
 
     <groupId>me.lovelace</groupId>
     <artifactId>LoveAuth</artifactId>
-    <version>1.1</version>
+    <version>1.5</version>
     <packaging>jar</packaging>
 
     <name>LoveAuth</name>
@@ -40,6 +40,14 @@
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <version>1.18.34</version>
+            <scope>provided</scope>
+        </dependency>
+        <!-- Уже бундлится внутри сервера (Paper/Purpur) — нужна только для компиляции
+             Netty-кода протокольной проверки лицензии, в рантайме используется версия сервера -->
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-transport</artifactId>
+            <version>4.1.107.Final</version>
             <scope>provided</scope>
         </dependency>
         <dependency>

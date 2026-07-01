@@ -2,6 +2,7 @@ package me.lovelace.loveAuth.gui;
 
 import me.lovelace.loveAuth.auth.AuthManager;
 import me.lovelace.loveAuth.lang.LangManager;
+import me.lovelace.loveAuth.util.HeadTextures;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -36,13 +37,8 @@ public final class RegisterGui implements LoveAuthHolder {
         inventory.setItem(11, register);
         
         if (auth.getPlugin().getConfigManager().isDiscordEnabled()) {
-            ItemStack discord = new ItemStack(Material.BLUE_STAINED_GLASS);
-            ItemMeta discordMeta = discord.getItemMeta();
-            if (discordMeta != null) {
-                discordMeta.displayName(lang.component("gui.discord.bind-button"));
-                discordMeta.lore(lang.lore("gui.discord.bind-lore"));
-                discord.setItemMeta(discordMeta);
-            }
+            ItemStack discord = HeadTextures.createSkull(HeadTextures.HEAD_DISCORD,
+                    lang.component("gui.discord.bind-button"), lang.lore("gui.discord.bind-lore"));
             inventory.setItem(15, discord);
         }
 

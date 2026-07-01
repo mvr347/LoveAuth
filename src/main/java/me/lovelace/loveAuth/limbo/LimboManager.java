@@ -112,6 +112,18 @@ public final class LimboManager {
         });
     }
 
+    public void cleanup(Player player) {
+        UUID uuid = player.getUniqueId();
+        // If the player disconnects/gets kicked while still frozen, restore their real
+        // gamemode/speed/visibility first - otherwise Minecraft persists the frozen
+        // (ADVENTURE, invisible, walkSpeed 0) attributes to their playerdata, and the
+        // next freeze() call would capture that corrupted state as their "original" one.
+        if (frozenPlayers.getIfPresent(uuid) != null) {
+            unfreeze(player);
+        }
+        originalLocations.remove(uuid);
+    }
+
     public void unfreeze(Player player) {
         PlayerState state = frozenPlayers.getIfPresent(player.getUniqueId());
         if (state != null) {

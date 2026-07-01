@@ -15,6 +15,7 @@ import me.lovelace.loveAuth.lang.LangManager;
 import me.lovelace.loveAuth.limbo.LimboManager;
 import me.lovelace.loveAuth.listeners.*;
 import me.lovelace.loveAuth.placeholder.LoveAuthExpansion;
+import me.lovelace.loveAuth.premium.PremiumVerificationManager;
 import me.lovelace.loveAuth.queue.QueueManager;
 import me.lovelace.loveAuth.security.RateLimiter;
 import me.lovelace.loveAuth.security.SecurityUtils;
@@ -49,6 +50,7 @@ public final class LoveAuth extends JavaPlugin {
     private ChatInputHandler chatInputHandler;
     private SignInputHandler signInputHandler;
     private LAdminCommand lAdminCommand;
+    private PremiumVerificationManager premiumVerificationManager;
 
     public static LoveAuth getInstance() { return instance; }
 
@@ -58,6 +60,7 @@ public final class LoveAuth extends JavaPlugin {
 
         configManager = new ConfigManager(this);
         configManager.load();
+        SecurityUtils.configure(configManager.getArgon2Iterations());
 
         masterKey = SecurityUtils.loadOrGenerateMasterKey(configManager);
         pepper = SecurityUtils.loadOrGeneratePepper(configManager);
@@ -71,7 +74,10 @@ public final class LoveAuth extends JavaPlugin {
         logManager = new LogManager(this, langManager);
         logManager.setDatabaseManager(databaseManager);
         configManager.consumeWarningKeys().forEach(logManager::warnKey);
-        
+
+        premiumVerificationManager = new PremiumVerificationManager(this);
+        premiumVerificationManager.initialize();
+
         sessionManager = new SessionManager(this, configManager, databaseManager, masterKey);
         rateLimiter = new RateLimiter();
         bruteForceProtection = new BruteForceProtection(this, configManager, databaseManager, masterKey, logManager);
@@ -102,6 +108,7 @@ public final class LoveAuth extends JavaPlugin {
     public void onDisable() {
         if (sessionManager != null) sessionManager.saveActiveSessions();
         if (queueManager != null) queueManager.stop();
+        if (premiumVerificationManager != null) premiumVerificationManager.shutdown();
         if (discordAuthManager != null) discordAuthManager.shutdown();
         if (databaseManager != null) databaseManager.close();
         instance = null;
@@ -144,4 +151,5 @@ public final class LoveAuth extends JavaPlugin {
     public ChatInputHandler getChatInputHandler() { return chatInputHandler; }
     public SignInputHandler getSignInputHandler() { return signInputHandler; }
     public LAdminCommand getLAdminCommand() { return lAdminCommand; }
+    public PremiumVerificationManager getPremiumVerificationManager() { return premiumVerificationManager; }
 }

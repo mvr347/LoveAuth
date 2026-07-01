@@ -21,5 +21,7 @@ public final class PlayerQuitListener implements Listener {
         plugin.getQueueManager().removeFromQueue(uuid);
         plugin.getChatInputHandler().cleanup(uuid);
         plugin.getSignInputHandler().cleanup(uuid);
+        plugin.getLimboManager().cleanup(event.getPlayer());
+        plugin.getLAdminCommand().invalidateOnlineSession(uuid);
     }
 }

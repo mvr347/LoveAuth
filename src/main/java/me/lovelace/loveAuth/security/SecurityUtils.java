@@ -25,9 +25,8 @@ public final class SecurityUtils {
 
     private SecurityUtils() {}
 
-    public static String hashPassword(String password, String pepper, int iterations) {
-        int cost = Math.max(4, Math.min(20, iterations));
-        return ARGON2.hash(cost, 65536, 1, (password + (pepper != null ? pepper : "")).toCharArray());
+    public static String hashPassword(String password, String pepper) {
+        return ARGON2.hash(10, 65536, 1, (password + (pepper != null ? pepper : "")).toCharArray());
     }
 
     public static boolean verifyPassword(String raw, String hash, String pepper) {

@@ -30,8 +30,8 @@ public final class ConfigManager {
     }
 
     private void validate() {
-        if (getBcryptStrength() < 10) {
-            warningKeys.add("log.config-warn-bcrypt");
+        if (getArgon2Iterations() < 10) {
+            warningKeys.add("log.config-warn-argon2");
         }
         int duration = config.getInt("session.duration-days", 7);
         if (duration != 0 && (duration < 1 || duration > 28)) {
@@ -76,7 +76,7 @@ public final class ConfigManager {
         markGeneratedSecurity();
         plugin.saveConfig();
     }
-    public int getBcryptStrength() { return config.getInt("security.bcrypt-strength", 12); }
+    public int getArgon2Iterations() { return config.getInt("security.argon2-iterations", 10); }
     public boolean isSessionEnabled() { return config.getBoolean("session.enabled", true) && getSessionDurationDays() > 0; }
     public int getSessionDurationDays() { return config.getInt("session.duration-days", 7); }
     public boolean isSessionBindToIp() { return config.getBoolean("session.bind-to-ip", true); }
@@ -99,5 +99,10 @@ public final class ConfigManager {
     public String getDiscordGuildId() { return config.getString("discord.guild-id", ""); }
     public String getLanguage() { return config.getString("language", "lang"); }
     public boolean isPremiumSkipEnabled() { return config.getBoolean("auth.premium-skip", true); }
+    public boolean isPremiumVerificationEnabled() { return config.getBoolean("premium-verification.enabled", false); }
+    public long getPremiumVerificationTimeoutMs() { return config.getLong("premium-verification.timeout-ms", 5000); }
+    public boolean isPremiumNameProtectionEnabled() { return config.getBoolean("premium-verification.block-cracked-with-premium-name", true); }
     public List<String> getDiscordAdminIds() { return config.getStringList("discord.admin-ids"); }
+    public boolean isRegisterSpawnEnabled() { return config.getBoolean("register-spawn.enabled", false); }
+    public String getRegisterSpawnWorld() { return config.getString("register-spawn.world", "world"); }
 }

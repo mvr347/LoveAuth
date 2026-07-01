@@ -3,6 +3,7 @@ package me.lovelace.loveAuth.gui;
 import me.lovelace.loveAuth.auth.AuthManager;
 import me.lovelace.loveAuth.database.DatabaseManager;
 import me.lovelace.loveAuth.lang.LangManager;
+import me.lovelace.loveAuth.util.HeadTextures;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -47,17 +48,17 @@ public final class AccountGui implements LoveAuthHolder {
 
                 // Slot 20: Change Password
                 if (!pr.hasPassword() || !pr.passwordEnabled()) {
-                    setItem(20, Material.TRIPWIRE_HOOK, "gui.account.set-password", "gui.account.set-password-lore");
+                    setItem(20, HeadTextures.HEAD_CHANGE_PASS, "gui.account.set-password", "gui.account.set-password-lore");
                 } else {
-                    setItem(20, Material.TRIPWIRE_HOOK, "gui.account.change-password", "gui.account.change-password-lore");
+                    setItem(20, HeadTextures.HEAD_CHANGE_PASS, "gui.account.change-password", "gui.account.change-password-lore");
                 }
 
                 // Slot 21: Delete Password (Discord only)
                 if (pr.hasPassword() && pr.passwordEnabled()) {
                     if (hasDiscord) {
-                        setItem(21, Material.BARRIER, "gui.account.delete-password", "gui.account.delete-password-lore");
+                        setItem(21, HeadTextures.HEAD_BARRIER, "gui.account.delete-password", "gui.account.delete-password-lore");
                     } else {
-                        setItem(21, Material.GRAY_DYE, "gui.account.delete-password-locked", "gui.account.delete-password-locked-lore");
+                        setItem(21, HeadTextures.HEAD_INACTIVE, "gui.account.delete-password-locked", "gui.account.delete-password-locked-lore");
                     }
                 }
 
@@ -66,10 +67,10 @@ public final class AccountGui implements LoveAuthHolder {
                     auth.getSessionManager().getExpiry(player.getUniqueId()).thenAccept(expiry -> {
                         String status = expiry.isPresent() ? lang.plain("gui.account.session-active") : lang.plain("gui.account.session-disabled");
                         String expires = expiry.map(e -> DF.format(Instant.ofEpochSecond(e))).orElse("---");
-                        Bukkit.getScheduler().runTask(auth.getPlugin(), () -> setItem(22, Material.CLOCK, "gui.account.session-info", "gui.account.session-lore", Map.of("status", status, "expires", expires)));
+                        Bukkit.getScheduler().runTask(auth.getPlugin(), () -> setItem(22, HeadTextures.HEAD_SESSION, "gui.account.session-info", "gui.account.session-lore", Map.of("status", status, "expires", expires)));
                     });
                 } else {
-                    setItem(22, Material.GRAY_DYE, "gui.account.session-unavailable", "gui.account.session-unavailable-lore");
+                    setItem(22, HeadTextures.HEAD_INACTIVE, "gui.account.session-unavailable", "gui.account.session-unavailable-lore");
                 }
 
                 // Slot 23: Input Method
@@ -79,17 +80,12 @@ public final class AccountGui implements LoveAuthHolder {
                 });
 
                 // Slot 24: Discord Settings
-                setItem(24, hasDiscord ? Material.CHAINMAIL_CHESTPLATE : Material.CHAIN, 
+                setItem(24, HeadTextures.HEAD_DISCORD,
                     hasDiscord ? "gui.discord.unlink-button" : "gui.discord.bind-button",
                     hasDiscord ? "gui.discord.unlink-lore" : "gui.discord.bind-lore");
 
-                // Slot 25: Lock Account (Discord only)
-                if (hasDiscord) {
-                    setItem(25, Material.IRON_BARS, "gui.account.lock-account", "gui.account.lock-account-lore");
-                }
-
                 // Slot 31: Logout
-                setItem(31, Material.IRON_DOOR, "gui.account.logout", "gui.account.logout-lore");
+                setItem(31, HeadTextures.HEAD_EXIT_ACCOUNT, "gui.account.logout", "gui.account.logout-lore");
             });
         });
     }
@@ -100,6 +96,11 @@ public final class AccountGui implements LoveAuthHolder {
         ItemMeta meta = item.getItemMeta();
         if (meta != null) { meta.displayName(lang.component(nameKey, p)); meta.lore(lang.lore(loreKey, p)); item.setItemMeta(meta); }
         inventory.setItem(slot, item);
+    }
+
+    private void setItem(int slot, String headTexture, String nameKey, String loreKey) { setItem(slot, headTexture, nameKey, loreKey, Map.of()); }
+    private void setItem(int slot, String headTexture, String nameKey, String loreKey, Map<String, String> p) {
+        inventory.setItem(slot, HeadTextures.createSkull(headTexture, lang.component(nameKey, p), lang.lore(loreKey, p)));
     }
 
     @Override

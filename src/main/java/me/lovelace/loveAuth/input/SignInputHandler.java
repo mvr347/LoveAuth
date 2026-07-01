@@ -40,9 +40,10 @@ public final class SignInputHandler implements Listener {
 
         block.setType(Material.OAK_SIGN);
         Sign sign = (Sign) block.getState();
-        
+
+        org.bukkit.block.sign.SignSide side = sign.getSide(org.bukkit.block.sign.Side.FRONT);
         for (int i = 0; i < lines.length && i < 4; i++) {
-            sign.setLine(i, lines[i]);
+            side.line(i, net.kyori.adventure.text.Component.text(lines[i]));
         }
         sign.update();
 

@@ -4,12 +4,11 @@ import me.lovelace.loveAuth.auth.AuthManager;
 import me.lovelace.loveAuth.config.ConfigManager;
 import me.lovelace.loveAuth.discord.DiscordAuthManager;
 import me.lovelace.loveAuth.lang.LangManager;
+import me.lovelace.loveAuth.util.HeadTextures;
 import org.bukkit.Bukkit;
-import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.NotNull;
 
 public final class DiscordGui implements LoveAuthHolder {
@@ -37,45 +36,37 @@ public final class DiscordGui implements LoveAuthHolder {
     public void refresh() {
         GuiManager.fillBackground(inventory, lang);
 
-        ItemStack back = new ItemStack(Material.ARROW);
-        ItemMeta backMeta = back.getItemMeta();
-        if (backMeta != null) {
-            backMeta.displayName(lang.component("gui.back-button"));
-            back.setItemMeta(backMeta);
-        }
+        ItemStack back = HeadTextures.createSkull(HeadTextures.HEAD_BACK,
+                lang.component("gui.back-button"), java.util.Collections.emptyList());
         inventory.setItem(11, back);
 
         auth.getPlugin().getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
             boolean hasDiscord = record.map(r -> r.hasDiscord()).orElse(false);
             boolean passEnabled = record.map(r -> r.passwordEnabled()).orElse(true);
+            boolean hasWorkingPassword = record.map(r -> r.hasPassword() && r.passwordEnabled()).orElse(false);
 
             Bukkit.getScheduler().runTask(auth.getPlugin(), () -> {
-                ItemStack bind = new ItemStack(hasDiscord ? Material.CHAINMAIL_CHESTPLATE : Material.CHAIN);
-                ItemMeta bindMeta = bind.getItemMeta();
-                if (bindMeta != null) {
-                    bindMeta.displayName(lang.component(hasDiscord ? "gui.discord.unlink-button" : "gui.discord.bind-button"));
-                    bindMeta.lore(lang.lore(hasDiscord ? "gui.discord.unlink-lore" : "gui.discord.bind-lore"));
-                    bind.setItemMeta(bindMeta);
+                ItemStack bind;
+                if (!hasDiscord) {
+                    bind = HeadTextures.createSkull(HeadTextures.HEAD_DISCORD,
+                            lang.component("gui.discord.bind-button"), lang.lore("gui.discord.bind-lore"));
+                } else if (!hasWorkingPassword) {
+                    bind = HeadTextures.createSkull(HeadTextures.HEAD_INACTIVE,
+                            lang.component("gui.discord.unlink-locked"), lang.lore("gui.discord.unlink-locked-lore"));
+                } else {
+                    bind = HeadTextures.createSkull(HeadTextures.HEAD_DISCORD,
+                            lang.component("gui.discord.unlink-button"), lang.lore("gui.discord.unlink-lore"));
                 }
                 inventory.setItem(13, bind);
 
                 if (!hasDiscord) {
-                    ItemStack locked = new ItemStack(Material.GRAY_DYE);
-                    ItemMeta lockedMeta = locked.getItemMeta();
-                    if (lockedMeta != null) {
-                        lockedMeta.displayName(lang.component("gui.discord.toggle-locked"));
-                        lockedMeta.lore(lang.lore("gui.discord.toggle-locked-lore"));
-                        locked.setItemMeta(lockedMeta);
-                    }
+                    ItemStack locked = HeadTextures.createSkull(HeadTextures.HEAD_INACTIVE,
+                            lang.component("gui.discord.toggle-locked"), lang.lore("gui.discord.toggle-locked-lore"));
                     inventory.setItem(15, locked);
                 } else {
-                    ItemStack toggle = new ItemStack(passEnabled ? Material.LEVER : Material.REDSTONE_TORCH);
-                    ItemMeta toggleMeta = toggle.getItemMeta();
-                    if (toggleMeta != null) {
-                        toggleMeta.displayName(lang.component(passEnabled ? "gui.discord.toggle-password-off" : "gui.discord.toggle-password-on"));
-                        toggleMeta.lore(lang.lore("gui.discord.toggle-lore"));
-                        toggle.setItemMeta(toggleMeta);
-                    }
+                    ItemStack toggle = HeadTextures.createSkull(HeadTextures.HEAD_CHANGE_PASS,
+                            lang.component(passEnabled ? "gui.discord.toggle-password-off" : "gui.discord.toggle-password-on"),
+                            lang.lore("gui.discord.toggle-lore"));
                     inventory.setItem(15, toggle);
                 }
             });

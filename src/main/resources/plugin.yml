@@ -11,7 +11,7 @@ commands:
     description: Главная команда LoveAuth
     usage: /loveauth <подкоманда>
   ladmin:
-    aliases: [ ладмин, админ ]
+    aliases: [ ладмин ]
     description: Панель администратора LoveAuth
     usage: /ladmin <подкоманда>
 permissions:

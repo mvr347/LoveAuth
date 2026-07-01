@@ -4,6 +4,7 @@ import me.lovelace.loveAuth.LoveAuth;
 import me.lovelace.loveAuth.database.DatabaseManager;
 import me.lovelace.loveAuth.lang.LangManager;
 import me.lovelace.loveAuth.security.SecurityUtils;
+import me.lovelace.loveAuth.util.SoundUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -18,12 +19,33 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class LAdminCommand implements CommandExecutor, TabCompleter {
+    private static final long ADMIN_SESSION_DURATION_MILLIS = 3_600_000L;
+    /** Sentinel expiry value meaning "valid for as long as the player stays online". */
+    private static final long NO_EXPIRY = -1L;
+
     private final LoveAuth plugin;
+    private final Map<UUID, Long> adminSessions = new ConcurrentHashMap<>();
 
     public LAdminCommand(LoveAuth plugin) {
         this.plugin = plugin;
+    }
+
+    /** In-game admin-password approval: valid until the player logs out, no fixed expiry. */
+    public void recordAdminSession(UUID uuid) {
+        adminSessions.put(uuid, NO_EXPIRY);
+    }
+
+    /** Discord-button-approved admin actions: expire after a fixed duration regardless of online state. */
+    public void recordTimedAdminSession(UUID uuid) {
+        adminSessions.put(uuid, System.currentTimeMillis() + ADMIN_SESSION_DURATION_MILLIS);
+    }
+
+    /** Invalidates only "valid while online" sessions; timed Discord-approved sessions survive logout. */
+    public void invalidateOnlineSession(UUID uuid) {
+        adminSessions.computeIfPresent(uuid, (u, expiry) -> expiry == NO_EXPIRY ? null : expiry);
     }
 
     @Override
@@ -33,7 +55,27 @@ public final class LAdminCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        if (sender instanceof Player player && !player.isOp()) {
+        if (!(sender instanceof Player player)) {
+            handleCommand(sender, args);
+            return true;
+        }
+
+        Long sessionExpiry = adminSessions.get(player.getUniqueId());
+        if (sessionExpiry != null && (sessionExpiry == NO_EXPIRY || sessionExpiry > System.currentTimeMillis())) {
+            handleCommand(player, args);
+            return true;
+        }
+
+        plugin.getDatabaseManager().getAdminPassword(player.getUniqueId()).thenAccept(opt -> Bukkit.getScheduler().runTask(plugin, () -> {
+            if (opt.isEmpty()) {
+                boolean settingPassword = args.length > 0 && (args[0].equalsIgnoreCase("setadminpass") || args[0].equalsIgnoreCase("установитьадминпароль"));
+                if (settingPassword) {
+                    handleCommand(player, args);
+                } else {
+                    plugin.getLangManager().send(player, "gui.admin.admin-password-not-set");
+                }
+                return;
+            }
             plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
                 boolean hasDiscord = record.map(r -> r.hasDiscord()).orElse(false);
                 if (hasDiscord && plugin.getDiscordAuthManager().isEnabled()) {
@@ -42,34 +84,26 @@ public final class LAdminCommand implements CommandExecutor, TabCompleter {
                             if (sent) {
                                 plugin.getLangManager().send(player, "gui.admin.discord-confirm-sent");
                             } else {
-                                checkAdminPassword(player, args);
+                                checkAdminPassword(player, args, opt.get());
                             }
                         }));
                 } else {
-                    checkAdminPassword(player, args);
+                    checkAdminPassword(player, args, opt.get());
                 }
             });
-            return true;
-        }
-
-        handleCommand(sender, args);
+        }));
         return true;
     }
 
-    private void checkAdminPassword(Player player, String[] args) {
-        plugin.getDatabaseManager().getAdminPassword(player.getUniqueId()).thenAccept(opt -> {
-            if (opt.isEmpty()) {
-                plugin.getLangManager().send(player, "gui.admin.admin-password-not-set");
-                return;
+    private void checkAdminPassword(Player player, String[] args, String passwordHash) {
+        plugin.getChatInputHandler().awaitInput(player, "gui.admin.admin-password-prompt", input -> {
+            if (SecurityUtils.verifyPassword(input, passwordHash, plugin.getPepper())) {
+                recordAdminSession(player.getUniqueId());
+                handleCommand(player, args);
+            } else {
+                plugin.getLangManager().send(player, "gui.admin.admin-password-invalid");
+                SoundUtils.error(player);
             }
-            plugin.getLangManager().send(player, "gui.admin.admin-password-prompt");
-            plugin.getChatInputHandler().awaitInput(player, "gui.admin.admin-password-prompt", input -> {
-                if (SecurityUtils.verifyPassword(input, opt.get(), plugin.getPepper())) {
-                    handleCommand(player, args);
-                } else {
-                    plugin.getLangManager().send(player, "gui.admin.admin-password-invalid");
-                }
-            });
         });
     }
 
@@ -89,6 +123,7 @@ public final class LAdminCommand implements CommandExecutor, TabCompleter {
             case "help", "помощь" -> sendHelp(sender);
             case "reload", "перезагрузка" -> {
                 plugin.getConfigManager().reload();
+                SecurityUtils.configure(plugin.getConfigManager().getArgon2Iterations());
                 plugin.getLangManager().load();
                 plugin.getQueueManager().stop();
                 plugin.getQueueManager().start();
@@ -152,7 +187,6 @@ public final class LAdminCommand implements CommandExecutor, TabCompleter {
                     sender.sendMessage("Only players.");
                     return;
                 }
-                lang.send(player, "gui.admin.admin-password-set-prompt");
                 plugin.getChatInputHandler().awaitInput(player, "gui.admin.admin-password-set-prompt", pass -> {
                     plugin.getServer().getAsyncScheduler().runNow(plugin, t -> {
                         String hash = SecurityUtils.hashPassword(pass, plugin.getPepper(), plugin.getConfigManager().getBcryptStrength());
@@ -163,23 +197,19 @@ public final class LAdminCommand implements CommandExecutor, TabCompleter {
             }
             case "delete", "удалить" -> {
                 if (args.length < 2) return;
-                String target = args[1];
-                lang.send(sender, "commands.admin-delete-confirm", Map.of("player", target));
-                if (sender instanceof Player p) {
-                    plugin.getChatInputHandler().awaitInput(p, "commands.admin-delete-confirm-prompt", input -> {
-                        if (!input.equalsIgnoreCase("подтверждаю")) { lang.send(sender, "commands.admin-delete-cancelled"); return; }
-                        doDeletePlayer(sender, target);
-                    });
-                } else {
-                    doDeletePlayer(sender, target);
-                }
+                doDeletePlayer(sender, args[1]);
             }
             case "amnesty", "амнистия" -> {
                 plugin.getDatabaseManager().clearAllIpBlocks()
                     .thenCompose(unused -> plugin.getDatabaseManager().unlockAllAccounts())
                     .thenRun(() -> {
-                        lang.send(sender, "commands.amnesty-done");
-                        plugin.getLogManager().database(null, "AMNESTY", "By " + sender.getName(), null);
+                        lang.send(sender, "commands.amnesty-done", Map.of("sender", sender.getName()));
+                        plugin.getLogManager().database(
+                            sender instanceof Player p ? p.getUniqueId() : null,
+                            "AMNESTY",
+                            "By " + sender.getName(),
+                            null
+                        );
                     });
             }
             default -> lang.send(sender, "general.unknown-command");

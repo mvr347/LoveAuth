@@ -1,5 +1,7 @@
 package me.lovelace.loveAuth.auth;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import me.lovelace.loveAuth.LoveAuth;
 import me.lovelace.loveAuth.api.events.AccountLockEvent;
 import me.lovelace.loveAuth.config.ConfigManager;
@@ -22,6 +24,9 @@ public final class BruteForceProtection {
     private final DatabaseManager database;
     private final SecretKey masterKey;
     private final LogManager log;
+    private final Cache<String, Integer> attempts = Caffeine.newBuilder()
+            .expireAfterWrite(2, TimeUnit.HOURS)
+            .build();
 
     public BruteForceProtection(LoveAuth plugin, ConfigManager config, DatabaseManager database, SecretKey masterKey, LogManager log) {
         this.plugin = plugin;
@@ -52,12 +57,13 @@ public final class BruteForceProtection {
     public CompletableFuture<FailureResult> recordFailure(Player player, UUID uuid, String ip) {
         long now = Instant.now().getEpochSecond();
         return database.getIpBlock(ip).thenCompose(record -> {
-            int previous = record.map(DatabaseManager.IpBlockRecord::attemptCount).orElse(0);
+            int previous = record.map(DatabaseManager.IpBlockRecord::attemptCount).orElseGet(() -> attempts.get(ip, unused -> 0));
             long blockedUntil = record.map(DatabaseManager.IpBlockRecord::blockedUntil).orElse(0L);
             if (previous >= config.getMaxAttempts() && blockedUntil <= now && blockedUntil > 0L) {
                 return lockAccount(player, uuid, ip);
             }
             int updated = previous + 1;
+            attempts.put(ip, updated);
             if (updated >= config.getMaxAttempts()) {
                 long until = now + TimeUnit.MINUTES.toSeconds(config.getLockoutDurationMinutes());
                 return database.saveIpBlock(ip, until, updated).thenApply(unused -> {
@@ -75,6 +81,7 @@ public final class BruteForceProtection {
     }
 
     public CompletableFuture<Void> recordSuccess(String ip) {
+        attempts.invalidate(ip);
         return database.clearIpBlock(ip).exceptionally(error -> {
             log.errorKey("log.database-error", Map.of("message", safeMessage(error)), error);
             return null;

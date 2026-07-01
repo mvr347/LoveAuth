@@ -97,8 +97,12 @@ public final class QueueManager {
                 priorities.remove(next);
                 Player player = Bukkit.getPlayer(next);
                 if (player != null && player.isOnline()) {
-                    lang.send(player, "queue.connecting");
-                    plugin.getAuthManager().handleJoin(player);
+                    try {
+                        lang.send(player, "queue.connecting");
+                        plugin.getAuthManager().handleJoin(player);
+                    } catch (Exception e) {
+                        plugin.getLogManager().errorKey("log.error", Map.of("message", e.getMessage() != null ? e.getMessage() : "Queue error"), e);
+                    }
                 }
             }
         }
@@ -106,14 +110,18 @@ public final class QueueManager {
         for (UUID uuid : queue) {
             Player player = Bukkit.getPlayer(uuid);
             if (player != null && player.isOnline()) {
-                int pos = getPosition(uuid);
-                lang.sendActionBar(player, "actionbar.queue-position", Map.of("position", String.valueOf(pos), "total", String.valueOf(getTotal())));
-                
-                InventoryHolder holder = player.getOpenInventory().getTopInventory().getHolder();
-                if (holder instanceof QueueGui queueGui) {
-                    queueGui.refresh();
-                } else if (!plugin.getAuthManager().isAuthenticated(uuid)) {
-                    plugin.getGuiManager().openQueue(player);
+                try {
+                    int pos = getPosition(uuid);
+                    lang.sendActionBar(player, "actionbar.queue-position", Map.of("position", String.valueOf(pos), "total", String.valueOf(getTotal())));
+
+                    InventoryHolder holder = player.getOpenInventory().getTopInventory().getHolder();
+                    if (holder instanceof QueueGui queueGui) {
+                        queueGui.refresh();
+                    } else if (!plugin.getAuthManager().isAuthenticated(uuid)) {
+                        plugin.getGuiManager().openQueue(player);
+                    }
+                } catch (Exception e) {
+                    plugin.getLogManager().errorKey("log.error", Map.of("message", e.getMessage() != null ? e.getMessage() : "Queue error"), e);
                 }
             }
         }

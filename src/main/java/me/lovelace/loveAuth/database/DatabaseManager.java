@@ -561,7 +561,9 @@ public final class DatabaseManager {
         if (encryptedDiscord != null && !encryptedDiscord.isBlank()) {
             try {
                 discordId = SecurityUtils.decrypt(encryptedDiscord, masterKey);
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                plugin.getLogger().warning("[LoveAuth] Не удалось расшифровать Discord ID для " + resultSet.getString("uuid") + ": " + e.getMessage());
+            }
         }
         return new PlayerRecord(
                 UUID.fromString(resultSet.getString("uuid")),
