@@ -44,6 +44,10 @@ public final class MojangSessionClient {
                 .thenApply(response -> response.statusCode() == 200 ? parseProfile(response.body()) : null);
     }
 
+    public void close() {
+        httpClient.close();
+    }
+
     private MojangProfile parseProfile(String json) {
         Object parsed = new JsonParser(json).parseValue();
         if (!(parsed instanceof Map<?, ?> map)) return null;

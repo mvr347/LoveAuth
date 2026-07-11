@@ -132,6 +132,7 @@ public final class PremiumVerificationManager {
         }
         hookedParents.clear();
         handles = null;
+        sessionClient.close();
     }
 
     private void installAcceptHook(Channel parentChannel) {
