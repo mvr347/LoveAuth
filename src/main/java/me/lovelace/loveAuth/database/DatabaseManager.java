@@ -462,8 +462,9 @@ public final class DatabaseManager {
     public CompletableFuture<Optional<String>> getRawIpFromBlocked(String partialIp) {
         return supplyAsync(() -> {
             try (Connection connection = getConnection();
-                 PreparedStatement statement = connection.prepareStatement("SELECT raw_ip FROM ip_blocks WHERE raw_ip LIKE ? LIMIT 1")) {
-                statement.setString(1, "%" + partialIp + "%");
+                 PreparedStatement statement = connection.prepareStatement("SELECT raw_ip FROM ip_blocks WHERE raw_ip LIKE ? ESCAPE '\\' LIMIT 1")) {
+                String escaped = partialIp.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+                statement.setString(1, "%" + escaped + "%");
                 try (ResultSet resultSet = statement.executeQuery()) {
                     if (resultSet.next()) return Optional.ofNullable(resultSet.getString("raw_ip"));
                 }

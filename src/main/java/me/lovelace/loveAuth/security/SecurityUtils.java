@@ -6,13 +6,13 @@ import me.lovelace.loveAuth.config.ConfigManager;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
+import javax.crypto.Mac;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
-import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Base64;
@@ -67,11 +67,10 @@ public final class SecurityUtils {
 
     public static String hashIp(String ip, SecretKey key) {
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            digest.update(key.getEncoded());
-            digest.update(ip.getBytes(StandardCharsets.UTF_8));
-            return Base64.getEncoder().encodeToString(digest.digest());
-        } catch (NoSuchAlgorithmException e) {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(key.getEncoded(), "HmacSHA256"));
+            return Base64.getEncoder().encodeToString(mac.doFinal(ip.getBytes(StandardCharsets.UTF_8)));
+        } catch (GeneralSecurityException e) {
             throw new IllegalStateException(e);
         }
     }

@@ -123,7 +123,6 @@ public final class LAdminCommand implements CommandExecutor, TabCompleter {
             case "help", "помощь" -> sendHelp(sender);
             case "reload", "перезагрузка" -> {
                 plugin.getConfigManager().reload();
-                SecurityUtils.configure(plugin.getConfigManager().getArgon2Iterations());
                 plugin.getLangManager().load();
                 plugin.getQueueManager().stop();
                 plugin.getQueueManager().start();
@@ -189,7 +188,7 @@ public final class LAdminCommand implements CommandExecutor, TabCompleter {
                 }
                 plugin.getChatInputHandler().awaitInput(player, "gui.admin.admin-password-set-prompt", pass -> {
                     plugin.getServer().getAsyncScheduler().runNow(plugin, t -> {
-                        String hash = SecurityUtils.hashPassword(pass, plugin.getPepper(), plugin.getConfigManager().getBcryptStrength());
+                        String hash = SecurityUtils.hashPassword(pass, plugin.getPepper());
                         plugin.getDatabaseManager().setAdminPassword(player.getUniqueId(), hash)
                             .thenRun(() -> lang.send(player, "gui.admin.admin-password-set"));
                     });

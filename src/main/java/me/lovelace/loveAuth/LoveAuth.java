@@ -60,7 +60,6 @@ public final class LoveAuth extends JavaPlugin {
 
         configManager = new ConfigManager(this);
         configManager.load();
-        SecurityUtils.configure(configManager.getArgon2Iterations());
 
         masterKey = SecurityUtils.loadOrGenerateMasterKey(configManager);
         pepper = SecurityUtils.loadOrGeneratePepper(configManager);
@@ -106,7 +105,18 @@ public final class LoveAuth extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        if (sessionManager != null) sessionManager.saveActiveSessions();
+        if (sessionManager != null) {
+            try {
+                // Block until pending session writes land before the connection pool
+                // below is closed - otherwise they'd race databaseManager.close() and
+                // fail with "pool has been shutdown" during server stop.
+                sessionManager.saveActiveSessions().get(5, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (Exception e) {
+                if (logManager != null) {
+                    logManager.errorKey("log.error", Map.of("message", e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()), e);
+                }
+            }
+        }
         if (queueManager != null) queueManager.stop();
         if (premiumVerificationManager != null) premiumVerificationManager.shutdown();
         if (discordAuthManager != null) discordAuthManager.shutdown();
