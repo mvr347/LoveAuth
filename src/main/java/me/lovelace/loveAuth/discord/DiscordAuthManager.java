@@ -82,7 +82,25 @@ public final class DiscordAuthManager {
     public boolean isEnabled() { return jda != null; }
 
     public void shutdown() {
-        if (jda != null) { jda.shutdown(); jda = null; }
+        if (jda == null) return;
+        JDA toClose = jda;
+        jda = null;
+        toClose.shutdown();
+        try {
+            // Block until the gateway WebSocket and JDA's internal threads have
+            // actually terminated. Bukkit closes this plugin's classloader right
+            // after onDisable() returns; JDA.shutdown() alone only *requests* a
+            // close and returns immediately, so those still-running threads would
+            // otherwise reference now-unloaded plugin classes (e.g. the event
+            // listener) and blow up with NoClassDefFoundError/WebSocket errors
+            // during server shutdown.
+            if (!toClose.awaitShutdown(java.time.Duration.ofSeconds(10))) {
+                toClose.shutdownNow();
+                toClose.awaitShutdown(java.time.Duration.ofSeconds(5));
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     public void startBinding(Player player) {

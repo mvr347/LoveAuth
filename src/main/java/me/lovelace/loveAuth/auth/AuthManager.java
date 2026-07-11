@@ -202,7 +202,7 @@ public final class AuthManager {
         String ip = getIp(player);
         return database.isRegistered(player.getUniqueId()).thenCompose(registered -> {
             if (registered) { registrationLock.remove(name); return CompletableFuture.completedFuture(false); }
-            return supplyAsync(() -> SecurityUtils.hashPassword(password, pepper, config.getBcryptStrength()))
+            return supplyAsync(() -> SecurityUtils.hashPassword(password, pepper))
                 .thenCompose(hash -> database.registerPlayer(player.getUniqueId(), player.getName(), hash, false, config.getDefaultInputMethod()))
                 .thenCompose(v -> database.updateLastLogin(player.getUniqueId(), ip))
                 .thenRun(() -> {
@@ -317,7 +317,7 @@ public final class AuthManager {
         return CompletableFuture.completedFuture(p != null);
     }
     public CompletableFuture<Void> forceRegister(UUID uuid, String pass) {
-        return supplyAsync(() -> SecurityUtils.hashPassword(pass, pepper, config.getBcryptStrength()))
+        return supplyAsync(() -> SecurityUtils.hashPassword(pass, pepper))
             .thenCompose(h -> database.registerPlayer(uuid, "Unknown", h, false, config.getDefaultInputMethod()))
             .thenRun(() -> registeredCache.add(uuid));
     }
@@ -346,7 +346,7 @@ public final class AuthManager {
     }
 
     public CompletableFuture<Boolean> updatePassword(Player player, String pass) {
-        return supplyAsync(() -> SecurityUtils.hashPassword(pass, pepper, config.getBcryptStrength()))
+        return supplyAsync(() -> SecurityUtils.hashPassword(pass, pepper))
             .thenCompose(h -> database.updatePassword(player.getUniqueId(), h))
             .thenApply(v -> {
                 log.database(player.getUniqueId(), "PASSWORD_CHANGE", player.getName(), getIp(player));
