@@ -8,9 +8,11 @@ import me.lovelace.loveAuth.database.DatabaseManager;
 import me.lovelace.loveAuth.security.SecurityUtils;
 
 import javax.crypto.SecretKey;
+import java.sql.SQLException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -99,6 +101,22 @@ public final class SessionManager {
         List<CompletableFuture<Void>> futures = new ArrayList<>();
         sessions.asMap().forEach((uuid, data) -> futures.add(database.saveKnownSession(new DatabaseManager.SessionRecord(uuid, data.ipHash, data.expiresAt))));
         return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new));
+    }
+
+    /**
+     * Same as {@link #saveActiveSessions}, but writes synchronously on the calling thread
+     * instead of going through the plugin's async scheduler. Must be used during onDisable() -
+     * Bukkit/Paper/Folia refuse to schedule new async tasks once the plugin is marked disabled,
+     * which it always is by the time onDisable() runs, so the async version silently fails there.
+     */
+    public void saveActiveSessionsSync() {
+        sessions.asMap().forEach((uuid, data) -> {
+            try {
+                database.saveKnownSessionSync(new DatabaseManager.SessionRecord(uuid, data.ipHash, data.expiresAt));
+            } catch (SQLException e) {
+                plugin.getLogManager().errorKey("log.database-error", Map.of("message", safeMessage(e)), e);
+            }
+        });
     }
 
     private String safeMessage(Throwable throwable) {
