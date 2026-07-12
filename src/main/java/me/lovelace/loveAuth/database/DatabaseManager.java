@@ -530,19 +530,29 @@ public final class DatabaseManager {
 
     public CompletableFuture<Void> saveKnownSession(SessionRecord sessionRecord) {
         return supplyAsync(() -> {
-            try (Connection connection = getConnection();
-                 PreparedStatement statement = connection.prepareStatement("""
-                         INSERT INTO sessions (uuid, ip_hash, expires_at)
-                         VALUES (?, ?, ?)
-                         ON CONFLICT(uuid) DO UPDATE SET ip_hash = excluded.ip_hash, expires_at = excluded.expires_at
-                         """)) {
-                statement.setString(1, sessionRecord.uuid().toString());
-                statement.setString(2, sessionRecord.ipHash());
-                statement.setLong(3, sessionRecord.expiresAt());
-                statement.executeUpdate();
-            }
+            saveKnownSessionSync(sessionRecord);
             return null;
         });
+    }
+
+    /**
+     * Same write as {@link #saveKnownSession}, but run directly on the calling thread instead
+     * of via the plugin's async scheduler. Bukkit/Paper/Folia refuse to schedule new tasks for
+     * a plugin whose {@code isEnabled} flag is already false - which it always is by the time
+     * {@code onDisable()} runs - so this is the only safe way to persist sessions on shutdown.
+     */
+    public void saveKnownSessionSync(SessionRecord sessionRecord) throws SQLException {
+        try (Connection connection = getConnection();
+             PreparedStatement statement = connection.prepareStatement("""
+                     INSERT INTO sessions (uuid, ip_hash, expires_at)
+                     VALUES (?, ?, ?)
+                     ON CONFLICT(uuid) DO UPDATE SET ip_hash = excluded.ip_hash, expires_at = excluded.expires_at
+                     """)) {
+            statement.setString(1, sessionRecord.uuid().toString());
+            statement.setString(2, sessionRecord.ipHash());
+            statement.setLong(3, sessionRecord.expiresAt());
+            statement.executeUpdate();
+        }
     }
 
     public void close() {

@@ -105,18 +105,10 @@ public final class LoveAuth extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        if (sessionManager != null) {
-            try {
-                // Block until pending session writes land before the connection pool
-                // below is closed - otherwise they'd race databaseManager.close() and
-                // fail with "pool has been shutdown" during server stop.
-                sessionManager.saveActiveSessions().get(5, java.util.concurrent.TimeUnit.SECONDS);
-            } catch (Exception e) {
-                if (logManager != null) {
-                    logManager.errorKey("log.error", Map.of("message", e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()), e);
-                }
-            }
-        }
+        // Synchronous on purpose: Bukkit/Paper/Folia refuse to schedule new async-scheduler
+        // tasks once the plugin is marked disabled (which it already is by this point), so
+        // routing this through the normal async DB path throws IllegalPluginAccessException.
+        if (sessionManager != null) sessionManager.saveActiveSessionsSync();
         if (queueManager != null) queueManager.stop();
         if (premiumVerificationManager != null) premiumVerificationManager.shutdown();
         if (discordAuthManager != null) discordAuthManager.shutdown();
