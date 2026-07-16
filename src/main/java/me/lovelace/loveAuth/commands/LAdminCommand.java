@@ -1,5 +1,7 @@
 package me.lovelace.loveAuth.commands;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import me.lovelace.loveAuth.LoveAuth;
 import me.lovelace.loveAuth.database.DatabaseManager;
 import me.lovelace.loveAuth.lang.LangManager;
@@ -14,12 +16,14 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 public final class LAdminCommand implements CommandExecutor, TabCompleter {
     private static final long ADMIN_SESSION_DURATION_MILLIS = 3_600_000L;
@@ -28,6 +32,12 @@ public final class LAdminCommand implements CommandExecutor, TabCompleter {
 
     private final LoveAuth plugin;
     private final Map<UUID, Long> adminSessions = new ConcurrentHashMap<>();
+    /** Per-player admin-password brute-force tracking: failed attempt count and lockout expiry (0 = not locked). */
+    private final Cache<UUID, AdminAttemptState> adminPasswordAttempts = Caffeine.newBuilder()
+            .expireAfterWrite(2, TimeUnit.HOURS)
+            .build();
+
+    private record AdminAttemptState(int failures, long lockedUntilEpochSecond) {}
 
     public LAdminCommand(LoveAuth plugin) {
         this.plugin = plugin;
@@ -96,15 +106,41 @@ public final class LAdminCommand implements CommandExecutor, TabCompleter {
     }
 
     private void checkAdminPassword(Player player, String[] args, String passwordHash) {
+        UUID uuid = player.getUniqueId();
+        long now = Instant.now().getEpochSecond();
+        AdminAttemptState state = adminPasswordAttempts.getIfPresent(uuid);
+        if (state != null && state.lockedUntilEpochSecond() > now) {
+            long minutes = Math.max(1L, (state.lockedUntilEpochSecond() - now + 59L) / 60L);
+            plugin.getLangManager().send(player, "gui.admin.admin-password-locked", Map.of("minutes", Long.toString(minutes)));
+            SoundUtils.error(player);
+            return;
+        }
         plugin.getChatInputHandler().awaitInput(player, "gui.admin.admin-password-prompt", input -> {
             if (SecurityUtils.verifyPassword(input, passwordHash, plugin.getPepper())) {
-                recordAdminSession(player.getUniqueId());
+                adminPasswordAttempts.invalidate(uuid);
+                recordAdminSession(uuid);
                 handleCommand(player, args);
             } else {
-                plugin.getLangManager().send(player, "gui.admin.admin-password-invalid");
-                SoundUtils.error(player);
+                recordAdminPasswordFailure(player);
             }
         });
+    }
+
+    private void recordAdminPasswordFailure(Player player) {
+        UUID uuid = player.getUniqueId();
+        int maxAttempts = Math.max(1, plugin.getConfigManager().getAdminMaxAttempts());
+        AdminAttemptState previous = adminPasswordAttempts.getIfPresent(uuid);
+        int failures = (previous == null ? 0 : previous.failures()) + 1;
+        if (failures >= maxAttempts) {
+            int lockoutMinutes = Math.max(1, plugin.getConfigManager().getAdminLockoutDurationMinutes());
+            long lockedUntil = Instant.now().getEpochSecond() + TimeUnit.MINUTES.toSeconds(lockoutMinutes);
+            adminPasswordAttempts.put(uuid, new AdminAttemptState(0, lockedUntil));
+            plugin.getLangManager().send(player, "gui.admin.admin-password-locked", Map.of("minutes", Integer.toString(lockoutMinutes)));
+        } else {
+            adminPasswordAttempts.put(uuid, new AdminAttemptState(failures, 0L));
+            plugin.getLangManager().send(player, "gui.admin.admin-password-invalid");
+        }
+        SoundUtils.error(player);
     }
 
     public void handleCommand(CommandSender sender, String[] args) {
@@ -188,7 +224,7 @@ public final class LAdminCommand implements CommandExecutor, TabCompleter {
                 }
                 plugin.getChatInputHandler().awaitInput(player, "gui.admin.admin-password-set-prompt", pass -> {
                     plugin.getServer().getAsyncScheduler().runNow(plugin, t -> {
-                        String hash = SecurityUtils.hashPassword(pass, plugin.getPepper());
+                        String hash = SecurityUtils.hashPassword(pass, plugin.getPepper(), plugin.getConfigManager());
                         plugin.getDatabaseManager().setAdminPassword(player.getUniqueId(), hash)
                             .thenRun(() -> lang.send(player, "gui.admin.admin-password-set"));
                     });

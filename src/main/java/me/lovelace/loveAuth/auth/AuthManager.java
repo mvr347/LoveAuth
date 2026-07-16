@@ -41,7 +41,8 @@ public final class AuthManager {
     private final Set<String> registrationLock = ConcurrentHashMap.newKeySet();
     private final Map<UUID, BukkitTask> timeoutTasks = new ConcurrentHashMap<>();
     
-    private static final Pattern PASSWORD_PATTERN = Pattern.compile("^[a-zA-Z0-9._\\-!@#$%^&*()]{3,25}$");
+    private static final int PASSWORD_MAX_LENGTH = 25;
+    private static final Pattern PASSWORD_CHARSET_PATTERN = Pattern.compile("^[a-zA-Z0-9._\\-!@#$%^&*()]+$");
 
     public AuthManager(LoveAuth plugin, ConfigManager config, LangManager lang, DatabaseManager database, SessionManager sessionManager, BruteForceProtection bruteForce, LimboManager limboManager, LogManager log, SecretKey masterKey, String pepper) {
         this.plugin = plugin; this.config = config; this.lang = lang; this.database = database; this.sessionManager = sessionManager; this.bruteForce = bruteForce; this.limboManager = limboManager; this.log = log; this.masterKey = masterKey; this.pepper = pepper;
@@ -202,7 +203,7 @@ public final class AuthManager {
         String ip = getIp(player);
         return database.isRegistered(player.getUniqueId()).thenCompose(registered -> {
             if (registered) { registrationLock.remove(name); return CompletableFuture.completedFuture(false); }
-            return supplyAsync(() -> SecurityUtils.hashPassword(password, pepper))
+            return supplyAsync(() -> SecurityUtils.hashPassword(password, pepper, config))
                 .thenCompose(hash -> database.registerPlayer(player.getUniqueId(), player.getName(), hash, false, config.getDefaultInputMethod()))
                 .thenCompose(v -> database.updateLastLogin(player.getUniqueId(), ip))
                 .thenRun(() -> {
@@ -223,12 +224,13 @@ public final class AuthManager {
     }
 
     public boolean validatePassword(Player player, String password) {
-        if (password == null || password.length() < 3 || password.length() > 25) {
-            lang.sendActionBar(player, "register.password-length", Map.of());
+        int minLength = Math.max(3, config.getMinPasswordLength());
+        if (password == null || password.length() < minLength || password.length() > PASSWORD_MAX_LENGTH) {
+            lang.sendActionBar(player, "register.password-length", Map.of("min", Integer.toString(minLength), "max", Integer.toString(PASSWORD_MAX_LENGTH)));
             SoundUtils.error(player);
             return false;
         }
-        if (!PASSWORD_PATTERN.matcher(password).matches()) {
+        if (!PASSWORD_CHARSET_PATTERN.matcher(password).matches()) {
             lang.sendActionBar(player, "register.password-invalid-chars", Map.of());
             SoundUtils.error(player);
             return false;
@@ -317,7 +319,7 @@ public final class AuthManager {
         return CompletableFuture.completedFuture(p != null);
     }
     public CompletableFuture<Void> forceRegister(UUID uuid, String pass) {
-        return supplyAsync(() -> SecurityUtils.hashPassword(pass, pepper))
+        return supplyAsync(() -> SecurityUtils.hashPassword(pass, pepper, config))
             .thenCompose(h -> database.registerPlayer(uuid, "Unknown", h, false, config.getDefaultInputMethod()))
             .thenRun(() -> registeredCache.add(uuid));
     }
@@ -332,7 +334,7 @@ public final class AuthManager {
                 database.findPlayer(player.getUniqueId()).thenAccept(record -> {
                     boolean hasDiscord = record.map(DatabaseManager.PlayerRecord::hasDiscord).orElse(false);
                     if (hasDiscord) {
-                        supplyAsync(() -> SecurityUtils.hashPassword(p, pepper)).thenAccept(hash -> Bukkit.getScheduler().runTask(plugin, () -> {
+                        supplyAsync(() -> SecurityUtils.hashPassword(p, pepper, config)).thenAccept(hash -> Bukkit.getScheduler().runTask(plugin, () -> {
                             if (player.isOnline()) plugin.getDiscordAuthManager().sendPasswordChangeConfirmation(player, hash);
                         }));
                     } else {
@@ -346,8 +348,12 @@ public final class AuthManager {
     }
 
     public CompletableFuture<Boolean> updatePassword(Player player, String pass) {
-        return supplyAsync(() -> SecurityUtils.hashPassword(pass, pepper))
+        return supplyAsync(() -> SecurityUtils.hashPassword(pass, pepper, config))
             .thenCompose(h -> database.updatePassword(player.getUniqueId(), h))
+            // Changing the password invalidates any other active session for this account so a
+            // compromised session can't keep riding the old credentials after the owner resets it.
+            .thenCompose(v -> sessionManager.invalidate(player.getUniqueId()))
+            .thenCompose(v -> createSessionForCurrentDevice(player))
             .thenApply(v -> {
                 log.database(player.getUniqueId(), "PASSWORD_CHANGE", player.getName(), getIp(player));
                 Bukkit.getScheduler().runTask(plugin, () -> {
@@ -356,5 +362,11 @@ public final class AuthManager {
                 });
                 return true;
             });
+    }
+
+    /** Re-establishes a session for the device that just performed the password change, since {@link #updatePassword} wipes any existing one. */
+    private CompletableFuture<Void> createSessionForCurrentDevice(Player player) {
+        if (!isAuthenticated(player.getUniqueId())) return CompletableFuture.completedFuture(null);
+        return sessionManager.create(player.getUniqueId(), getIp(player));
     }
 }

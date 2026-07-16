@@ -33,11 +33,26 @@ public final class ConfigManager {
         if (getArgon2Iterations() < 10) {
             warningKeys.add("log.config-warn-argon2");
         }
+        if (getArgon2MemoryKb() < 8192 || getArgon2MemoryKb() > 1048576) {
+            config.set("security.argon2-memory-kb", 65536);
+            plugin.saveConfig();
+            warningKeys.add("log.config-warn-argon2-memory");
+        }
+        if (getArgon2Parallelism() < 1 || getArgon2Parallelism() > 8) {
+            config.set("security.argon2-parallelism", 1);
+            plugin.saveConfig();
+            warningKeys.add("log.config-warn-argon2-parallelism");
+        }
         int duration = config.getInt("session.duration-days", 7);
         if (duration != 0 && (duration < 1 || duration > 28)) {
             config.set("session.duration-days", 7);
             plugin.saveConfig();
             warningKeys.add("log.config-warn-session");
+        }
+        if (getMinPasswordLength() < 3 || getMinPasswordLength() > 25) {
+            config.set("auth.min-password-length", 6);
+            plugin.saveConfig();
+            warningKeys.add("log.config-warn-min-password-length");
         }
         try {
             InputMethod.valueOf(config.getString("default-input-method", "CHAT").toUpperCase());
@@ -77,6 +92,11 @@ public final class ConfigManager {
         plugin.saveConfig();
     }
     public int getArgon2Iterations() { return config.getInt("security.argon2-iterations", 10); }
+    public int getArgon2MemoryKb() { return config.getInt("security.argon2-memory-kb", 65536); }
+    public int getArgon2Parallelism() { return config.getInt("security.argon2-parallelism", 1); }
+    public int getMinPasswordLength() { return config.getInt("auth.min-password-length", 6); }
+    public int getAdminMaxAttempts() { return config.getInt("auth.admin-max-attempts", 5); }
+    public int getAdminLockoutDurationMinutes() { return config.getInt("auth.admin-lockout-duration-minutes", 15); }
     public boolean isSessionEnabled() { return config.getBoolean("session.enabled", true) && getSessionDurationDays() > 0; }
     public int getSessionDurationDays() { return config.getInt("session.duration-days", 7); }
     public boolean isSessionBindToIp() { return config.getBoolean("session.bind-to-ip", true); }

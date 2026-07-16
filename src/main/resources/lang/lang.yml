@@ -44,7 +44,7 @@ register:
   password-mismatch: "{prefix}<red>Пароли не совпадают. Начните заново."
   password-too-short: "{prefix}<red>Пароль слишком короткий. Минимум 3 символа."
   success: "{prefix}<green>Регистрация успешна! Добро пожаловать, <white>{player}</white>!"
-  password-length: "{prefix}<red>Пароль должен быть от 3 до 25 символов."
+  password-length: "{prefix}<red>Пароль должен быть от {min} до {max} символов."
   password-invalid-chars: "{prefix}<red>Пароль содержит недопустимые символы или смайлики."
 
 # ── Блокировки ──────────────────────────────
@@ -302,6 +302,7 @@ gui.admin:
   admin-password-set-prompt: "{prefix}<gray>Введите новый admin-пароль:"
   admin-password-not-set: "{prefix}<red>Сначала установите admin-пароль: <white>/ladmin setadminpass</white>."
   admin-password-invalid: "{prefix}<red>Неверный admin-пароль."
+  admin-password-locked: "{prefix}<dark_red>Слишком много неверных попыток admin-пароля. Подождите {minutes} мин."
   admin-password-set: "{prefix}<green>Admin-пароль сохранён."
   unlock-prompt: "{prefix}<gray>Введите ник игрока для разблокировки:"
   session-reset-prompt: "{prefix}<gray>Введите ник игрока для сброса сессии:"
@@ -374,7 +375,11 @@ log:
   db-connected: "[LoveAuth] Подключение к базе данных установлено."
   key-generated: "[LoveAuth] Сгенерирован новый master-key и pepper — сохранены в config.yml."
   config-warn-bcrypt: "[LoveAuth] ВНИМАНИЕ: bcrypt-strength меньше 10 — небезопасно!"
+  config-warn-argon2: "[LoveAuth] ВНИМАНИЕ: argon2-iterations меньше 10 — небезопасно!"
+  config-warn-argon2-memory: "[LoveAuth] ВНИМАНИЕ: argon2-memory-kb вне допустимого диапазона, использовано значение 65536."
+  config-warn-argon2-parallelism: "[LoveAuth] ВНИМАНИЕ: argon2-parallelism вне допустимого диапазона, использовано значение 1."
   config-warn-session: "[LoveAuth] ВНИМАНИЕ: duration-days вне диапазона 1–28, использовано значение 7."
+  config-warn-min-password-length: "[LoveAuth] ВНИМАНИЕ: min-password-length вне диапазона 3–25, использовано значение 6."
   account-locked: "[LoveAuth] Аккаунт заблокирован: {player} (причина: {reason})"
   ip-blocked: "[LoveAuth] IP заблокирован: {ip} на {minutes} минут."
   auth-success: "[LoveAuth] Успешный вход: {player} ({ip})"

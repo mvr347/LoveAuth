@@ -54,14 +54,17 @@ public final class BruteForceProtection {
         });
     }
 
+    /**
+     * A temporary IP lockout is meant to expire, not escalate. If the previously saved block has
+     * already run out, this failure starts a fresh count for the IP instead of compounding on top
+     * of a stale attempt count - otherwise any player sharing that IP (e.g. same household/NAT)
+     * could trip an escalation on their very first attempt after the window closes.
+     */
     public CompletableFuture<FailureResult> recordFailure(Player player, UUID uuid, String ip) {
         long now = Instant.now().getEpochSecond();
         return database.getIpBlock(ip).thenCompose(record -> {
-            int previous = record.map(DatabaseManager.IpBlockRecord::attemptCount).orElseGet(() -> attempts.get(ip, unused -> 0));
-            long blockedUntil = record.map(DatabaseManager.IpBlockRecord::blockedUntil).orElse(0L);
-            if (previous >= config.getMaxAttempts() && blockedUntil <= now && blockedUntil > 0L) {
-                return lockAccount(player, uuid, ip);
-            }
+            boolean lockoutExpired = record.map(r -> r.blockedUntil() > 0L && r.blockedUntil() <= now).orElse(false);
+            int previous = lockoutExpired ? 0 : record.map(DatabaseManager.IpBlockRecord::attemptCount).orElseGet(() -> attempts.get(ip, unused -> 0));
             int updated = previous + 1;
             attempts.put(ip, updated);
             if (updated >= config.getMaxAttempts()) {
@@ -95,18 +98,6 @@ public final class BruteForceProtection {
         }).exceptionally(error -> {
             log.errorKey("log.database-error", Map.of("message", safeMessage(error)), error);
             return null;
-        });
-    }
-
-    private CompletableFuture<FailureResult> lockAccount(Player player, UUID uuid, String ip) {
-        return database.setLocked(uuid, true).thenApply(unused -> {
-            callLockEvent(player, uuid, AccountLockEvent.LockReason.ACCOUNT_LOCKED);
-            log.warnKey("log.account-locked", Map.of("player", player.getName(), "reason", "ACCOUNT_LOCKED"));
-            log.database(uuid, "ACCOUNT_LOCKED", player.getName(), ip);
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                plugin.getLangManager().showTitle(player, "title.account-locked-main", "title.account-locked-sub");
-            });
-            return FailureResult.accountLocked();
         });
     }
 
