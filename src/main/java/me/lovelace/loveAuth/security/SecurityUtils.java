@@ -25,8 +25,29 @@ public final class SecurityUtils {
 
     private SecurityUtils() {}
 
+    /** Sane fallback parameters, used only if the config values are missing or out of range. */
+    private static final int DEFAULT_ITERATIONS = 10;
+    private static final int DEFAULT_MEMORY_KB = 65536;
+    private static final int DEFAULT_PARALLELISM = 1;
+
     public static String hashPassword(String password, String pepper) {
-        return ARGON2.hash(10, 65536, 1, (password + (pepper != null ? pepper : "")).toCharArray());
+        return hashPassword(password, pepper, DEFAULT_ITERATIONS, DEFAULT_MEMORY_KB, DEFAULT_PARALLELISM);
+    }
+
+    public static String hashPassword(String password, String pepper, ConfigManager config) {
+        return hashPassword(password, pepper, config.getArgon2Iterations(), config.getArgon2MemoryKb(), config.getArgon2Parallelism());
+    }
+
+    public static String hashPassword(String password, String pepper, int iterations, int memoryKb, int parallelism) {
+        int safeIterations = clamp(iterations, 4, 64, DEFAULT_ITERATIONS);
+        int safeMemoryKb = clamp(memoryKb, 8192, 1048576, DEFAULT_MEMORY_KB);
+        int safeParallelism = clamp(parallelism, 1, 8, DEFAULT_PARALLELISM);
+        return ARGON2.hash(safeIterations, safeMemoryKb, safeParallelism, (password + (pepper != null ? pepper : "")).toCharArray());
+    }
+
+    private static int clamp(int value, int min, int max, int fallback) {
+        if (value < min || value > max) return fallback;
+        return value;
     }
 
     public static boolean verifyPassword(String raw, String hash, String pepper) {

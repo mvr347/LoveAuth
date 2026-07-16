@@ -110,10 +110,29 @@ public final class DatabaseManager {
                     ip_hash TEXT
                 );
                 """);
-        try { statement.execute("ALTER TABLE players ADD COLUMN session_duration INTEGER DEFAULT 7;"); } catch (SQLException ignored) {}
-        try { statement.execute("ALTER TABLE players ADD COLUMN last_ip TEXT;"); } catch (SQLException ignored) {}
-        try { statement.execute("ALTER TABLE ip_blocks ADD COLUMN raw_ip TEXT;"); } catch (SQLException ignored) {}
-        try { statement.execute("ALTER TABLE players ADD COLUMN discord_id_hash TEXT;"); } catch (SQLException ignored) {}
+        runMigration(statement, "ALTER TABLE players ADD COLUMN session_duration INTEGER DEFAULT 7;");
+        runMigration(statement, "ALTER TABLE players ADD COLUMN last_ip TEXT;");
+        runMigration(statement, "ALTER TABLE ip_blocks ADD COLUMN raw_ip TEXT;");
+        runMigration(statement, "ALTER TABLE players ADD COLUMN discord_id_hash TEXT;");
+    }
+
+    /**
+     * Runs a best-effort schema migration (typically {@code ALTER TABLE ... ADD COLUMN}).
+     * SQLite has no {@code IF NOT EXISTS} for columns, so re-running this on a database that
+     * already has the column is expected and must be silently ignored. Any other failure means
+     * something is actually wrong (locked file, disk error, syntax error, ...) and must not be
+     * swallowed - it is logged so it doesn't go unnoticed.
+     */
+    private void runMigration(Statement statement, String sql) {
+        try {
+            statement.execute(sql);
+        } catch (SQLException e) {
+            String message = e.getMessage();
+            boolean columnAlreadyExists = message != null && message.toLowerCase(java.util.Locale.ROOT).contains("duplicate column name");
+            if (!columnAlreadyExists) {
+                plugin.getLogger().log(java.util.logging.Level.WARNING, "[LoveAuth] Ошибка миграции схемы БД (\"" + sql + "\"): " + message, e);
+            }
+        }
     }
 
     public CompletableFuture<Optional<PlayerRecord>> findPlayer(UUID uuid) {
