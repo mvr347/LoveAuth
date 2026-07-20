@@ -86,6 +86,9 @@ public final class AccountGui implements LoveAuthHolder {
 
                 // Slot 31: Logout
                 setItem(31, HeadTextures.HEAD_EXIT_ACCOUNT, "gui.account.logout", "gui.account.logout-lore");
+
+                // Slot 53: Close (standard footer close slot)
+                inventory.setItem(53, HeadTextures.createSkull(HeadTextures.HEAD_BARRIER, lang.component("gui.close-button"), java.util.List.of()));
             });
         });
     }
