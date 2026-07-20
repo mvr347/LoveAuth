@@ -33,8 +33,8 @@ public final class GuiClickListener implements Listener {
         if (holder instanceof ConfirmGui confirmGui) {
             event.setCancelled(true);
             SoundUtils.click(player);
-            if (event.getRawSlot() == 12) confirmGui.handleConfirm();
-            else if (event.getRawSlot() == 14) confirmGui.handleCancel();
+            if (event.getRawSlot() == ConfirmGui.CONFIRM_SLOT) confirmGui.handleConfirm();
+            else if (event.getRawSlot() == ConfirmGui.CANCEL_SLOT) confirmGui.handleCancel();
             return;
         }
 
@@ -63,9 +63,11 @@ public final class GuiClickListener implements Listener {
             } else if (slot == 24) {
                 new DiscordGui(player, plugin.getLangManager(), plugin.getConfigManager(), plugin.getDiscordAuthManager(), auth).open();
             } else if (slot == 31) {
-                plugin.getGuiManager().openConfirm(player, "gui.confirm.logout", 
-                    () -> auth.forceLogout(player.getUniqueId()).thenRun(() -> Bukkit.getScheduler().runTask(plugin, () -> player.kick(plugin.getLangManager().component("commands.session-reset")))), 
+                plugin.getGuiManager().openConfirm(player, "gui.confirm.logout",
+                    () -> auth.forceLogout(player.getUniqueId()).thenRun(() -> Bukkit.getScheduler().runTask(plugin, () -> player.kick(plugin.getLangManager().component("commands.session-reset")))),
                     () -> accountGui.open());
+            } else if (slot == 53) {
+                player.closeInventory();
             }
             return;
         }
@@ -74,7 +76,8 @@ public final class GuiClickListener implements Listener {
             event.setCancelled(true);
             SoundUtils.click(player);
             int slot = event.getRawSlot();
-            if (slot == 11) new AccountGui(player, plugin.getLangManager(), plugin.getAuthManager()).open();
+            if (slot == 26) player.closeInventory();
+            else if (slot == 25) new AccountGui(player, plugin.getLangManager(), plugin.getAuthManager()).open();
             else if (slot == 13) {
                 plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> Bukkit.getScheduler().runTask(plugin, () -> {
                     boolean hasDiscord = record.map(r -> r.hasDiscord()).orElse(false);
@@ -165,6 +168,7 @@ public final class GuiClickListener implements Listener {
                         Bukkit.getScheduler().runTask(plugin, adminGui::refresh);
                     });
                 }
+                case 53 -> player.closeInventory();
             }
             return;
         }
@@ -173,7 +177,11 @@ public final class GuiClickListener implements Listener {
             event.setCancelled(true);
             SoundUtils.click(player);
             int slot = event.getRawSlot();
-            if (slot == 22) {
+            if (slot == 26) {
+                player.closeInventory();
+                return;
+            }
+            if (slot == 25) {
                 new AccountGui(player, plugin.getLangManager(), plugin.getAuthManager()).open();
                 return;
             }

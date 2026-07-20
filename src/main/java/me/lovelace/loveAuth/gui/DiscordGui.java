@@ -38,7 +38,11 @@ public final class DiscordGui implements LoveAuthHolder {
 
         ItemStack back = HeadTextures.createSkull(HeadTextures.HEAD_BACK,
                 lang.component("gui.back-button"), java.util.Collections.emptyList());
-        inventory.setItem(11, back);
+        inventory.setItem(25, back);
+
+        ItemStack close = HeadTextures.createSkull(HeadTextures.HEAD_BARRIER,
+                lang.component("gui.close-button"), java.util.Collections.emptyList());
+        inventory.setItem(26, close);
 
         auth.getPlugin().getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
             boolean hasDiscord = record.map(r -> r.hasDiscord()).orElse(false);

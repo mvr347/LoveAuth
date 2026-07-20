@@ -54,6 +54,12 @@ public final class AdminGui implements LoveAuthHolder {
                 setItem(32, Material.BLAZE_POWDER, "gui.admin.clear-ip-blocks", "gui.admin.clear-ip-blocks-lore");
             });
         });
+
+        // Slot 53: Close (standard footer close slot)
+        ItemStack close = new ItemStack(Material.BARRIER);
+        ItemMeta closeMeta = close.getItemMeta();
+        if (closeMeta != null) { closeMeta.displayName(lang.component("gui.close-button")); close.setItemMeta(closeMeta); }
+        inventory.setItem(53, close);
     }
 
     private void setItem(int slot, Material m, String nameKey, String loreKey) { setItem(slot, m, nameKey, loreKey, Map.of()); }

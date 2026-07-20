@@ -58,7 +58,11 @@ public final class SessionGui implements LoveAuthHolder {
 
                 ItemStack back = HeadTextures.createSkull(HeadTextures.HEAD_BACK,
                         lang.component("gui.back-button"), java.util.Collections.emptyList());
-                inventory.setItem(22, back);
+                inventory.setItem(25, back);
+
+                ItemStack close = HeadTextures.createSkull(HeadTextures.HEAD_BARRIER,
+                        lang.component("gui.close-button"), java.util.Collections.emptyList());
+                inventory.setItem(26, close);
             });
         });
     }
