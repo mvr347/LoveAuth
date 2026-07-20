@@ -208,6 +208,7 @@ gui.premium-welcome:
 # ── GUI: управление аккаунтом ────────────────
 gui.account:
   title: "<gradient:#ff6eb4:#a855f7>Мой аккаунт</gradient>"
+  profile-name: "<yellow>{player}"
   set-password: "<green><bold>🔑 Привязать пароль"
   set-password-lore:
     - "<gray>Установить пароль"
