@@ -43,6 +43,10 @@ public final class AuthManager {
     
     private static final int PASSWORD_MAX_LENGTH = 25;
     private static final Pattern PASSWORD_CHARSET_PATTERN = Pattern.compile("^[a-zA-Z0-9._\\-!@#$%^&*()]+$");
+    // Даём игроку время прочитать причину отказа (actionbar) прежде чем её тут же
+    // перезатрёт повторный проброс подсказки "Придумайте пароль" — иначе ошибка "мигает"
+    // на долю секунды и выглядит как баг, а не как объяснение, почему пароль отклонён.
+    private static final long VALIDATION_RETRY_DELAY_TICKS = 60L;
 
     public AuthManager(LoveAuth plugin, ConfigManager config, LangManager lang, DatabaseManager database, SessionManager sessionManager, BruteForceProtection bruteForce, LimboManager limboManager, LogManager log, SecretKey masterKey, String pepper) {
         this.plugin = plugin; this.config = config; this.lang = lang; this.database = database; this.sessionManager = sessionManager; this.bruteForce = bruteForce; this.limboManager = limboManager; this.log = log; this.masterKey = masterKey; this.pepper = pepper;
@@ -286,7 +290,7 @@ public final class AuthManager {
         resolveInputMethod(player).thenAccept(m -> Bukkit.getScheduler().runTask(plugin, () -> 
             plugin.getGuiManager().awaitInput(player, m, "register.prompt-password", p1 -> {
                 if (!validatePassword(player, p1)) {
-                    requestRegistration(player);
+                    Bukkit.getScheduler().runTaskLater(plugin, () -> { if (player.isOnline()) requestRegistration(player); }, VALIDATION_RETRY_DELAY_TICKS);
                     return;
                 }
                 plugin.getGuiManager().awaitInput(player, m, "register.prompt-confirm", p2 -> {
@@ -294,7 +298,7 @@ public final class AuthManager {
                     else {
                         lang.sendActionBar(player, "register.password-mismatch", Map.of());
                         SoundUtils.error(player);
-                        if (player.isOnline()) requestRegistration(player);
+                        Bukkit.getScheduler().runTaskLater(plugin, () -> { if (player.isOnline()) requestRegistration(player); }, VALIDATION_RETRY_DELAY_TICKS);
                     }
                 });
             })));
@@ -328,7 +332,7 @@ public final class AuthManager {
         resolveInputMethod(player).thenAccept(m -> Bukkit.getScheduler().runTask(plugin, () -> {
             plugin.getGuiManager().awaitInput(player, m, "register.prompt-password", p -> {
                 if (!validatePassword(player, p)) {
-                    requestPasswordChange(player);
+                    Bukkit.getScheduler().runTaskLater(plugin, () -> { if (player.isOnline()) requestPasswordChange(player); }, VALIDATION_RETRY_DELAY_TICKS);
                     return;
                 }
                 database.findPlayer(player.getUniqueId()).thenAccept(record -> {
