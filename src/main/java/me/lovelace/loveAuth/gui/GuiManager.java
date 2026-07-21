@@ -61,6 +61,7 @@ public final class GuiManager {
     public void openRegister(Player player) { if (!checkCooldown(player)) new RegisterGui(player, lang, auth).open(); }
     public void openPremiumWelcome(Player player) { if (!checkCooldown(player)) new PremiumWelcomeGui(player, lang, config, discord, auth).open(); }
     public void openAccount(Player player) { if (!checkCooldown(player)) new AccountGui(player, lang, auth).open(); }
+    public void openAccount(Player player, String returnCommand) { if (!checkCooldown(player)) new AccountGui(player, lang, auth, returnCommand).open(); }
     public void openQueue(Player player) { if (!checkCooldown(player)) new QueueGui(player, lang, queue).open(); }
     public void openAdmin(Player player) { if (!checkCooldown(player)) new AdminGui(player, plugin, lang, auth).open(); }
 

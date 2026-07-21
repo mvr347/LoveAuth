@@ -55,6 +55,7 @@ public final class LoveAuthCommand implements CommandExecutor, TabCompleter {
             }
             case "account", "аккаунт" -> {
                 if (!auth.isAuthenticated(uuid)) lang.send(player, "auth.not-logged-in");
+                else if (args.length > 1) plugin.getGuiManager().openAccount(player, args[1]);
                 else plugin.getGuiManager().openAccount(player);
             }
             case "password", "пароль" -> {

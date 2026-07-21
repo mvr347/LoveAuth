@@ -44,11 +44,11 @@ public final class GuiClickListener implements Listener {
             AuthManager auth = plugin.getAuthManager();
             int slot = event.getRawSlot();
 
-            if (slot == 20 || slot == 19) {
-                plugin.getGuiManager().openConfirm(player, "gui.confirm.change-password", 
-                    () -> auth.requestPasswordChange(player), 
+            if (slot == 10) {
+                plugin.getGuiManager().openConfirm(player, "gui.confirm.change-password",
+                    () -> auth.requestPasswordChange(player),
                     () -> accountGui.open());
-            } else if (slot == 21) {
+            } else if (slot == 11) {
                 plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
                     if (record.map(r -> r.hasDiscord()).orElse(false)) {
                         plugin.getDiscordAuthManager().sendConfirmation(player, "REMOVE_PASSWORD");
@@ -56,18 +56,21 @@ public final class GuiClickListener implements Listener {
                         plugin.getLangManager().send(player, "gui.account.delete-password-locked");
                     }
                 });
-            } else if (slot == 22) {
+            } else if (slot == 12) {
                 new SessionGui(player, plugin.getLangManager(), auth).open();
-            } else if (slot == 23) {
+            } else if (slot == 13) {
                 auth.switchInputMethod(player).thenRun(() -> Bukkit.getScheduler().runTask(plugin, accountGui::refresh));
-            } else if (slot == 24) {
+            } else if (slot == 14) {
                 new DiscordGui(player, plugin.getLangManager(), plugin.getConfigManager(), plugin.getDiscordAuthManager(), auth).open();
-            } else if (slot == 31) {
+            } else if (slot == 16) {
                 plugin.getGuiManager().openConfirm(player, "gui.confirm.logout",
                     () -> auth.forceLogout(player.getUniqueId()).thenRun(() -> Bukkit.getScheduler().runTask(plugin, () -> player.kick(plugin.getLangManager().component("commands.session-reset")))),
                     () -> accountGui.open());
-            } else if (slot == 53) {
+            } else if (slot == AccountGui.CLOSE_SLOT) {
                 player.closeInventory();
+            } else if (slot == AccountGui.BACK_SLOT) {
+                player.closeInventory();
+                accountGui.goBack();
             }
             return;
         }
