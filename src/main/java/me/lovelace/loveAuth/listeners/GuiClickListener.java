@@ -57,7 +57,29 @@ public final class GuiClickListener implements Listener {
                     }
                 });
             } else if (slot == 13) {
-                new SessionGui(player, plugin.getLangManager(), auth).open();
+                ClickType click = event.getClick();
+                if (!click.isLeftClick() && !click.isRightClick()) return;
+                plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
+                    if (!record.map(r -> r.hasPassword() && r.passwordEnabled()).orElse(false)) return;
+                    int current = record.map(r -> r.sessionDuration()).orElse(7);
+                    int next;
+                    if (click.isLeftClick()) {
+                        next = current + 1;
+                        if (next > 28) next = 0;
+                    } else {
+                        next = current - 1;
+                        if (next < 0) next = 28;
+                    }
+                    final int finalNext = next;
+                    plugin.getDatabaseManager().setSessionDuration(player.getUniqueId(), finalNext).thenRun(() -> {
+                        Bukkit.getScheduler().runTask(plugin, () -> {
+                            accountGui.refresh();
+                            if (finalNext == 0 && current != 0) {
+                                auth.getSessionManager().invalidate(player.getUniqueId());
+                            }
+                        });
+                    });
+                });
             } else if (slot == 14) {
                 auth.switchInputMethod(player).thenRun(() -> Bukkit.getScheduler().runTask(plugin, accountGui::refresh));
             } else if (slot == 15) {
@@ -174,45 +196,6 @@ public final class GuiClickListener implements Listener {
                     });
                 }
                 case 53 -> player.closeInventory();
-            }
-            return;
-        }
-
-        if (holder instanceof SessionGui sessionGui) {
-            event.setCancelled(true);
-            SoundUtils.click(player);
-            int slot = event.getRawSlot();
-            if (slot == 26) {
-                player.closeInventory();
-                return;
-            }
-            if (slot == 25) {
-                new AccountGui(player, plugin.getLangManager(), plugin.getAuthManager(), plugin.getConfigManager()).open();
-                return;
-            }
-            if (slot == 13) {
-                ClickType click = event.getClick();
-                plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
-                    int current = record.map(r -> r.sessionDuration()).orElse(7);
-                    int next;
-                    if (click.isLeftClick()) {
-                        next = current + 1;
-                        if (next > 28) next = 0;
-                    } else if (click.isRightClick()) {
-                        next = current - 1;
-                        if (next < 0) next = 28;
-                    } else return;
-                    
-                    final int finalNext = next;
-                    plugin.getDatabaseManager().setSessionDuration(player.getUniqueId(), finalNext).thenRun(() -> {
-                        Bukkit.getScheduler().runTask(plugin, () -> {
-                            sessionGui.refresh();
-                            if (finalNext == 0 && current != 0) {
-                                plugin.getAuthManager().getSessionManager().invalidate(player.getUniqueId());
-                            }
-                        });
-                    });
-                });
             }
             return;
         }

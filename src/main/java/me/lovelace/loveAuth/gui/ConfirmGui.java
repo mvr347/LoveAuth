@@ -12,9 +12,8 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Collections;
 
 public final class ConfirmGui implements LoveAuthHolder {
-    public static final int CANCEL_SLOT = 0;
-    public static final int INFO_SLOT = 2;
-    public static final int CONFIRM_SLOT = 4;
+    public static final int CONFIRM_SLOT = 1;
+    public static final int CANCEL_SLOT = 3;
 
     private final Player player;
     private final LangManager lang;
@@ -32,23 +31,19 @@ public final class ConfirmGui implements LoveAuthHolder {
     }
 
     public void open() {
-        // Компактный диалог "Подтвердить/Отменить" на 5 слотов (хоппер) — та же схема,
-        // что уже используется в RentalAbandonConfirmGUI (LoveClaims).
-        this.inventory = Bukkit.createInventory(this, InventoryType.HOPPER, lang.component("gui.confirm.title"));
+        // Хоппер (5 слотов) gui_gen-стандарт: стекло, подтвердить, стекло, отменить, стекло.
+        // Сам вопрос ("Изменить пароль?" и т.п.) выводится в заголовке — отдельного
+        // инфо-слота под него не отводим.
+        this.inventory = Bukkit.createInventory(this, InventoryType.HOPPER, lang.component(descriptionKey));
         GuiManager.fillBackground(inventory, lang);
-
-        ItemStack cancel = HeadTextures.createSkull(HeadTextures.HEAD_X,
-                lang.component("gui.cancel-button"), Collections.emptyList());
-        inventory.setItem(CANCEL_SLOT, cancel);
-
-        ItemStack info = HeadTextures.createSkull(HeadTextures.HEAD_CONFIRM_ACTION,
-                lang.component("gui.confirm.description-item"),
-                Collections.singletonList(lang.component(descriptionKey)));
-        inventory.setItem(INFO_SLOT, info);
 
         ItemStack confirm = HeadTextures.createSkull(HeadTextures.HEAD_CHECK,
                 lang.component("gui.confirm-button"), Collections.emptyList());
         inventory.setItem(CONFIRM_SLOT, confirm);
+
+        ItemStack cancel = HeadTextures.createSkull(HeadTextures.HEAD_X,
+                lang.component("gui.cancel-button"), Collections.emptyList());
+        inventory.setItem(CANCEL_SLOT, cancel);
 
         player.openInventory(inventory);
     }

@@ -55,9 +55,12 @@ public final class AccountGui implements LoveAuthHolder {
         // Слот 0 (профиль) и кнопка "Назад" видны только в embedded-режиме (открыто со
         // скрытым аргументом — меню встроено кнопкой в чьё-то DeluxeMenus-меню), и только
         // если это не отключено в config.yml. Обычный "/loveauth account" остаётся
-        // самостоятельным экраном без профиля и без кнопки "Назад".
+        // самостоятельным экраном без профиля и без кнопки "Назад" — но слот 0 лежит в
+        // застеклённой строке 0-8 (не в рабочей зоне), поэтому вместо головы там стекло.
         if (embedded && config.isAccountProfileEnabled()) {
             inventory.setItem(0, GuiManager.playerHead(player, lang));
+        } else {
+            inventory.setItem(0, GuiManager.glassPane(lang));
         }
 
         auth.getPlugin().getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
@@ -83,12 +86,17 @@ public final class AccountGui implements LoveAuthHolder {
                     }
                 }
 
-                // Slot 13: Session Info
+                // Slot 13: Session — длительность сессии настраивается прямо здесь
+                // (ЛКМ/ПКМ в GuiClickListener), отдельного меню сессий больше нет.
                 if (pr.hasPassword() && pr.passwordEnabled()) {
+                    int days = pr.sessionDuration();
+                    String nameKey = days == 0 ? "gui.session.disable" : "gui.session.days";
+                    String headTexture = days == 0 ? HeadTextures.HEAD_INACTIVE : HeadTextures.HEAD_SESSION;
                     auth.getSessionManager().getExpiry(player.getUniqueId()).thenAccept(expiry -> {
                         String status = expiry.isPresent() ? lang.plain("gui.account.session-active") : lang.plain("gui.account.session-disabled");
                         String expires = expiry.map(e -> DF.format(Instant.ofEpochSecond(e))).orElse("---");
-                        Bukkit.getScheduler().runTask(auth.getPlugin(), () -> setItem(13, HeadTextures.HEAD_SESSION, "gui.account.session-info", "gui.account.session-lore", Map.of("status", status, "expires", expires)));
+                        Bukkit.getScheduler().runTask(auth.getPlugin(), () -> setItem(13, headTexture, nameKey, "gui.account.session-lore",
+                                Map.of("days", String.valueOf(days), "status", status, "expires", expires)));
                     });
                 } else {
                     setItem(13, HeadTextures.HEAD_INACTIVE, "gui.account.session-unavailable", "gui.account.session-unavailable-lore");
@@ -110,6 +118,8 @@ public final class AccountGui implements LoveAuthHolder {
 
                 if (embedded) {
                     inventory.setItem(BACK_SLOT, HeadTextures.createSkull(HeadTextures.HEAD_BACK, lang.component("gui.back-button"), List.of()));
+                } else {
+                    inventory.setItem(BACK_SLOT, GuiManager.glassPane(lang));
                 }
                 inventory.setItem(CLOSE_SLOT, HeadTextures.createSkull(HeadTextures.HEAD_BARRIER, lang.component("gui.close-button"), List.of()));
             });
