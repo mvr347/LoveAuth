@@ -1,6 +1,7 @@
 package me.lovelace.loveAuth.gui;
 
 import me.lovelace.loveAuth.auth.AuthManager;
+import me.lovelace.loveAuth.config.ConfigManager;
 import me.lovelace.loveAuth.database.DatabaseManager;
 import me.lovelace.loveAuth.lang.LangManager;
 import me.lovelace.loveAuth.util.HeadTextures;
@@ -8,7 +9,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -24,24 +24,24 @@ public final class AccountGui implements LoveAuthHolder {
     private final Player player;
     private final LangManager lang;
     private final AuthManager auth;
-    private final String returnCommand;
+    private final ConfigManager config;
+    /** true если меню открыто со скрытым аргументом ("/loveauth account &lt;что угодно&gt;") —
+     *  т.е. встроено кнопкой в чьё-то DeluxeMenus-меню. Само значение аргумента не используется:
+     *  команда возврата и видимость профиля берутся из config.yml (gui.account.*). */
+    private final boolean embedded;
     private Inventory inventory;
     private static final DateTimeFormatter DF = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm").withZone(ZoneId.systemDefault());
 
-    public AccountGui(Player player, LangManager lang, AuthManager auth) {
-        this(player, lang, auth, null);
+    public AccountGui(Player player, LangManager lang, AuthManager auth, ConfigManager config) {
+        this(player, lang, auth, config, false);
     }
 
-    /**
-     * @param returnCommand если меню открыто кнопкой из DeluxeMenus — команда для возврата
-     *                      в то меню (выполняется по клику на "Назад"). Null для обычного
-     *                      открытия командой плагина — тогда слота профиля/кнопки "Назад" нет.
-     */
-    public AccountGui(Player player, LangManager lang, AuthManager auth, @Nullable String returnCommand) {
+    public AccountGui(Player player, LangManager lang, AuthManager auth, ConfigManager config, boolean embedded) {
         this.player = player;
         this.lang = lang;
         this.auth = auth;
-        this.returnCommand = returnCommand;
+        this.config = config;
+        this.embedded = embedded;
     }
 
     public void open() {
@@ -51,12 +51,12 @@ public final class AccountGui implements LoveAuthHolder {
     }
 
     public void refresh() {
-        GuiManager.fillBackground(inventory, lang);
-        // Слот 0 (профиль) виден только если меню открыто с returnCommand (скрытый
-        // аргумент "/loveauth account <cmd>", напр. "mainmenu") — оно встроено кнопкой
-        // в чей-то DeluxeMenus-меню и должно уметь вернуться назад. Обычный "/loveauth
-        // account" остаётся самостоятельным экраном без профиля и без кнопки "Назад".
-        if (returnCommand != null) {
+        GuiManager.standardFrame27(inventory, lang);
+        // Слот 0 (профиль) и кнопка "Назад" видны только в embedded-режиме (открыто со
+        // скрытым аргументом — меню встроено кнопкой в чьё-то DeluxeMenus-меню), и только
+        // если это не отключено в config.yml. Обычный "/loveauth account" остаётся
+        // самостоятельным экраном без профиля и без кнопки "Назад".
+        if (embedded && config.isAccountProfileEnabled()) {
             inventory.setItem(0, GuiManager.playerHead(player, lang));
         }
 
@@ -67,48 +67,48 @@ public final class AccountGui implements LoveAuthHolder {
             Bukkit.getScheduler().runTask(auth.getPlugin(), () -> {
                 boolean hasDiscord = pr.hasDiscord();
 
-                // Slot 2: Change Password
+                // Slot 11: Change Password
                 if (!pr.hasPassword() || !pr.passwordEnabled()) {
-                    setItem(2, HeadTextures.HEAD_CHANGE_PASS, "gui.account.set-password", "gui.account.set-password-lore");
+                    setItem(11, HeadTextures.HEAD_CHANGE_PASS, "gui.account.set-password", "gui.account.set-password-lore");
                 } else {
-                    setItem(2, HeadTextures.HEAD_CHANGE_PASS, "gui.account.change-password", "gui.account.change-password-lore");
+                    setItem(11, HeadTextures.HEAD_CHANGE_PASS, "gui.account.change-password", "gui.account.change-password-lore");
                 }
 
-                // Slot 3: Delete Password (Discord only)
+                // Slot 12: Delete Password (Discord only)
                 if (pr.hasPassword() && pr.passwordEnabled()) {
                     if (hasDiscord) {
-                        setItem(3, HeadTextures.HEAD_BARRIER, "gui.account.delete-password", "gui.account.delete-password-lore");
+                        setItem(12, HeadTextures.HEAD_BARRIER, "gui.account.delete-password", "gui.account.delete-password-lore");
                     } else {
-                        setItem(3, HeadTextures.HEAD_INACTIVE, "gui.account.delete-password-locked", "gui.account.delete-password-locked-lore");
+                        setItem(12, HeadTextures.HEAD_INACTIVE, "gui.account.delete-password-locked", "gui.account.delete-password-locked-lore");
                     }
                 }
 
-                // Slot 4: Session Info
+                // Slot 13: Session Info
                 if (pr.hasPassword() && pr.passwordEnabled()) {
                     auth.getSessionManager().getExpiry(player.getUniqueId()).thenAccept(expiry -> {
                         String status = expiry.isPresent() ? lang.plain("gui.account.session-active") : lang.plain("gui.account.session-disabled");
                         String expires = expiry.map(e -> DF.format(Instant.ofEpochSecond(e))).orElse("---");
-                        Bukkit.getScheduler().runTask(auth.getPlugin(), () -> setItem(4, HeadTextures.HEAD_SESSION, "gui.account.session-info", "gui.account.session-lore", Map.of("status", status, "expires", expires)));
+                        Bukkit.getScheduler().runTask(auth.getPlugin(), () -> setItem(13, HeadTextures.HEAD_SESSION, "gui.account.session-info", "gui.account.session-lore", Map.of("status", status, "expires", expires)));
                     });
                 } else {
-                    setItem(4, HeadTextures.HEAD_INACTIVE, "gui.account.session-unavailable", "gui.account.session-unavailable-lore");
+                    setItem(13, HeadTextures.HEAD_INACTIVE, "gui.account.session-unavailable", "gui.account.session-unavailable-lore");
                 }
 
-                // Slot 5: Input Method
+                // Slot 14: Input Method
                 auth.resolveInputMethod(player).thenAccept(method -> {
                     String mStr = lang.plain(method == me.lovelace.loveAuth.input.InputMethod.CHAT ? "gui.account.input-chat" : "gui.account.input-sign");
-                    Bukkit.getScheduler().runTask(auth.getPlugin(), () -> setItem(5, HeadTextures.HEAD_INFO, "gui.account.input-method", "gui.account.input-method-lore", Map.of("method", mStr)));
+                    Bukkit.getScheduler().runTask(auth.getPlugin(), () -> setItem(14, HeadTextures.HEAD_INFO, "gui.account.input-method", "gui.account.input-method-lore", Map.of("method", mStr)));
                 });
 
-                // Slot 6: Discord Settings
-                setItem(6, HeadTextures.HEAD_DISCORD,
+                // Slot 15: Discord Settings
+                setItem(15, HeadTextures.HEAD_DISCORD,
                     hasDiscord ? "gui.discord.unlink-button" : "gui.discord.bind-button",
                     hasDiscord ? "gui.discord.unlink-lore" : "gui.discord.bind-lore");
 
-                // Slot 7: Logout (danger action, separated from the rest of the row)
-                setItem(7, HeadTextures.HEAD_EXIT_ACCOUNT, "gui.account.logout", "gui.account.logout-lore");
+                // Slot 16: Logout (danger action)
+                setItem(16, HeadTextures.HEAD_EXIT_ACCOUNT, "gui.account.logout", "gui.account.logout-lore");
 
-                if (returnCommand != null) {
+                if (embedded) {
                     inventory.setItem(BACK_SLOT, HeadTextures.createSkull(HeadTextures.HEAD_BACK, lang.component("gui.back-button"), List.of()));
                 }
                 inventory.setItem(CLOSE_SLOT, HeadTextures.createSkull(HeadTextures.HEAD_BARRIER, lang.component("gui.close-button"), List.of()));
@@ -116,11 +116,11 @@ public final class AccountGui implements LoveAuthHolder {
         });
     }
 
-    /** Выполняет команду возврата в DeluxeMenus-меню, если она была задана при открытии. */
+    /** Выполняет команду возврата (gui.account.back-command из config.yml) в embedded-режиме. */
     public void goBack() {
-        if (returnCommand != null) {
-            player.performCommand(returnCommand);
-        }
+        if (!embedded) return;
+        String cmd = config.getAccountBackCommand();
+        if (!cmd.isBlank()) player.performCommand(cmd);
     }
 
     private void setItem(int slot, String headTexture, String nameKey, String loreKey) { setItem(slot, headTexture, nameKey, loreKey, Map.of()); }

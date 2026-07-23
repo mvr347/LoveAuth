@@ -29,7 +29,7 @@ public final class AuthMethodGui implements LoveAuthHolder {
 
     public void open() {
         this.inventory = Bukkit.createInventory(this, 27, lang.component("gui.auth-method.title"));
-        GuiManager.fillBackground(inventory, lang);
+        GuiManager.standardFrame27(inventory, lang);
         inventory.setItem(0, GuiManager.playerHead(player, lang));
 
         boolean registered = auth.isRegisteredCached(player.getUniqueId());
@@ -37,12 +37,12 @@ public final class AuthMethodGui implements LoveAuthHolder {
         ItemStack pass = HeadTextures.createSkull(HeadTextures.HEAD_PASSWORD,
                 lang.component(registered ? "gui.auth-method.password-button" : "gui.register.register-button"),
                 lang.lore(registered ? "gui.auth-method.password-lore" : "gui.register.register-lore"));
-        inventory.setItem(3, pass);
+        inventory.setItem(12, pass);
 
         ItemStack disc = HeadTextures.createSkull(HeadTextures.HEAD_DISCORD,
                 lang.component("gui.auth-method.discord-button"),
                 lang.lore(config.isDiscordEnabled() ? "gui.auth-method.discord-lore" : "gui.auth-method.discord-disabled-lore"));
-        inventory.setItem(5, disc);
+        inventory.setItem(14, disc);
 
         GuiManager.applyFooter27(inventory, lang, false);
 
@@ -58,13 +58,13 @@ public final class AuthMethodGui implements LoveAuthHolder {
                         ItemStack locked = HeadTextures.createSkull(HeadTextures.HEAD_INACTIVE,
                                 lang.component("gui.auth-method.password-locked"),
                                 lang.lore("gui.auth-method.password-locked-lore"));
-                        inventory.setItem(3, locked);
+                        inventory.setItem(12, locked);
                     }
                     if (config.isDiscordEnabled() && !hasDiscord) {
                         ItemStack bindDisc = HeadTextures.createSkull(HeadTextures.HEAD_DISCORD,
                                 lang.component("gui.auth-method.discord-bind-button"),
                                 lang.lore("gui.auth-method.discord-bind-lore"));
-                        inventory.setItem(5, bindDisc);
+                        inventory.setItem(14, bindDisc);
                     }
                 });
             });

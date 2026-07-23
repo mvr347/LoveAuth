@@ -63,8 +63,8 @@ public final class GuiManager {
     public void openDiscord(Player player) { if (!checkCooldown(player)) new DiscordGui(player, lang, config, discord, auth).open(); }
     public void openRegister(Player player) { if (!checkCooldown(player)) new RegisterGui(player, lang, auth).open(); }
     public void openPremiumWelcome(Player player) { if (!checkCooldown(player)) new PremiumWelcomeGui(player, lang, config, discord, auth).open(); }
-    public void openAccount(Player player) { if (!checkCooldown(player)) new AccountGui(player, lang, auth).open(); }
-    public void openAccount(Player player, String returnCommand) { if (!checkCooldown(player)) new AccountGui(player, lang, auth, returnCommand).open(); }
+    public void openAccount(Player player) { if (!checkCooldown(player)) new AccountGui(player, lang, auth, config).open(); }
+    public void openAccount(Player player, String returnCommand) { if (!checkCooldown(player)) new AccountGui(player, lang, auth, config, returnCommand != null).open(); }
     public void openQueue(Player player) { if (!checkCooldown(player)) new QueueGui(player, lang, queue).open(); }
     public void openAdmin(Player player) { if (!checkCooldown(player)) new AdminGui(player, plugin, lang, auth).open(); }
 
@@ -90,13 +90,30 @@ public final class GuiManager {
     }
 
     public static void fillBackground(Inventory inventory, LangManager lang) {
+        ItemStack filler = glassFiller(lang);
+        for (int i = 0; i < inventory.getSize(); i++) inventory.setItem(i, filler);
+    }
+
+    /**
+     * Рамка стандартного 27-слотового меню gui_gen: сплошное стекло в верхней (1-8) и
+     * нижней (18-24) полосе. Слоты 9-17 намеренно НЕ трогаются — это рабочая зона, где
+     * вызывающий код расставляет кнопки впритык; неиспользуемые слоты там остаются
+     * буквально пустыми (не стекло), как в эталонном player_profile.yml.
+     */
+    public static void standardFrame27(Inventory inventory, LangManager lang) {
+        ItemStack filler = glassFiller(lang);
+        for (int i = 1; i <= 8; i++) inventory.setItem(i, filler);
+        for (int i = 18; i <= 24; i++) inventory.setItem(i, filler);
+    }
+
+    private static ItemStack glassFiller(LangManager lang) {
         ItemStack filler = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
         ItemMeta meta = filler.getItemMeta();
         if (meta != null) {
             meta.displayName(lang.component("gui.filler-name"));
             filler.setItemMeta(meta);
         }
-        for (int i = 0; i < inventory.getSize(); i++) inventory.setItem(i, filler);
+        return filler;
     }
 
     /** Слот 0 (gui_gen standard): голова самого игрока — LoveAuth всегда открывает "прямой" профиль. */
@@ -116,6 +133,8 @@ public final class GuiManager {
         if (withBack) {
             inventory.setItem(25, HeadTextures.createSkull(HeadTextures.HEAD_BACK,
                     lang.component("gui.back-button"), java.util.Collections.emptyList()));
+        } else {
+            inventory.setItem(25, glassFiller(lang));
         }
         inventory.setItem(26, HeadTextures.createSkull(HeadTextures.HEAD_BARRIER,
                 lang.component("gui.close-button"), java.util.Collections.emptyList()));

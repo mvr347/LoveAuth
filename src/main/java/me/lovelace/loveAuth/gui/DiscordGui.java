@@ -34,7 +34,7 @@ public final class DiscordGui implements LoveAuthHolder {
     }
 
     public void refresh() {
-        GuiManager.fillBackground(inventory, lang);
+        GuiManager.standardFrame27(inventory, lang);
         inventory.setItem(0, GuiManager.playerHead(player, lang));
         GuiManager.applyFooter27(inventory, lang, true);
 
@@ -55,17 +55,17 @@ public final class DiscordGui implements LoveAuthHolder {
                     bind = HeadTextures.createSkull(HeadTextures.HEAD_DISCORD,
                             lang.component("gui.discord.unlink-button"), lang.lore("gui.discord.unlink-lore"));
                 }
-                inventory.setItem(3, bind);
+                inventory.setItem(12, bind);
 
                 if (!hasDiscord) {
                     ItemStack locked = HeadTextures.createSkull(HeadTextures.HEAD_INACTIVE,
                             lang.component("gui.discord.toggle-locked"), lang.lore("gui.discord.toggle-locked-lore"));
-                    inventory.setItem(5, locked);
+                    inventory.setItem(14, locked);
                 } else {
                     ItemStack toggle = HeadTextures.createSkull(HeadTextures.HEAD_CHANGE_PASS,
                             lang.component(passEnabled ? "gui.discord.toggle-password-off" : "gui.discord.toggle-password-on"),
                             lang.lore("gui.discord.toggle-lore"));
-                    inventory.setItem(5, toggle);
+                    inventory.setItem(14, toggle);
                 }
             });
         });
