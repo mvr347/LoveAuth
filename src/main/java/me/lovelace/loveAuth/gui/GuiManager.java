@@ -106,6 +106,20 @@ public final class GuiManager {
         for (int i = 18; i <= 24; i++) inventory.setItem(i, filler);
     }
 
+    /**
+     * Рамка стандартного 54-слотового меню gui_gen: стекло только в 1-8, 9-17 и
+     * футере 45-52. Слот 0 (голова), рабочая зона 18-44 (включая стенки
+     * 18,26,27,35,36,44) и слот 53 (Close) НЕ трогаются — стандарт прямо запрещает
+     * стекло в рабочей зоне: там либо контент, либо, за его отсутствием, настоящая
+     * пустота (ничего не ставится).
+     */
+    public static void standardFrame54(Inventory inventory, LangManager lang) {
+        ItemStack filler = glassFiller(lang);
+        for (int i = 1; i <= 8; i++) inventory.setItem(i, filler);
+        for (int i = 9; i <= 17; i++) inventory.setItem(i, filler);
+        for (int i = 45; i <= 52; i++) inventory.setItem(i, filler);
+    }
+
     /** Публичный доступ к стеклянной панели — для случаев, когда опциональный элемент
      *  (напр. голова профиля в слоте 0) отсутствует, но сам слот лежит в застеклённой
      *  полосе (не в рабочей зоне с контентом), и туда нужно поставить стекло. */
