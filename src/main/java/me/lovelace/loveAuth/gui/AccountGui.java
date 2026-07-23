@@ -52,7 +52,13 @@ public final class AccountGui implements LoveAuthHolder {
 
     public void refresh() {
         GuiManager.fillBackground(inventory, lang);
-        inventory.setItem(0, GuiManager.playerHead(player, lang));
+        // Слот 0 (профиль) виден только если меню открыто с returnCommand (скрытый
+        // аргумент "/loveauth account <cmd>", напр. "mainmenu") — оно встроено кнопкой
+        // в чей-то DeluxeMenus-меню и должно уметь вернуться назад. Обычный "/loveauth
+        // account" остаётся самостоятельным экраном без профиля и без кнопки "Назад".
+        if (returnCommand != null) {
+            inventory.setItem(0, GuiManager.playerHead(player, lang));
+        }
 
         auth.getPlugin().getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
             if (record.isEmpty()) return;
