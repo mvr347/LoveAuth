@@ -80,7 +80,7 @@ public final class GuiClickListener implements Listener {
             SoundUtils.click(player);
             int slot = event.getRawSlot();
             if (slot == 26) player.closeInventory();
-            else if (slot == 25) new AccountGui(player, plugin.getLangManager(), plugin.getAuthManager()).open();
+            else if (slot == 25) new AccountGui(player, plugin.getLangManager(), plugin.getAuthManager(), plugin.getConfigManager()).open();
             else if (slot == 12) {
                 plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> Bukkit.getScheduler().runTask(plugin, () -> {
                     boolean hasDiscord = record.map(r -> r.hasDiscord()).orElse(false);
@@ -187,7 +187,7 @@ public final class GuiClickListener implements Listener {
                 return;
             }
             if (slot == 25) {
-                new AccountGui(player, plugin.getLangManager(), plugin.getAuthManager()).open();
+                new AccountGui(player, plugin.getLangManager(), plugin.getAuthManager(), plugin.getConfigManager()).open();
                 return;
             }
             if (slot == 13) {

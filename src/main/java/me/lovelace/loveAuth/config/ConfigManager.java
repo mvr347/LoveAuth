@@ -125,4 +125,6 @@ public final class ConfigManager {
     public List<String> getDiscordAdminIds() { return config.getStringList("discord.admin-ids"); }
     public boolean isRegisterSpawnEnabled() { return config.getBoolean("register-spawn.enabled", false); }
     public String getRegisterSpawnWorld() { return config.getString("register-spawn.world", "world"); }
+    public boolean isAccountProfileEnabled() { return config.getBoolean("gui.account.show-profile", true); }
+    public String getAccountBackCommand() { return config.getString("gui.account.back-command", ""); }
 }
