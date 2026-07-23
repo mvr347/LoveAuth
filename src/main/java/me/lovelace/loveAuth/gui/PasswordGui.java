@@ -9,8 +9,6 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Collections;
-
 public final class PasswordGui implements LoveAuthHolder {
     private final Player player;
     private final LangManager lang;
@@ -26,14 +24,13 @@ public final class PasswordGui implements LoveAuthHolder {
     public void open() {
         this.inventory = Bukkit.createInventory(this, 27, lang.component("gui.password.title"));
         GuiManager.fillBackground(inventory, lang);
-
-        ItemStack back = HeadTextures.createSkull(HeadTextures.HEAD_BACK,
-                lang.component("gui.back-button"), Collections.emptyList());
-        inventory.setItem(11, back);
+        inventory.setItem(0, GuiManager.playerHead(player, lang));
 
         ItemStack enter = HeadTextures.createSkull(HeadTextures.HEAD_PASSWORD,
                 lang.component("gui.password.enter-button"), lang.lore("gui.password.enter-lore"));
-        inventory.setItem(13, enter);
+        inventory.setItem(4, enter);
+
+        GuiManager.applyFooter27(inventory, lang, true);
 
         player.openInventory(inventory);
     }

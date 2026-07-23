@@ -4,11 +4,9 @@ import me.lovelace.loveAuth.auth.AuthManager;
 import me.lovelace.loveAuth.lang.LangManager;
 import me.lovelace.loveAuth.util.HeadTextures;
 import org.bukkit.Bukkit;
-import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.NotNull;
 
 public final class RegisterGui implements LoveAuthHolder {
@@ -26,21 +24,19 @@ public final class RegisterGui implements LoveAuthHolder {
     public void open() {
         this.inventory = Bukkit.createInventory(this, 27, lang.component("gui.register.title"));
         GuiManager.fillBackground(inventory, lang);
+        inventory.setItem(0, GuiManager.playerHead(player, lang));
 
-        ItemStack register = new ItemStack(Material.WRITABLE_BOOK);
-        ItemMeta registerMeta = register.getItemMeta();
-        if (registerMeta != null) {
-            registerMeta.displayName(lang.component("gui.register.register-button"));
-            registerMeta.lore(lang.lore("gui.register.register-lore"));
-            register.setItemMeta(registerMeta);
-        }
-        inventory.setItem(11, register);
-        
+        ItemStack register = HeadTextures.createSkull(HeadTextures.HEAD_PASSWORD,
+                lang.component("gui.register.register-button"), lang.lore("gui.register.register-lore"));
+        inventory.setItem(3, register);
+
         if (auth.getPlugin().getConfigManager().isDiscordEnabled()) {
             ItemStack discord = HeadTextures.createSkull(HeadTextures.HEAD_DISCORD,
                     lang.component("gui.discord.bind-button"), lang.lore("gui.discord.bind-lore"));
-            inventory.setItem(15, discord);
+            inventory.setItem(5, discord);
         }
+
+        GuiManager.applyFooter27(inventory, lang, false);
 
         player.openInventory(inventory);
     }
