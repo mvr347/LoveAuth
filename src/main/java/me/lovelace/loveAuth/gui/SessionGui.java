@@ -5,11 +5,9 @@ import me.lovelace.loveAuth.database.DatabaseManager;
 import me.lovelace.loveAuth.lang.LangManager;
 import me.lovelace.loveAuth.util.HeadTextures;
 import org.bukkit.Bukkit;
-import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
@@ -34,35 +32,26 @@ public final class SessionGui implements LoveAuthHolder {
 
     public void refresh() {
         GuiManager.fillBackground(inventory, lang);
+        inventory.setItem(0, GuiManager.playerHead(player, lang));
 
         auth.getPlugin().getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
             int currentDays = record.map(DatabaseManager.PlayerRecord::sessionDuration).orElse(7);
-            
+
             Bukkit.getScheduler().runTask(auth.getPlugin(), () -> {
                 String nameKey = currentDays == 0 ? "gui.session.disable" : "gui.session.days";
                 ItemStack cycleBtn;
                 if (currentDays == 0) {
-                    cycleBtn = new ItemStack(Material.BARRIER);
-                    ItemMeta cycleMeta = cycleBtn.getItemMeta();
-                    if (cycleMeta != null) {
-                        cycleMeta.displayName(lang.component(nameKey, Map.of("days", String.valueOf(currentDays))));
-                        cycleMeta.lore(lang.lore("gui.session.cycle-lore"));
-                        cycleBtn.setItemMeta(cycleMeta);
-                    }
+                    cycleBtn = HeadTextures.createSkull(HeadTextures.HEAD_INACTIVE,
+                            lang.component(nameKey, Map.of("days", String.valueOf(currentDays))),
+                            lang.lore("gui.session.cycle-lore"));
                 } else {
                     cycleBtn = HeadTextures.createSkull(HeadTextures.HEAD_SESSION,
                             lang.component(nameKey, Map.of("days", String.valueOf(currentDays))),
                             lang.lore("gui.session.cycle-lore"));
                 }
-                inventory.setItem(13, cycleBtn);
+                inventory.setItem(4, cycleBtn);
 
-                ItemStack back = HeadTextures.createSkull(HeadTextures.HEAD_BACK,
-                        lang.component("gui.back-button"), java.util.Collections.emptyList());
-                inventory.setItem(25, back);
-
-                ItemStack close = HeadTextures.createSkull(HeadTextures.HEAD_BARRIER,
-                        lang.component("gui.close-button"), java.util.Collections.emptyList());
-                inventory.setItem(26, close);
+                GuiManager.applyFooter27(inventory, lang, true);
             });
         });
     }

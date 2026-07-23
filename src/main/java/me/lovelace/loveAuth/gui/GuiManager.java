@@ -11,13 +11,16 @@ import me.lovelace.loveAuth.input.InputMethod;
 import me.lovelace.loveAuth.input.SignInputHandler;
 import me.lovelace.loveAuth.lang.LangManager;
 import me.lovelace.loveAuth.queue.QueueManager;
+import me.lovelace.loveAuth.util.HeadTextures;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.SkullMeta;
 
 import java.time.Duration;
+import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -94,5 +97,27 @@ public final class GuiManager {
             filler.setItemMeta(meta);
         }
         for (int i = 0; i < inventory.getSize(); i++) inventory.setItem(i, filler);
+    }
+
+    /** Слот 0 (gui_gen standard): голова самого игрока — LoveAuth всегда открывает "прямой" профиль. */
+    public static ItemStack playerHead(Player player, LangManager lang) {
+        ItemStack head = new ItemStack(Material.PLAYER_HEAD);
+        SkullMeta meta = (SkullMeta) head.getItemMeta();
+        if (meta != null) {
+            meta.setOwningPlayer(player);
+            meta.displayName(lang.component("gui.player-head", Map.of("player", player.getName())));
+            head.setItemMeta(meta);
+        }
+        return head;
+    }
+
+    /** Заполняет footer-слоты 25/26 стандартного 27-слотового меню gui_gen: Back (опционально) + Close. */
+    public static void applyFooter27(Inventory inventory, LangManager lang, boolean withBack) {
+        if (withBack) {
+            inventory.setItem(25, HeadTextures.createSkull(HeadTextures.HEAD_BACK,
+                    lang.component("gui.back-button"), java.util.Collections.emptyList()));
+        }
+        inventory.setItem(26, HeadTextures.createSkull(HeadTextures.HEAD_BARRIER,
+                lang.component("gui.close-button"), java.util.Collections.emptyList()));
     }
 }

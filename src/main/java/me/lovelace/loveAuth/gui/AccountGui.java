@@ -5,12 +5,8 @@ import me.lovelace.loveAuth.database.DatabaseManager;
 import me.lovelace.loveAuth.lang.LangManager;
 import me.lovelace.loveAuth.util.HeadTextures;
 import org.bukkit.Bukkit;
-import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.inventory.meta.SkullMeta;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -56,10 +52,7 @@ public final class AccountGui implements LoveAuthHolder {
 
     public void refresh() {
         GuiManager.fillBackground(inventory, lang);
-
-        if (returnCommand != null) {
-            inventory.setItem(0, playerProfileHead());
-        }
+        inventory.setItem(0, GuiManager.playerHead(player, lang));
 
         auth.getPlugin().getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
             if (record.isEmpty()) return;
@@ -68,46 +61,46 @@ public final class AccountGui implements LoveAuthHolder {
             Bukkit.getScheduler().runTask(auth.getPlugin(), () -> {
                 boolean hasDiscord = pr.hasDiscord();
 
-                // Slot 10: Change Password
+                // Slot 2: Change Password
                 if (!pr.hasPassword() || !pr.passwordEnabled()) {
-                    setItem(10, HeadTextures.HEAD_CHANGE_PASS, "gui.account.set-password", "gui.account.set-password-lore");
+                    setItem(2, HeadTextures.HEAD_CHANGE_PASS, "gui.account.set-password", "gui.account.set-password-lore");
                 } else {
-                    setItem(10, HeadTextures.HEAD_CHANGE_PASS, "gui.account.change-password", "gui.account.change-password-lore");
+                    setItem(2, HeadTextures.HEAD_CHANGE_PASS, "gui.account.change-password", "gui.account.change-password-lore");
                 }
 
-                // Slot 11: Delete Password (Discord only)
+                // Slot 3: Delete Password (Discord only)
                 if (pr.hasPassword() && pr.passwordEnabled()) {
                     if (hasDiscord) {
-                        setItem(11, HeadTextures.HEAD_BARRIER, "gui.account.delete-password", "gui.account.delete-password-lore");
+                        setItem(3, HeadTextures.HEAD_BARRIER, "gui.account.delete-password", "gui.account.delete-password-lore");
                     } else {
-                        setItem(11, HeadTextures.HEAD_INACTIVE, "gui.account.delete-password-locked", "gui.account.delete-password-locked-lore");
+                        setItem(3, HeadTextures.HEAD_INACTIVE, "gui.account.delete-password-locked", "gui.account.delete-password-locked-lore");
                     }
                 }
 
-                // Slot 12: Session Info
+                // Slot 4: Session Info
                 if (pr.hasPassword() && pr.passwordEnabled()) {
                     auth.getSessionManager().getExpiry(player.getUniqueId()).thenAccept(expiry -> {
                         String status = expiry.isPresent() ? lang.plain("gui.account.session-active") : lang.plain("gui.account.session-disabled");
                         String expires = expiry.map(e -> DF.format(Instant.ofEpochSecond(e))).orElse("---");
-                        Bukkit.getScheduler().runTask(auth.getPlugin(), () -> setItem(12, HeadTextures.HEAD_SESSION, "gui.account.session-info", "gui.account.session-lore", Map.of("status", status, "expires", expires)));
+                        Bukkit.getScheduler().runTask(auth.getPlugin(), () -> setItem(4, HeadTextures.HEAD_SESSION, "gui.account.session-info", "gui.account.session-lore", Map.of("status", status, "expires", expires)));
                     });
                 } else {
-                    setItem(12, HeadTextures.HEAD_INACTIVE, "gui.account.session-unavailable", "gui.account.session-unavailable-lore");
+                    setItem(4, HeadTextures.HEAD_INACTIVE, "gui.account.session-unavailable", "gui.account.session-unavailable-lore");
                 }
 
-                // Slot 13: Input Method
+                // Slot 5: Input Method
                 auth.resolveInputMethod(player).thenAccept(method -> {
                     String mStr = lang.plain(method == me.lovelace.loveAuth.input.InputMethod.CHAT ? "gui.account.input-chat" : "gui.account.input-sign");
-                    Bukkit.getScheduler().runTask(auth.getPlugin(), () -> setItem(13, Material.OAK_SIGN, "gui.account.input-method", "gui.account.input-method-lore", Map.of("method", mStr)));
+                    Bukkit.getScheduler().runTask(auth.getPlugin(), () -> setItem(5, HeadTextures.HEAD_INFO, "gui.account.input-method", "gui.account.input-method-lore", Map.of("method", mStr)));
                 });
 
-                // Slot 14: Discord Settings
-                setItem(14, HeadTextures.HEAD_DISCORD,
+                // Slot 6: Discord Settings
+                setItem(6, HeadTextures.HEAD_DISCORD,
                     hasDiscord ? "gui.discord.unlink-button" : "gui.discord.bind-button",
                     hasDiscord ? "gui.discord.unlink-lore" : "gui.discord.bind-lore");
 
-                // Slot 16: Logout (danger action, separated from the rest of the row)
-                setItem(16, HeadTextures.HEAD_EXIT_ACCOUNT, "gui.account.logout", "gui.account.logout-lore");
+                // Slot 7: Logout (danger action, separated from the rest of the row)
+                setItem(7, HeadTextures.HEAD_EXIT_ACCOUNT, "gui.account.logout", "gui.account.logout-lore");
 
                 if (returnCommand != null) {
                     inventory.setItem(BACK_SLOT, HeadTextures.createSkull(HeadTextures.HEAD_BACK, lang.component("gui.back-button"), List.of()));
@@ -122,25 +115,6 @@ public final class AccountGui implements LoveAuthHolder {
         if (returnCommand != null) {
             player.performCommand(returnCommand);
         }
-    }
-
-    private ItemStack playerProfileHead() {
-        ItemStack head = new ItemStack(Material.PLAYER_HEAD);
-        SkullMeta meta = (SkullMeta) head.getItemMeta();
-        if (meta != null) {
-            meta.setOwningPlayer(player);
-            meta.displayName(lang.component("gui.account.profile-name", Map.of("player", player.getName())));
-            head.setItemMeta(meta);
-        }
-        return head;
-    }
-
-    private void setItem(int slot, Material m, String nameKey, String loreKey) { setItem(slot, m, nameKey, loreKey, Map.of()); }
-    private void setItem(int slot, Material m, String nameKey, String loreKey, Map<String, String> p) {
-        ItemStack item = new ItemStack(m);
-        ItemMeta meta = item.getItemMeta();
-        if (meta != null) { meta.displayName(lang.component(nameKey, p)); meta.lore(lang.lore(loreKey, p)); item.setItemMeta(meta); }
-        inventory.setItem(slot, item);
     }
 
     private void setItem(int slot, String headTexture, String nameKey, String loreKey) { setItem(slot, headTexture, nameKey, loreKey, Map.of()); }

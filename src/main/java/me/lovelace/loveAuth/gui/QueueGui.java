@@ -2,14 +2,14 @@ package me.lovelace.loveAuth.gui;
 
 import me.lovelace.loveAuth.lang.LangManager;
 import me.lovelace.loveAuth.queue.QueueManager;
+import me.lovelace.loveAuth.util.HeadTextures;
 import org.bukkit.Bukkit;
-import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Collections;
 import java.util.Map;
 
 public final class QueueGui implements LoveAuthHolder {
@@ -32,31 +32,26 @@ public final class QueueGui implements LoveAuthHolder {
 
     public void refresh() {
         GuiManager.fillBackground(inventory, lang);
+        inventory.setItem(0, GuiManager.playerHead(player, lang));
 
         int pos = queue.getPosition(player.getUniqueId());
         int total = queue.getTotal();
         String time = (pos * 5) + "s";
 
-        ItemStack info = new ItemStack(Material.PAPER);
-        ItemMeta infoMeta = info.getItemMeta();
-        if (infoMeta != null) {
-            infoMeta.displayName(lang.component("gui.queue.position-item"));
-            infoMeta.lore(lang.lore("gui.queue.position-lore", Map.of(
-                    "position", Integer.toString(pos),
-                    "total", Integer.toString(total),
-                    "time", time
-            )));
-            info.setItemMeta(infoMeta);
-        }
-        inventory.setItem(13, info);
+        ItemStack info = HeadTextures.createSkull(HeadTextures.HEAD_INFO,
+                lang.component("gui.queue.position-item"),
+                lang.lore("gui.queue.position-lore", Map.of(
+                        "position", Integer.toString(pos),
+                        "total", Integer.toString(total),
+                        "time", time
+                )));
+        inventory.setItem(3, info);
 
-        ItemStack refresh = new ItemStack(Material.SUNFLOWER);
-        ItemMeta refreshMeta = refresh.getItemMeta();
-        if (refreshMeta != null) {
-            refreshMeta.displayName(lang.component("gui.queue.refresh-button"));
-            refresh.setItemMeta(refreshMeta);
-        }
-        inventory.setItem(22, refresh);
+        ItemStack refresh = HeadTextures.createSkull(HeadTextures.HEAD_BACK,
+                lang.component("gui.queue.refresh-button"), Collections.emptyList());
+        inventory.setItem(5, refresh);
+
+        GuiManager.applyFooter27(inventory, lang, false);
     }
 
     @Override

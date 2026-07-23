@@ -44,11 +44,11 @@ public final class GuiClickListener implements Listener {
             AuthManager auth = plugin.getAuthManager();
             int slot = event.getRawSlot();
 
-            if (slot == 10) {
+            if (slot == 2) {
                 plugin.getGuiManager().openConfirm(player, "gui.confirm.change-password",
                     () -> auth.requestPasswordChange(player),
                     () -> accountGui.open());
-            } else if (slot == 11) {
+            } else if (slot == 3) {
                 plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
                     if (record.map(r -> r.hasDiscord()).orElse(false)) {
                         plugin.getDiscordAuthManager().sendConfirmation(player, "REMOVE_PASSWORD");
@@ -56,13 +56,13 @@ public final class GuiClickListener implements Listener {
                         plugin.getLangManager().send(player, "gui.account.delete-password-locked");
                     }
                 });
-            } else if (slot == 12) {
+            } else if (slot == 4) {
                 new SessionGui(player, plugin.getLangManager(), auth).open();
-            } else if (slot == 13) {
+            } else if (slot == 5) {
                 auth.switchInputMethod(player).thenRun(() -> Bukkit.getScheduler().runTask(plugin, accountGui::refresh));
-            } else if (slot == 14) {
+            } else if (slot == 6) {
                 new DiscordGui(player, plugin.getLangManager(), plugin.getConfigManager(), plugin.getDiscordAuthManager(), auth).open();
-            } else if (slot == 16) {
+            } else if (slot == 7) {
                 plugin.getGuiManager().openConfirm(player, "gui.confirm.logout",
                     () -> auth.forceLogout(player.getUniqueId()).thenRun(() -> Bukkit.getScheduler().runTask(plugin, () -> player.kick(plugin.getLangManager().component("commands.session-reset")))),
                     () -> accountGui.open());
@@ -81,7 +81,7 @@ public final class GuiClickListener implements Listener {
             int slot = event.getRawSlot();
             if (slot == 26) player.closeInventory();
             else if (slot == 25) new AccountGui(player, plugin.getLangManager(), plugin.getAuthManager()).open();
-            else if (slot == 13) {
+            else if (slot == 3) {
                 plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> Bukkit.getScheduler().runTask(plugin, () -> {
                     boolean hasDiscord = record.map(r -> r.hasDiscord()).orElse(false);
                     if (!hasDiscord) {
@@ -92,7 +92,7 @@ public final class GuiClickListener implements Listener {
                         plugin.getDiscordAuthManager().sendConfirmation(player, "UNLINK");
                     }
                 }));
-            } else if (slot == 15) {
+            } else if (slot == 5) {
                 plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
                     if (record.map(r -> r.hasDiscord()).orElse(false)) {
                         boolean next = !record.get().passwordEnabled();
@@ -108,8 +108,10 @@ public final class GuiClickListener implements Listener {
         if (holder instanceof PasswordGui) {
             event.setCancelled(true);
             SoundUtils.click(player);
-            if (event.getRawSlot() == 11) plugin.getGuiManager().openAuthMethod(player);
-            else if (event.getRawSlot() == 13) plugin.getAuthManager().requestPasswordLogin(player);
+            int slot = event.getRawSlot();
+            if (slot == 25) plugin.getGuiManager().openAuthMethod(player);
+            else if (slot == 4) plugin.getAuthManager().requestPasswordLogin(player);
+            else if (slot == 26) closeAuthGate(player);
             return;
         }
 
@@ -120,7 +122,7 @@ public final class GuiClickListener implements Listener {
             int slot = event.getRawSlot();
 
             switch (slot) {
-                case 20 -> {
+                case 2 -> {
                     plugin.getDatabaseManager().getLockedUsernames().thenAccept(list -> {
                         Bukkit.getScheduler().runTask(plugin, () -> {
                             if (list.isEmpty()) {
@@ -134,7 +136,7 @@ public final class GuiClickListener implements Listener {
                         });
                     });
                 }
-                case 22 -> {
+                case 3 -> {
                     player.closeInventory();
                     plugin.getChatInputHandler().awaitInput(player, "gui.admin.unlock-prompt", name ->
                         plugin.getDatabaseManager().findPlayerByName(name).thenAccept(record -> {
@@ -148,10 +150,10 @@ public final class GuiClickListener implements Listener {
                         })
                     );
                 }
-                case 24 -> {
+                case 4 -> {
                     adminGui.refresh();
                 }
-                case 31 -> {
+                case 5 -> {
                     player.closeInventory();
                     plugin.getChatInputHandler().awaitInput(player, "gui.admin.session-reset-prompt", name ->
                         plugin.getDatabaseManager().findPlayerByName(name).thenAccept(record -> {
@@ -165,7 +167,7 @@ public final class GuiClickListener implements Listener {
                         })
                     );
                 }
-                case 32 -> {
+                case 6 -> {
                     plugin.getDatabaseManager().clearAllIpBlocks().thenRun(() -> {
                         plugin.getLangManager().send(player, "commands.ip-blocks-cleared");
                         Bukkit.getScheduler().runTask(plugin, adminGui::refresh);
@@ -188,7 +190,7 @@ public final class GuiClickListener implements Listener {
                 new AccountGui(player, plugin.getLangManager(), plugin.getAuthManager()).open();
                 return;
             }
-            if (slot == 13) {
+            if (slot == 4) {
                 ClickType click = event.getClick();
                 plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
                     int current = record.map(r -> r.sessionDuration()).orElse(7);
@@ -223,7 +225,7 @@ public final class GuiClickListener implements Listener {
         if (isGui(title, "gui.auth-method.title")) {
             event.setCancelled(true);
             SoundUtils.click(player);
-            if (event.getRawSlot() == 12) {
+            if (event.getRawSlot() == 3) {
                 if (!auth.isRegisteredCached(player.getUniqueId())) {
                     auth.requestRegistration(player);
                 } else {
@@ -236,7 +238,7 @@ public final class GuiClickListener implements Listener {
                     });
                 }
             }
-            else if (event.getRawSlot() == 14) {
+            else if (event.getRawSlot() == 5) {
                 if (!plugin.getConfigManager().isDiscordEnabled()) return;
                 plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> Bukkit.getScheduler().runTask(plugin, () -> {
                     boolean hasDiscord = record.map(r -> r.hasDiscord()).orElse(false);
@@ -250,22 +252,46 @@ public final class GuiClickListener implements Listener {
                     }
                 }));
             }
+            else if (event.getRawSlot() == 26) closeAuthGate(player);
         } else if (isGui(title, "gui.register.title")) {
             event.setCancelled(true);
             SoundUtils.click(player);
             int slot = event.getRawSlot();
-            if (slot == 11) auth.requestRegistration(player);
-            else if (slot == 15 && plugin.getConfigManager().isDiscordEnabled()) plugin.getDiscordAuthManager().startBinding(player);
+            if (slot == 3) auth.requestRegistration(player);
+            else if (slot == 5 && plugin.getConfigManager().isDiscordEnabled()) plugin.getDiscordAuthManager().startBinding(player);
+            else if (slot == 26) closeAuthGate(player);
         } else if (isGui(title, "gui.premium-welcome.title")) {
             event.setCancelled(true);
             SoundUtils.click(player);
-            if (event.getRawSlot() == 11) auth.requestRegistration(player);
-            else if (event.getRawSlot() == 13) plugin.getDiscordAuthManager().startBinding(player);
-            else if (event.getRawSlot() == 15) auth.markAuthenticated(player, true);
+            int slot = event.getRawSlot();
+            if (slot == 3) auth.requestRegistration(player);
+            else if (slot == 5) plugin.getDiscordAuthManager().startBinding(player);
+            else if (slot == 7) auth.markAuthenticated(player, true);
+            else if (slot == 26) {
+                if (!auth.isAuthenticated(player.getUniqueId())) {
+                    auth.markAuthenticated(player, true);
+                    lang.send(player, "auth.premium-skip-reminder");
+                }
+                player.closeInventory();
+            }
         } else if (isGui(title, "gui.queue.title")) {
             event.setCancelled(true);
             SoundUtils.click(player);
-            if (event.getRawSlot() == 22) plugin.getGuiManager().openQueue(player);
+            int slot = event.getRawSlot();
+            if (slot == 5) plugin.getGuiManager().openQueue(player);
+            else if (slot == 26) player.closeInventory();
+        }
+    }
+
+    /**
+     * Закрывает GUI обязательного этапа авторизации: если игрок ещё не вошёл, поведение
+     * должно совпадать с закрытием крестиком/Esc (GuiCloseListener) — кик, а не тихий выход.
+     */
+    private void closeAuthGate(Player player) {
+        if (!plugin.getAuthManager().isAuthenticated(player.getUniqueId())) {
+            player.kick(plugin.getLangManager().component("kick.closed-gui"));
+        } else {
+            player.closeInventory();
         }
     }
 

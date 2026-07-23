@@ -35,14 +35,8 @@ public final class DiscordGui implements LoveAuthHolder {
 
     public void refresh() {
         GuiManager.fillBackground(inventory, lang);
-
-        ItemStack back = HeadTextures.createSkull(HeadTextures.HEAD_BACK,
-                lang.component("gui.back-button"), java.util.Collections.emptyList());
-        inventory.setItem(25, back);
-
-        ItemStack close = HeadTextures.createSkull(HeadTextures.HEAD_BARRIER,
-                lang.component("gui.close-button"), java.util.Collections.emptyList());
-        inventory.setItem(26, close);
+        inventory.setItem(0, GuiManager.playerHead(player, lang));
+        GuiManager.applyFooter27(inventory, lang, true);
 
         auth.getPlugin().getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
             boolean hasDiscord = record.map(r -> r.hasDiscord()).orElse(false);
@@ -61,17 +55,17 @@ public final class DiscordGui implements LoveAuthHolder {
                     bind = HeadTextures.createSkull(HeadTextures.HEAD_DISCORD,
                             lang.component("gui.discord.unlink-button"), lang.lore("gui.discord.unlink-lore"));
                 }
-                inventory.setItem(13, bind);
+                inventory.setItem(3, bind);
 
                 if (!hasDiscord) {
                     ItemStack locked = HeadTextures.createSkull(HeadTextures.HEAD_INACTIVE,
                             lang.component("gui.discord.toggle-locked"), lang.lore("gui.discord.toggle-locked-lore"));
-                    inventory.setItem(15, locked);
+                    inventory.setItem(5, locked);
                 } else {
                     ItemStack toggle = HeadTextures.createSkull(HeadTextures.HEAD_CHANGE_PASS,
                             lang.component(passEnabled ? "gui.discord.toggle-password-off" : "gui.discord.toggle-password-on"),
                             lang.lore("gui.discord.toggle-lore"));
-                    inventory.setItem(15, toggle);
+                    inventory.setItem(5, toggle);
                 }
             });
         });
