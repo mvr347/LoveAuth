@@ -32,7 +32,7 @@ public final class AdminGui implements LoveAuthHolder {
     }
 
     public void refresh() {
-        GuiManager.fillBackground(inventory, lang);
+        GuiManager.standardFrame54(inventory, lang);
         inventory.setItem(0, GuiManager.playerHead(player, lang));
 
         plugin.getDatabaseManager().getLockedUsernames().thenAccept(lockedList -> {
