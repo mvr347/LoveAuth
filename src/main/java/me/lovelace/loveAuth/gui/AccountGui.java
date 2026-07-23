@@ -83,12 +83,17 @@ public final class AccountGui implements LoveAuthHolder {
                     }
                 }
 
-                // Slot 13: Session Info
+                // Slot 13: Session — длительность сессии настраивается прямо здесь
+                // (ЛКМ/ПКМ в GuiClickListener), отдельного меню сессий больше нет.
                 if (pr.hasPassword() && pr.passwordEnabled()) {
+                    int days = pr.sessionDuration();
+                    String nameKey = days == 0 ? "gui.session.disable" : "gui.session.days";
+                    String headTexture = days == 0 ? HeadTextures.HEAD_INACTIVE : HeadTextures.HEAD_SESSION;
                     auth.getSessionManager().getExpiry(player.getUniqueId()).thenAccept(expiry -> {
                         String status = expiry.isPresent() ? lang.plain("gui.account.session-active") : lang.plain("gui.account.session-disabled");
                         String expires = expiry.map(e -> DF.format(Instant.ofEpochSecond(e))).orElse("---");
-                        Bukkit.getScheduler().runTask(auth.getPlugin(), () -> setItem(13, HeadTextures.HEAD_SESSION, "gui.account.session-info", "gui.account.session-lore", Map.of("status", status, "expires", expires)));
+                        Bukkit.getScheduler().runTask(auth.getPlugin(), () -> setItem(13, headTexture, nameKey, "gui.account.session-lore",
+                                Map.of("days", String.valueOf(days), "status", status, "expires", expires)));
                     });
                 } else {
                     setItem(13, HeadTextures.HEAD_INACTIVE, "gui.account.session-unavailable", "gui.account.session-unavailable-lore");

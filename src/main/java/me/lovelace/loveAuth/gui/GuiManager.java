@@ -128,13 +128,15 @@ public final class GuiManager {
         return head;
     }
 
-    /** Заполняет footer-слоты 25/26 стандартного 27-слотового меню gui_gen: Back (опционально) + Close. */
+    /**
+     * Заполняет footer-слоты 25/26 стандартного 27-слотового меню gui_gen: Close (всегда,
+     * слот 26) + Back (опционально, слот 25). Когда Back не нужен, слот 25 намеренно
+     * остаётся пустым (не стекло) — как и слот 0, когда профиль не показывается.
+     */
     public static void applyFooter27(Inventory inventory, LangManager lang, boolean withBack) {
         if (withBack) {
             inventory.setItem(25, HeadTextures.createSkull(HeadTextures.HEAD_BACK,
                     lang.component("gui.back-button"), java.util.Collections.emptyList()));
-        } else {
-            inventory.setItem(25, glassFiller(lang));
         }
         inventory.setItem(26, HeadTextures.createSkull(HeadTextures.HEAD_BARRIER,
                 lang.component("gui.close-button"), java.util.Collections.emptyList()));

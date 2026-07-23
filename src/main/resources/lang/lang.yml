@@ -229,11 +229,13 @@ gui.account:
     - "<gray>Заблокировать аккаунт вручную"
     - "<gray>для защиты от взлома"
     - "<gray>(Требуется Discord)"
-  session-info: "<aqua><bold>⏱ Управление сессией"
   session-lore:
     - "<gray>Текущая сессия: <white>{status}</white>"
     - "<gray>Истекает: <white>{expires}</white>"
-    - "<gray>Нажмите для настройки"
+    - ""
+    - "<gray>ЛКМ: <green>+1 день"
+    - "<gray>ПКМ: <red>-1 день"
+    - "<gray>Максимум: <white>28 дней"
   session-unavailable: "<dark_gray><bold>⏱ Сессии недоступны"
   session-unavailable-lore:
     - "<gray>Установите пароль чтобы"
@@ -251,16 +253,10 @@ gui.account:
   input-chat: "чат"
   input-sign: "табличка"
 
-# ── GUI: сессии ─────────────────────────────
+# ── GUI: сессии (кнопка встроена прямо в /loveauth account, слот 13) ──
 gui.session:
   disable: "<red><bold>✖ Отключить сессию"
   days: "<aqua><bold>⏱ Длительность: <white>{days} дн."
-  cycle-lore:
-    - "<gray>ЛКМ: <green>+1 день"
-    - "<gray>ПКМ: <red>-1 день"
-    - "<gray>Максимум: <white>28 дней"
-    - "<gray>(Настройка будет применена"
-    - "<gray>при следующем входе)"
 
 # ── GUI: очередь ────────────────────────────
 gui.queue:
@@ -273,9 +269,9 @@ gui.queue:
   refresh-button: "<green>↻ Обновить"
 
 # ── GUI: подтверждение ───────────────────────
+# Ключи ниже используются как заголовок хоппер-меню (ConfirmGui) — конкретный вопрос
+# вместо общего "Подтверждение действия".
 gui.confirm:
-  title: "<red>Подтверждение действия"
-  description-item: "<white><bold>⚠ Вы уверены?"
   change-password: "<white><bold>Изменить пароль?"
   reset-session: "<white><bold>Сбросить сессию?"
   lock-account: "<white><bold>Заблокировать аккаунт?"
