@@ -106,6 +106,13 @@ public final class GuiManager {
         for (int i = 18; i <= 24; i++) inventory.setItem(i, filler);
     }
 
+    /** Публичный доступ к стеклянной панели — для случаев, когда опциональный элемент
+     *  (напр. голова профиля в слоте 0) отсутствует, но сам слот лежит в застеклённой
+     *  полосе (не в рабочей зоне с контентом), и туда нужно поставить стекло. */
+    public static ItemStack glassPane(LangManager lang) {
+        return glassFiller(lang);
+    }
+
     private static ItemStack glassFiller(LangManager lang) {
         ItemStack filler = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
         ItemMeta meta = filler.getItemMeta();
@@ -130,13 +137,16 @@ public final class GuiManager {
 
     /**
      * Заполняет footer-слоты 25/26 стандартного 27-слотового меню gui_gen: Close (всегда,
-     * слот 26) + Back (опционально, слот 25). Когда Back не нужен, слот 25 намеренно
-     * остаётся пустым (не стекло) — как и слот 0, когда профиль не показывается.
+     * слот 26) + Back (опционально, слот 25). Слот 25 лежит в застеклённой полосе
+     * (18-24 — стекло), поэтому когда Back не нужен, слот 25 тоже становится стеклом —
+     * это НЕ рабочая зона с контентом, там стекло уместно и ожидаемо.
      */
     public static void applyFooter27(Inventory inventory, LangManager lang, boolean withBack) {
         if (withBack) {
             inventory.setItem(25, HeadTextures.createSkull(HeadTextures.HEAD_BACK,
                     lang.component("gui.back-button"), java.util.Collections.emptyList()));
+        } else {
+            inventory.setItem(25, glassFiller(lang));
         }
         inventory.setItem(26, HeadTextures.createSkull(HeadTextures.HEAD_BARRIER,
                 lang.component("gui.close-button"), java.util.Collections.emptyList()));

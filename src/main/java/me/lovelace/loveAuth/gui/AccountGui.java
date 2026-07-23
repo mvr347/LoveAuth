@@ -55,9 +55,12 @@ public final class AccountGui implements LoveAuthHolder {
         // Слот 0 (профиль) и кнопка "Назад" видны только в embedded-режиме (открыто со
         // скрытым аргументом — меню встроено кнопкой в чьё-то DeluxeMenus-меню), и только
         // если это не отключено в config.yml. Обычный "/loveauth account" остаётся
-        // самостоятельным экраном без профиля и без кнопки "Назад".
+        // самостоятельным экраном без профиля и без кнопки "Назад" — но слот 0 лежит в
+        // застеклённой строке 0-8 (не в рабочей зоне), поэтому вместо головы там стекло.
         if (embedded && config.isAccountProfileEnabled()) {
             inventory.setItem(0, GuiManager.playerHead(player, lang));
+        } else {
+            inventory.setItem(0, GuiManager.glassPane(lang));
         }
 
         auth.getPlugin().getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
@@ -115,6 +118,8 @@ public final class AccountGui implements LoveAuthHolder {
 
                 if (embedded) {
                     inventory.setItem(BACK_SLOT, HeadTextures.createSkull(HeadTextures.HEAD_BACK, lang.component("gui.back-button"), List.of()));
+                } else {
+                    inventory.setItem(BACK_SLOT, GuiManager.glassPane(lang));
                 }
                 inventory.setItem(CLOSE_SLOT, HeadTextures.createSkull(HeadTextures.HEAD_BARRIER, lang.component("gui.close-button"), List.of()));
             });
