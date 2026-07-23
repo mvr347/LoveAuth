@@ -31,7 +31,7 @@ public final class SessionGui implements LoveAuthHolder {
     }
 
     public void refresh() {
-        GuiManager.fillBackground(inventory, lang);
+        GuiManager.standardFrame27(inventory, lang);
         inventory.setItem(0, GuiManager.playerHead(player, lang));
 
         auth.getPlugin().getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
@@ -49,7 +49,7 @@ public final class SessionGui implements LoveAuthHolder {
                             lang.component(nameKey, Map.of("days", String.valueOf(currentDays))),
                             lang.lore("gui.session.cycle-lore"));
                 }
-                inventory.setItem(4, cycleBtn);
+                inventory.setItem(13, cycleBtn);
 
                 GuiManager.applyFooter27(inventory, lang, true);
             });

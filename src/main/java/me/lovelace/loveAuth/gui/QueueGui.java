@@ -31,7 +31,7 @@ public final class QueueGui implements LoveAuthHolder {
     }
 
     public void refresh() {
-        GuiManager.fillBackground(inventory, lang);
+        GuiManager.standardFrame27(inventory, lang);
         inventory.setItem(0, GuiManager.playerHead(player, lang));
 
         int pos = queue.getPosition(player.getUniqueId());
@@ -45,11 +45,11 @@ public final class QueueGui implements LoveAuthHolder {
                         "total", Integer.toString(total),
                         "time", time
                 )));
-        inventory.setItem(3, info);
+        inventory.setItem(12, info);
 
         ItemStack refresh = HeadTextures.createSkull(HeadTextures.HEAD_BACK,
                 lang.component("gui.queue.refresh-button"), Collections.emptyList());
-        inventory.setItem(5, refresh);
+        inventory.setItem(14, refresh);
 
         GuiManager.applyFooter27(inventory, lang, false);
     }

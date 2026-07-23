@@ -23,12 +23,12 @@ public final class PasswordGui implements LoveAuthHolder {
 
     public void open() {
         this.inventory = Bukkit.createInventory(this, 27, lang.component("gui.password.title"));
-        GuiManager.fillBackground(inventory, lang);
+        GuiManager.standardFrame27(inventory, lang);
         inventory.setItem(0, GuiManager.playerHead(player, lang));
 
         ItemStack enter = HeadTextures.createSkull(HeadTextures.HEAD_PASSWORD,
                 lang.component("gui.password.enter-button"), lang.lore("gui.password.enter-lore"));
-        inventory.setItem(4, enter);
+        inventory.setItem(13, enter);
 
         GuiManager.applyFooter27(inventory, lang, true);
 

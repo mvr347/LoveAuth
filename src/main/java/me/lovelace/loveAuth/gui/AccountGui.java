@@ -51,7 +51,7 @@ public final class AccountGui implements LoveAuthHolder {
     }
 
     public void refresh() {
-        GuiManager.fillBackground(inventory, lang);
+        GuiManager.standardFrame27(inventory, lang);
         // Слот 0 (профиль) виден только если меню открыто с returnCommand (скрытый
         // аргумент "/loveauth account <cmd>", напр. "mainmenu") — оно встроено кнопкой
         // в чей-то DeluxeMenus-меню и должно уметь вернуться назад. Обычный "/loveauth
@@ -67,46 +67,46 @@ public final class AccountGui implements LoveAuthHolder {
             Bukkit.getScheduler().runTask(auth.getPlugin(), () -> {
                 boolean hasDiscord = pr.hasDiscord();
 
-                // Slot 2: Change Password
+                // Slot 11: Change Password
                 if (!pr.hasPassword() || !pr.passwordEnabled()) {
-                    setItem(2, HeadTextures.HEAD_CHANGE_PASS, "gui.account.set-password", "gui.account.set-password-lore");
+                    setItem(11, HeadTextures.HEAD_CHANGE_PASS, "gui.account.set-password", "gui.account.set-password-lore");
                 } else {
-                    setItem(2, HeadTextures.HEAD_CHANGE_PASS, "gui.account.change-password", "gui.account.change-password-lore");
+                    setItem(11, HeadTextures.HEAD_CHANGE_PASS, "gui.account.change-password", "gui.account.change-password-lore");
                 }
 
-                // Slot 3: Delete Password (Discord only)
+                // Slot 12: Delete Password (Discord only)
                 if (pr.hasPassword() && pr.passwordEnabled()) {
                     if (hasDiscord) {
-                        setItem(3, HeadTextures.HEAD_BARRIER, "gui.account.delete-password", "gui.account.delete-password-lore");
+                        setItem(12, HeadTextures.HEAD_BARRIER, "gui.account.delete-password", "gui.account.delete-password-lore");
                     } else {
-                        setItem(3, HeadTextures.HEAD_INACTIVE, "gui.account.delete-password-locked", "gui.account.delete-password-locked-lore");
+                        setItem(12, HeadTextures.HEAD_INACTIVE, "gui.account.delete-password-locked", "gui.account.delete-password-locked-lore");
                     }
                 }
 
-                // Slot 4: Session Info
+                // Slot 13: Session Info
                 if (pr.hasPassword() && pr.passwordEnabled()) {
                     auth.getSessionManager().getExpiry(player.getUniqueId()).thenAccept(expiry -> {
                         String status = expiry.isPresent() ? lang.plain("gui.account.session-active") : lang.plain("gui.account.session-disabled");
                         String expires = expiry.map(e -> DF.format(Instant.ofEpochSecond(e))).orElse("---");
-                        Bukkit.getScheduler().runTask(auth.getPlugin(), () -> setItem(4, HeadTextures.HEAD_SESSION, "gui.account.session-info", "gui.account.session-lore", Map.of("status", status, "expires", expires)));
+                        Bukkit.getScheduler().runTask(auth.getPlugin(), () -> setItem(13, HeadTextures.HEAD_SESSION, "gui.account.session-info", "gui.account.session-lore", Map.of("status", status, "expires", expires)));
                     });
                 } else {
-                    setItem(4, HeadTextures.HEAD_INACTIVE, "gui.account.session-unavailable", "gui.account.session-unavailable-lore");
+                    setItem(13, HeadTextures.HEAD_INACTIVE, "gui.account.session-unavailable", "gui.account.session-unavailable-lore");
                 }
 
-                // Slot 5: Input Method
+                // Slot 14: Input Method
                 auth.resolveInputMethod(player).thenAccept(method -> {
                     String mStr = lang.plain(method == me.lovelace.loveAuth.input.InputMethod.CHAT ? "gui.account.input-chat" : "gui.account.input-sign");
-                    Bukkit.getScheduler().runTask(auth.getPlugin(), () -> setItem(5, HeadTextures.HEAD_INFO, "gui.account.input-method", "gui.account.input-method-lore", Map.of("method", mStr)));
+                    Bukkit.getScheduler().runTask(auth.getPlugin(), () -> setItem(14, HeadTextures.HEAD_INFO, "gui.account.input-method", "gui.account.input-method-lore", Map.of("method", mStr)));
                 });
 
-                // Slot 6: Discord Settings
-                setItem(6, HeadTextures.HEAD_DISCORD,
+                // Slot 15: Discord Settings
+                setItem(15, HeadTextures.HEAD_DISCORD,
                     hasDiscord ? "gui.discord.unlink-button" : "gui.discord.bind-button",
                     hasDiscord ? "gui.discord.unlink-lore" : "gui.discord.bind-lore");
 
-                // Slot 7: Logout (danger action, separated from the rest of the row)
-                setItem(7, HeadTextures.HEAD_EXIT_ACCOUNT, "gui.account.logout", "gui.account.logout-lore");
+                // Slot 16: Logout (danger action)
+                setItem(16, HeadTextures.HEAD_EXIT_ACCOUNT, "gui.account.logout", "gui.account.logout-lore");
 
                 if (returnCommand != null) {
                     inventory.setItem(BACK_SLOT, HeadTextures.createSkull(HeadTextures.HEAD_BACK, lang.component("gui.back-button"), List.of()));

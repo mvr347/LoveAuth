@@ -29,22 +29,22 @@ public final class PremiumWelcomeGui implements LoveAuthHolder {
 
     public void open() {
         this.inventory = Bukkit.createInventory(this, 27, lang.component("gui.premium-welcome.title"));
-        GuiManager.fillBackground(inventory, lang);
+        GuiManager.standardFrame27(inventory, lang);
         inventory.setItem(0, GuiManager.playerHead(player, lang));
 
         ItemStack password = HeadTextures.createSkull(HeadTextures.HEAD_PASSWORD,
                 lang.component("gui.premium-welcome.add-password-button"), lang.lore("gui.premium-welcome.add-password-lore"));
-        inventory.setItem(3, password);
+        inventory.setItem(11, password);
 
         if (config.isDiscordEnabled()) {
             ItemStack discordItem = HeadTextures.createSkull(HeadTextures.HEAD_DISCORD,
                     lang.component("gui.premium-welcome.bind-discord-button"), lang.lore("gui.premium-welcome.bind-discord-lore"));
-            inventory.setItem(5, discordItem);
+            inventory.setItem(13, discordItem);
         }
 
         ItemStack skip = HeadTextures.createSkull(HeadTextures.HEAD_BACK,
                 lang.component("gui.premium-welcome.skip-button"), lang.lore("gui.premium-welcome.skip-lore"));
-        inventory.setItem(7, skip);
+        inventory.setItem(15, skip);
 
         GuiManager.applyFooter27(inventory, lang, false);
 

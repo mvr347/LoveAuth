@@ -23,17 +23,17 @@ public final class RegisterGui implements LoveAuthHolder {
 
     public void open() {
         this.inventory = Bukkit.createInventory(this, 27, lang.component("gui.register.title"));
-        GuiManager.fillBackground(inventory, lang);
+        GuiManager.standardFrame27(inventory, lang);
         inventory.setItem(0, GuiManager.playerHead(player, lang));
 
         ItemStack register = HeadTextures.createSkull(HeadTextures.HEAD_PASSWORD,
                 lang.component("gui.register.register-button"), lang.lore("gui.register.register-lore"));
-        inventory.setItem(3, register);
+        inventory.setItem(12, register);
 
         if (auth.getPlugin().getConfigManager().isDiscordEnabled()) {
             ItemStack discord = HeadTextures.createSkull(HeadTextures.HEAD_DISCORD,
                     lang.component("gui.discord.bind-button"), lang.lore("gui.discord.bind-lore"));
-            inventory.setItem(5, discord);
+            inventory.setItem(14, discord);
         }
 
         GuiManager.applyFooter27(inventory, lang, false);
