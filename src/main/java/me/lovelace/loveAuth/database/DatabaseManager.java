@@ -513,7 +513,13 @@ public final class DatabaseManager {
         return supplyAsync(() -> {
             try (Connection connection = getConnection()) {
                 int registered = count(connection, "SELECT COUNT(*) FROM players");
-                int sessions = count(connection, "SELECT COUNT(*) FROM sessions WHERE expires_at > " + Instant.now().getEpochSecond());
+                int sessions;
+                try (PreparedStatement statement = connection.prepareStatement("SELECT COUNT(*) FROM sessions WHERE expires_at > ?")) {
+                    statement.setLong(1, Instant.now().getEpochSecond());
+                    try (ResultSet resultSet = statement.executeQuery()) {
+                        sessions = resultSet.next() ? resultSet.getInt(1) : 0;
+                    }
+                }
                 int locked = count(connection, "SELECT COUNT(*) FROM players WHERE is_locked = 1");
                 return new StatsRecord(registered, locked, sessions);
             }
