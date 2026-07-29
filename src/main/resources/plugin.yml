@@ -21,7 +21,7 @@ permissions:
     children:
       loveauth.reload: true
   loveauth.reload:
-    description: Перезагрузка конфигурации LoveAuth (/loveauth reload)
+    description: Перезагрузка конфигурации LoveAuth (/ladmin reload)
     default: op
   loveauth.queue.bypass:
     description: Пропуск очереди

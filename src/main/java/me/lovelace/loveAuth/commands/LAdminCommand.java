@@ -158,6 +158,13 @@ public final class LAdminCommand implements CommandExecutor, TabCompleter {
         switch (sub) {
             case "help", "помощь" -> sendHelp(sender);
             case "reload", "перезагрузка" -> {
+                // loveauth.reload объявлен в plugin.yml (и как child loveauth.admin), но нигде
+                // не проверялся: перезагрузка гейтилась только общим loveauth.admin, из-за чего
+                // выдать право исключительно на reload было невозможно.
+                if (!sender.hasPermission("loveauth.reload")) {
+                    lang.send(sender, "general.no-permission");
+                    return;
+                }
                 plugin.getConfigManager().reload();
                 plugin.getLangManager().load();
                 plugin.getQueueManager().stop();
