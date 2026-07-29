@@ -42,6 +42,9 @@ public final class DiscordAuthManager {
     private final Map<String, UUID> pendingLinks = new ConcurrentHashMap<>();
     private final Map<UUID, Long> pendingLogins = new ConcurrentHashMap<>();
     private final Map<UUID, AdminAction> pendingAdminActions = new ConcurrentHashMap<>();
+    // Хеш нового пароля ждёт подтверждения в Discord: в базу он попадает только
+    // после нажатия «Подтвердить», иначе смену можно было бы навязать чужими руками.
+    private final Map<UUID, String> pendingPasswordHashes = new ConcurrentHashMap<>();
     private final SecureRandom random = new SecureRandom();
 
     public DiscordAuthManager(LoveAuth plugin, ConfigManager config, LangManager lang, DatabaseManager database, AuthManager auth) {
@@ -165,6 +168,21 @@ public final class DiscordAuthManager {
         });
     }
 
+    /**
+     * Смена пароля игроком, у которого привязан Discord: пароль меняется не сразу,
+     * а после подтверждения в личных сообщениях бота. Хеш считается заранее и держится
+     * в памяти до ответа — если подтверждения не будет, в базу ничего не уйдёт.
+     */
+    public void sendPasswordChangeConfirmation(Player player, String passwordHash) {
+        if (!isEnabled()) { lang.send(player, "discord.not-enabled"); return; }
+        pendingPasswordHashes.put(player.getUniqueId(), passwordHash);
+        // Запрос живёт столько же, сколько само сообщение с кнопками в Discord.
+        UUID uuid = player.getUniqueId();
+        plugin.getServer().getAsyncScheduler().runDelayed(plugin,
+            t -> pendingPasswordHashes.remove(uuid, passwordHash), 2, TimeUnit.MINUTES);
+        sendConfirmation(player, "PASSWORD_CHANGE");
+    }
+
     public CompletableFuture<Boolean> requestAdminConfirmation(Player player, String[] args) {
         if (!isEnabled()) return CompletableFuture.completedFuture(false);
         return database.findPlayer(player.getUniqueId()).thenCompose(record -> {
@@ -189,6 +207,7 @@ public final class DiscordAuthManager {
         switch (action) {
             case "UNLINK" -> database.setDiscordId(player.getUniqueId(), null).thenRun(() -> { lang.send(player, "discord.unlinked"); plugin.getLogManager().database(player.getUniqueId(), "DISCORD_UNLINK", player.getName(), player.getAddress().getAddress().getHostAddress()); });
             case "REMOVE_PASSWORD" -> database.setPasswordEnabled(player.getUniqueId(), false).thenRun(() -> { lang.send(player, "commands.password-removed"); plugin.getLogManager().database(player.getUniqueId(), "PASSWORD_DELETE", player.getName(), player.getAddress().getAddress().getHostAddress()); });
+            case "PASSWORD_CHANGE" -> applyPendingPasswordChange(player.getUniqueId());
             case "LOCK_ACCOUNT" -> database.setLocked(player.getUniqueId(), true).thenRun(() -> { lang.send(player, "discord.account-locked-self"); plugin.getLogManager().database(player.getUniqueId(), "MANUAL_LOCK", player.getName(), player.getAddress().getAddress().getHostAddress()); Bukkit.getScheduler().runTask(plugin, () -> player.kick(lang.component("block.account-locked"))); });
         }
     }
@@ -196,6 +215,33 @@ public final class DiscordAuthManager {
     private void handleConfirmedActionOffline(UUID u, String a) {
         if (a.equals("UNLINK")) database.setDiscordId(u, null);
         else if (a.equals("LOCK_ACCOUNT")) database.setLocked(u, true);
+        else if (a.equals("PASSWORD_CHANGE")) applyPendingPasswordChange(u);
+    }
+
+    /**
+     * Записывает отложенный хеш пароля. Возвращает молча, если подтверждение
+     * пришло позже срока и хеш уже убран из памяти.
+     */
+    private void applyPendingPasswordChange(UUID uuid) {
+        String hash = pendingPasswordHashes.remove(uuid);
+        if (hash == null) return;
+
+        auth.applyPasswordHash(uuid, hash).thenRun(() -> {
+            Player player = Bukkit.getPlayer(uuid);
+            if (player != null && player.isOnline()) lang.send(player, "commands.password-changed");
+            notifyDiscord(uuid, lang.plain("discord.password-changed-dm"));
+        });
+    }
+
+    /** Отправляет игроку сообщение в личку бота, если Discord к аккаунту привязан. */
+    private void notifyDiscord(UUID uuid, String text) {
+        if (!isEnabled()) return;
+        database.findPlayer(uuid).thenAccept(record -> {
+            if (record.isEmpty() || !record.get().hasDiscord()) return;
+            jda.retrieveUserById(record.get().discordId()).queue(
+                user -> user.openPrivateChannel().queue(channel -> channel.sendMessage(text).queue(null, err -> {})),
+                err -> {});
+        });
     }
 
     private class DiscordEventListener extends ListenerAdapter {
@@ -262,7 +308,7 @@ public final class DiscordAuthManager {
             else if (id.startsWith("login_deny:")) { UUID u = UUID.fromString(id.split(":")[1]); pendingLogins.remove(u); e.getMessage().delete().queue(); Bukkit.getScheduler().runTask(plugin, () -> { Player p = Bukkit.getPlayer(u); if (p != null) p.kick(lang.component("discord.login-denied-kick")); }); e.reply("Denied.").setEphemeral(true).queue(); }
             else if (id.startsWith("action_lock:")) { UUID u = UUID.fromString(id.split(":")[1]); database.setLocked(u, true).thenRun(() -> { e.getMessage().delete().queue(); Player p = Bukkit.getPlayer(u); if (p != null) Bukkit.getScheduler().runTask(plugin, () -> p.kick(lang.component("block.account-locked"))); }); e.reply("Locked.").setEphemeral(true).queue(); }
             else if (id.startsWith("confirm_action:")) { String[] p = id.split(":"); UUID u = UUID.fromString(p[1]); e.getMessage().delete().queue(); Bukkit.getScheduler().runTask(plugin, () -> { Player pl = Bukkit.getPlayer(u); if (pl != null) handleConfirmedAction(pl, p[2]); else handleConfirmedActionOffline(u, p[2]); }); e.reply("Confirmed.").setEphemeral(true).queue(); }
-            else if (id.startsWith("deny_action:")) { e.getMessage().delete().queue(); e.reply("Cancelled.").setEphemeral(true).queue(); }
+            else if (id.startsWith("deny_action:")) { String[] p = id.split(":"); if (p.length > 1) { try { pendingPasswordHashes.remove(UUID.fromString(p[1])); } catch (IllegalArgumentException ignored) {} } e.getMessage().delete().queue(); e.reply("Cancelled.").setEphemeral(true).queue(); }
             else if (id.startsWith("admin_confirm:")) { String[] p = id.split(":"); UUID u = UUID.fromString(p[1]); String a = new String(Base64.getDecoder().decode(p[2])); e.getMessage().delete().queue(); Bukkit.getScheduler().runTask(plugin, () -> { Player pl = Bukkit.getPlayer(u); if (pl != null) plugin.getLAdminCommand().handleCommand(pl, a.split(" ")); }); e.reply("Admin action confirmed.").setEphemeral(true).queue(); }
             else if (id.startsWith("admin_deny:")) { e.getMessage().delete().queue(); e.reply("Cancelled.").setEphemeral(true).queue(); }
         }

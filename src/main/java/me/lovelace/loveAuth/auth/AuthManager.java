@@ -368,6 +368,31 @@ public final class AuthManager {
             });
     }
 
+    /**
+     * Применяет уже посчитанный хеш пароля — путь подтверждения смены через Discord,
+     * где хеш считается в момент запроса, а записывается только после подтверждения.
+     * Сессии сбрасываются так же, как при обычной смене пароля: подтверждение приходит
+     * с другого устройства, и старые сессии после смены доверять нельзя.
+     */
+    public CompletableFuture<Boolean> applyPasswordHash(UUID uuid, String passwordHash) {
+        return database.updatePassword(uuid, passwordHash)
+            .thenCompose(v -> sessionManager.invalidate(uuid))
+            .thenApply(v -> {
+                Player player = Bukkit.getPlayer(uuid);
+                String name = player != null ? player.getName() : uuid.toString();
+                String ip = player != null ? getIp(player) : "discord";
+                log.database(uuid, "PASSWORD_CHANGE", name, ip);
+
+                if (player != null && player.isOnline()) {
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        lang.sendActionBar(player, "commands.password-changed", Map.of());
+                        SoundUtils.success(player);
+                    });
+                }
+                return true;
+            });
+    }
+
     /** Re-establishes a session for the device that just performed the password change, since {@link #updatePassword} wipes any existing one. */
     private CompletableFuture<Void> createSessionForCurrentDevice(Player player) {
         if (!isAuthenticated(player.getUniqueId())) return CompletableFuture.completedFuture(null);

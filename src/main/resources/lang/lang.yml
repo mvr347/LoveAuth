@@ -105,6 +105,7 @@ discord:
   action-unlink: "Вы действительно хотите отвязать Discord?"
   action-remove_password: "Вы действительно хотите удалить пароль?"
   action-lock_account: "Вы действительно хотите заблокировать свой аккаунт?"
+  action-password_change: "Вы действительно хотите сменить пароль? Новый пароль вступит в силу только после подтверждения."
   account-locked-self: "{prefix}<yellow>Ваш аккаунт заблокирован по вашему запросу."
   help-header: "📋 **Команды LoveAuth бота:**"
   help-link: "`/link <код>` — привязать аккаунт"
