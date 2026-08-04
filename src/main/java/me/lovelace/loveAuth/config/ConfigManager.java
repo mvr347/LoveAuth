@@ -124,7 +124,7 @@ public final class ConfigManager {
     public boolean isPremiumNameProtectionEnabled() { return config.getBoolean("premium-verification.block-cracked-with-premium-name", true); }
     public List<String> getDiscordAdminIds() { return config.getStringList("discord.admin-ids"); }
     public boolean isRegisterSpawnEnabled() { return config.getBoolean("register-spawn.enabled", false); }
-    public String getRegisterSpawnWorld() { return config.getString("register-spawn.world", "world"); }
+    public String getRegisterSpawnWorld() { return config.getString("register-spawn.world", "spawn"); }
     public boolean isAccountProfileEnabled() { return config.getBoolean("gui.account.show-profile", true); }
     public String getAccountBackCommand() { return config.getString("gui.account.back-command", ""); }
 }

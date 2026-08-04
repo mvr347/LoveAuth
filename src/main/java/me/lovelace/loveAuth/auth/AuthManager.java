@@ -11,6 +11,7 @@ import me.lovelace.loveAuth.session.SessionManager;
 import me.lovelace.loveAuth.util.LogManager;
 import me.lovelace.loveAuth.util.SoundUtils;
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
@@ -220,7 +221,10 @@ public final class AuthManager {
                         SoundUtils.success(player);
                         if (config.isRegisterSpawnEnabled()) {
                             World spawnWorld = Bukkit.getWorld(config.getRegisterSpawnWorld());
-                            if (spawnWorld != null) player.teleport(spawnWorld.getSpawnLocation());
+                            if (spawnWorld != null) {
+                                player.teleport(spawnWorld.getSpawnLocation());
+                                player.setGameMode(GameMode.SURVIVAL);
+                            }
                         }
                     });
                 }).thenApply(v -> true);
