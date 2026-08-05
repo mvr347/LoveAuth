@@ -97,53 +97,59 @@ public final class LimboManager {
         player.setInvisible(true);
     }
 
+    /**
+     * Called once a join finishes authenticating. If the player was never actually
+     * frozen this session - a valid session skips limbo entirely and auto-logs in via
+     * {@code AuthManager#markAuthenticated} - there is nothing to restore: they're
+     * already sitting exactly where Bukkit put them from their persisted playerdata,
+     * with their real gamemode intact. Teleporting to a fallback spawn or force-resetting
+     * gamemode in that case is the bug this method used to have - every ordinary relogin
+     * got silently teleported to world[0]'s spawn and dropped into survival.
+     */
     public void restore(Player player) {
-        Location original = originalLocations.remove(player.getUniqueId());
-        
-        // Redundancy: if no location saved or still in limbo, use default spawn
-        if (original == null || original.getWorld().getName().equals(config.getLimboWorldName())) {
-            original = Bukkit.getWorlds().get(0).getSpawnLocation();
-        }
-        
-        Location target = original;
+        UUID uuid = player.getUniqueId();
+        boolean wasFrozen = frozenPlayers.getIfPresent(uuid) != null;
+        Location original = originalLocations.remove(uuid);
+
+        if (!wasFrozen) return;
+
         Bukkit.getScheduler().runTask(plugin, () -> {
-            player.teleport(target);
+            if (original != null && !original.getWorld().getName().equals(config.getLimboWorldName())) {
+                player.teleport(original);
+            }
             unfreeze(player);
         });
     }
 
     public void cleanup(Player player) {
         UUID uuid = player.getUniqueId();
-        // If the player disconnects/gets kicked while still frozen, restore their real
-        // gamemode/speed/visibility first - otherwise Minecraft persists the frozen
-        // (ADVENTURE, invisible, walkSpeed 0) attributes to their playerdata, and the
-        // next freeze() call would capture that corrupted state as their "original" one.
         if (frozenPlayers.getIfPresent(uuid) != null) {
+            // The player is disconnecting while still frozen in the limbo world (never
+            // finished logging in). Bukkit persists wherever they physically stand at
+            // disconnect time, so without this teleport their playerdata would save the
+            // limbo coordinates - permanently losing their real location, since
+            // originalLocations is in-memory only and gets cleared right below.
+            Location original = originalLocations.get(uuid);
+            if (original != null && !original.getWorld().getName().equals(config.getLimboWorldName())) {
+                player.teleport(original);
+            }
             unfreeze(player);
         }
         originalLocations.remove(uuid);
     }
 
-    public void unfreeze(Player player) {
+    /** Only ever called while a frozen {@link PlayerState} exists - both call sites guard on it. */
+    private void unfreeze(Player player) {
         PlayerState state = frozenPlayers.getIfPresent(player.getUniqueId());
-        if (state != null) {
-            player.setGameMode(state.gameMode());
-            player.setWalkSpeed(state.walkSpeed());
-            player.setFlySpeed(state.flySpeed());
-            player.setAllowFlight(state.allowFlight());
-            player.setFlying(state.isFlying());
-            player.setInvulnerable(state.isInvulnerable());
-            player.setInvisible(state.isInvisible());
-            frozenPlayers.invalidate(player.getUniqueId());
-        } else {
-            player.setGameMode(GameMode.SURVIVAL);
-            player.setWalkSpeed(0.2f);
-            player.setFlySpeed(0.1f);
-            player.setAllowFlight(false);
-            player.setFlying(false);
-            player.setInvulnerable(false);
-            player.setInvisible(false);
-        }
+        if (state == null) return;
+        player.setGameMode(state.gameMode());
+        player.setWalkSpeed(state.walkSpeed());
+        player.setFlySpeed(state.flySpeed());
+        player.setAllowFlight(state.allowFlight());
+        player.setFlying(state.isFlying());
+        player.setInvulnerable(state.isInvulnerable());
+        player.setInvisible(state.isInvisible());
+        frozenPlayers.invalidate(player.getUniqueId());
     }
 
     private static class VoidGenerator extends ChunkGenerator {
