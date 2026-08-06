@@ -1,4 +1,4 @@
-package me.lovelace.loveAuth.util;
+package me.lovelace.loveAuth.textures;
 
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
@@ -15,7 +15,13 @@ import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Custom player-head icons for GUI buttons, built from Mojang skin-texture payloads. */
+/**
+ * Централизованное хранилище base64 текстур голов (skull textures), используемых в GUI LoveAuth.
+ * <p>
+ * Все base64-литералы текстур голов должны объявляться здесь, а не хардкодиться по месту
+ * использования — так плагин следует единой точке правды для GUI-текстур, вместо дублирования
+ * одних и тех же строк в разных классах.
+ */
 public final class HeadTextures {
 
     public static final String HEAD_BARRIER = "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvM2VkMWFiYTczZjYzOWY0YmM0MmJkNDgxOTZjNzE1MTk3YmUyNzEyYzNiOTYyYzk3ZWJmOWU5ZWQ4ZWZhMDI1In19fQ==";
@@ -34,6 +40,7 @@ public final class HeadTextures {
     private static final Pattern URL_PATTERN = Pattern.compile("\"url\"\\s*:\\s*\"(http[^\"]+)\"");
 
     private HeadTextures() {
+        // Утилитарный класс-константа, инстанцирование не предполагается
     }
 
     public static ItemStack createSkull(String base64Texture, Component name, List<Component> lore) {
