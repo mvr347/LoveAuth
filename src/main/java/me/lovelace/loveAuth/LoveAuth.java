@@ -3,7 +3,7 @@ package me.lovelace.loveAuth;
 import me.lovelace.loveAuth.api.LoveAuthAPI;
 import me.lovelace.loveAuth.auth.AuthManager;
 import me.lovelace.loveAuth.auth.BruteForceProtection;
-import me.lovelace.loveAuth.commands.LAdminCommand;
+import me.lovelace.loveAuth.commands.LoveAuthAdminCommand;
 import me.lovelace.loveAuth.commands.LoveAuthCommand;
 import me.lovelace.loveAuth.config.ConfigManager;
 import me.lovelace.loveAuth.database.DatabaseManager;
@@ -49,7 +49,7 @@ public final class LoveAuth extends JavaPlugin {
     private DiscordAuthManager discordAuthManager;
     private ChatInputHandler chatInputHandler;
     private SignInputHandler signInputHandler;
-    private LAdminCommand lAdminCommand;
+    private LoveAuthAdminCommand loveAuthAdminCommand;
     private PremiumVerificationManager premiumVerificationManager;
 
     public static LoveAuth getInstance() { return instance; }
@@ -132,9 +132,14 @@ public final class LoveAuth extends JavaPlugin {
         LoveAuthCommand cmd = new LoveAuthCommand(this);
         getCommand("loveauth").setExecutor(cmd);
         getCommand("loveauth").setTabCompleter(cmd);
-        lAdminCommand = new LAdminCommand(this);
-        getCommand("ladmin").setExecutor(lAdminCommand);
-        getCommand("ladmin").setTabCompleter(lAdminCommand);
+
+        // /ladmin остаётся зарегистрированной, но только как редирект на новую
+        // единую /loveauthadmin — см. LoveAuthAdminCommand.onCommand.
+        loveAuthAdminCommand = new LoveAuthAdminCommand(this);
+        getCommand("loveauthadmin").setExecutor(loveAuthAdminCommand);
+        getCommand("loveauthadmin").setTabCompleter(loveAuthAdminCommand);
+        getCommand("ladmin").setExecutor(loveAuthAdminCommand);
+        getCommand("ladmin").setTabCompleter(loveAuthAdminCommand);
     }
 
     public ConfigManager getConfigManager() { return configManager; }
@@ -152,6 +157,6 @@ public final class LoveAuth extends JavaPlugin {
     public DiscordAuthManager getDiscordAuthManager() { return discordAuthManager; }
     public ChatInputHandler getChatInputHandler() { return chatInputHandler; }
     public SignInputHandler getSignInputHandler() { return signInputHandler; }
-    public LAdminCommand getLAdminCommand() { return lAdminCommand; }
+    public LoveAuthAdminCommand getLoveAuthAdminCommand() { return loveAuthAdminCommand; }
     public PremiumVerificationManager getPremiumVerificationManager() { return premiumVerificationManager; }
 }

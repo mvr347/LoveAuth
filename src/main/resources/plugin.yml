@@ -10,10 +10,13 @@ commands:
     aliases: [ auth, авторизация, регистрация, вход ]
     description: Главная команда LoveAuth
     usage: /loveauth <подкоманда>
-  ladmin:
+  loveauthadmin:
     aliases: [ ладмин ]
     description: Панель администратора LoveAuth
-    usage: /ladmin <подкоманда>
+    usage: /loveauthadmin <подкоманда>
+  ladmin:
+    description: (устарело) переехала в /loveauthadmin
+    usage: /loveauthadmin <подкоманда>
 permissions:
   loveauth.admin:
     description: Полный доступ к административным командам LoveAuth
@@ -21,7 +24,7 @@ permissions:
     children:
       loveauth.reload: true
   loveauth.reload:
-    description: Перезагрузка конфигурации LoveAuth (/ladmin reload)
+    description: Перезагрузка конфигурации LoveAuth (/loveauthadmin reload)
     default: op
   loveauth.queue.bypass:
     description: Пропуск очереди

@@ -4,7 +4,7 @@ import me.lovelace.loveAuth.auth.AuthManager;
 import me.lovelace.loveAuth.config.ConfigManager;
 import me.lovelace.loveAuth.discord.DiscordAuthManager;
 import me.lovelace.loveAuth.lang.LangManager;
-import me.lovelace.loveAuth.util.HeadTextures;
+import me.lovelace.loveAuth.textures.HeadTextures;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
