@@ -11,7 +11,8 @@ LoveAuth предоставляет защищённую систему вход
 | Команда | Алиасы | Описание |
 |---|---|---|
 | `/loveauth` | `auth`, `авторизация`, `регистрация`, `вход` | Главная команда авторизации |
-| `/ladmin` | `ладмин` | Панель администратора LoveAuth (пермишин: `loveauth.admin`) |
+| `/loveauthadmin` | `ладмин` | Панель администратора LoveAuth (пермишин: `loveauth.admin`) |
+| `/ladmin` | — | Устаревшее имя `/loveauthadmin`, оставлено как редирект с подсказкой |
 
 ### Подкоманды `/loveauth`
 
@@ -20,11 +21,16 @@ LoveAuth предоставляет защищённую систему вход
 - `logout` — выйти (завершить сессию)
 - `changepassword <старый> <новый>` — изменить пароль
 
-### Подкоманды `/ladmin`
+### Подкоманды `/loveauthadmin`
 
-- `reload` — перезагрузить config.yml
-- `resetdb <player>` — удалить аккаунт игрока из БД
-- `unblock <ip>` — разблокировать IP-адрес
+- `reload` — перезагрузить config.yml и языковые файлы
+- `unlock <player>` — разблокировать аккаунт игрока
+- `unblockip <ip>` — разблокировать IP-адрес
+- `info <player>` — подробная информация об игроке и его альтах
+- `session reset <player>` — сбросить сессию игрока
+- `setadminpass` — установить admin-пароль
+- `delete <player>` — удалить все данные игрока
+- `amnesty` — снять все блокировки IP и аккаунтов
 
 ## Пермишины
 
@@ -75,7 +81,7 @@ auth:
   max-attempts: 3                    # максимум неверных попыток пароля
   lockout-duration-minutes: 60       # блокировка IP на 60 минут после исчерпания попыток
   min-password-length: 6             # минимальная длина пароля
-  admin-max-attempts: 5              # попытки для /ladmin
+  admin-max-attempts: 5              # попытки для /loveauthadmin
   admin-lockout-duration-minutes: 15 # блокировка admin-команд на 15 минут
   premium-skip: true                 # пропускать авторизацию для лицензионных игроков
 ```

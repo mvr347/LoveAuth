@@ -17,18 +17,26 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
-public final class LAdminCommand implements CommandExecutor, TabCompleter {
+/**
+ * Единая административная команда плагина: {@code /loveauthadmin <subcommand>}.
+ * <p>
+ * Раньше эта функциональность жила под {@code /ladmin}. Та команда остаётся
+ * зарегистрированной (см. {@link #onCommand}) только как редирект с коротким
+ * сообщением на новое имя — так игрок/админ, набравший её по привычке, не
+ * натыкается на молчание, а получает понятную подсказку.
+ */
+public final class LoveAuthAdminCommand implements CommandExecutor, TabCompleter {
     private static final long ADMIN_SESSION_DURATION_MILLIS = 3_600_000L;
     /** Sentinel expiry value meaning "valid for as long as the player stays online". */
     private static final long NO_EXPIRY = -1L;
+    /** Legacy command name kept registered purely to redirect players to /loveauthadmin. */
+    private static final String LEGACY_COMMAND_NAME = "ladmin";
 
     private final LoveAuth plugin;
     private final Map<UUID, Long> adminSessions = new ConcurrentHashMap<>();
@@ -39,7 +47,7 @@ public final class LAdminCommand implements CommandExecutor, TabCompleter {
 
     private record AdminAttemptState(int failures, long lockedUntilEpochSecond) {}
 
-    public LAdminCommand(LoveAuth plugin) {
+    public LoveAuthAdminCommand(LoveAuth plugin) {
         this.plugin = plugin;
     }
 
@@ -60,6 +68,15 @@ public final class LAdminCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
+        if (command.getName().equalsIgnoreCase(LEGACY_COMMAND_NAME)) {
+            if (!sender.hasPermission("loveauth.admin")) {
+                plugin.getLangManager().send(sender, "general.no-permission");
+            } else {
+                plugin.getLangManager().send(sender, "commands.admin-command-moved");
+            }
+            return true;
+        }
+
         if (!sender.hasPermission("loveauth.admin")) {
             plugin.getLangManager().send(sender, "general.no-permission");
             return true;
@@ -148,7 +165,7 @@ public final class LAdminCommand implements CommandExecutor, TabCompleter {
             if (sender instanceof Player player) {
                 plugin.getGuiManager().openAdmin(player);
             } else {
-                sender.sendMessage("This command is for players. Use /ladmin help for console commands.");
+                sender.sendMessage("This command is for players. Use /loveauthadmin help for console commands.");
             }
             return;
         }
@@ -277,20 +294,28 @@ public final class LAdminCommand implements CommandExecutor, TabCompleter {
     }
 
     private void sendHelp(CommandSender sender) {
-        sender.sendMessage("§d§lLoveAuth Admin Help:");
-        sender.sendMessage("§f/ladmin §7- Open Admin GUI");
-        sender.sendMessage("§f/ladmin reload §7- Reload configuration");
-        sender.sendMessage("§f/ladmin unlock <player> §7- Unlock account");
-        sender.sendMessage("§f/ladmin unblockip <ip> §7- Unblock IP");
-        sender.sendMessage("§f/ladmin info <player> §7- Detailed info & alts");
-        sender.sendMessage("§f/ladmin session reset <player> §7- Reset session");
-        sender.sendMessage("§f/ladmin setadminpass §7- Set admin password");
-        sender.sendMessage("§f/ladmin delete <player> §7- Delete player data");
-        sender.sendMessage("§f/ladmin amnesty §7- Clear all blocks");
+        LangManager lang = plugin.getLangManager();
+        sender.sendMessage(lang.component("commands.admin-help-header"));
+        sender.sendMessage(lang.component("commands.admin-help-open"));
+        sendAdminEntry(sender, "reload", "commands.admin-help-reload");
+        sendAdminEntry(sender, "unlock [игрок]", "commands.admin-help-unlock");
+        sendAdminEntry(sender, "unblockip [ip]", "commands.admin-help-unblockip");
+        sendAdminEntry(sender, "info [игрок]", "commands.admin-help-info");
+        sendAdminEntry(sender, "session reset [игрок]", "commands.admin-help-session-reset");
+        sendAdminEntry(sender, "setadminpass", "commands.admin-help-setadminpass");
+        sendAdminEntry(sender, "delete [игрок]", "commands.admin-help-delete");
+        sendAdminEntry(sender, "amnesty", "commands.admin-help-amnesty");
+        sender.sendMessage(lang.component("commands.admin-help-footer"));
+    }
+
+    private void sendAdminEntry(CommandSender sender, String cmd, String key) {
+        LangManager lang = plugin.getLangManager();
+        sender.sendMessage(lang.component("commands.admin-help-entry", Map.of("command", cmd, "description", lang.plain(key))));
     }
 
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
+        if (command.getName().equalsIgnoreCase(LEGACY_COMMAND_NAME)) return List.of();
         if (!sender.hasPermission("loveauth.admin")) return List.of();
         if (args.length == 1) return List.of("help", "reload", "unlock", "unblockip", "session", "info", "setadminpass", "delete", "amnesty", "помощь", "перезагрузка", "разблокировать", "разблокироватьайпи", "сессия", "инфо", "установитьадминпароль", "удалить", "амнистия");
         if (args.length == 2) {

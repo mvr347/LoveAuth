@@ -74,11 +74,13 @@ public final class LoveAuthCommand implements CommandExecutor, TabCompleter {
 
     private void sendHelp(Player player) {
         LangManager lang = plugin.getLangManager();
-        player.sendMessage(lang.plain("commands.help-header"));
+        player.sendMessage(lang.component("commands.help-header"));
         sendEntry(player, "register", "commands.help-register");
         sendEntry(player, "login", "commands.help-login");
         sendEntry(player, "account", "commands.help-account");
         sendEntry(player, "password", "commands.help-password-change");
+        sendEntry(player, "logout", "commands.help-logout");
+        player.sendMessage(lang.component("commands.help-footer"));
     }
 
     private void sendEntry(Player player, String cmd, String key) {
