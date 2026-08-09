@@ -241,18 +241,23 @@ gui.account:
   session-unavailable-lore:
     - "<gray>Установите пароль чтобы"
     - "<gray>управлять сессиями"
-  input-method: "<light_purple><bold>⌨ Метод ввода пароля"
-  input-method-lore:
-    - "<gray>Текущий метод: <white>{method}</white>"
+  login-method: "<light_purple><bold>🔑 Способ входа"
+  login-method-lore:
+    - "<gray>Текущий способ: <white>{method}</white>"
     - "<gray>Нажмите для смены"
+  login-method-locked: "<dark_gray><bold>🔑 Способ входа"
+  login-method-locked-lore:
+    - "<gray>Сейчас доступен только: <white>{method}</white>"
+    - "<gray>Настройте пароль и Discord,"
+    - "<gray>чтобы выбирать между ними"
   logout: "<red><bold>🚪 Выйти из аккаунта"
   logout-lore:
     - "<gray>Завершить текущую сессию"
   session-active: "активна"
   session-disabled: "отключена"
   session-expired: "истекла"
-  input-chat: "чат"
-  input-sign: "табличка"
+  login-password: "пароль"
+  login-discord: "discord"
 
 # ── GUI: сессии (кнопка встроена прямо в /loveauth account, слот 13) ──
 gui.session:
@@ -343,7 +348,9 @@ commands:
   session-reset: "{prefix}<yellow>Сессия сброшена."
   session-info: "{prefix}<gray>Сессия истекает: <white>{expires}</white>."
   session-none: "{prefix}<yellow>Активная сессия не найдена."
-  input-method-changed: "{prefix}<green>Метод ввода изменён: <white>{method}</white>."
+  login-method-changed: "{prefix}<green>Способ входа изменён: <white>{method}</white>."
+  login-method-needs-password: "{prefix}<red>Сначала установите пароль, чтобы выбрать его как способ входа."
+  login-method-needs-discord: "{prefix}<red>Сначала привяжите Discord, чтобы выбрать его как способ входа."
   admin-unlock: "{prefix}<green>Аккаунт <white>{player}</white> разблокирован."
   admin-info-header: "{prefix}<white>Информация об игроке <yellow>{player}</yellow>:"
   admin-info-uuid: "  <gray>UUID: <white>{uuid}"

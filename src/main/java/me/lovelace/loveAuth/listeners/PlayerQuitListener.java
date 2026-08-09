@@ -20,7 +20,6 @@ public final class PlayerQuitListener implements Listener {
         plugin.getAuthManager().cleanup(uuid);
         plugin.getQueueManager().removeFromQueue(uuid);
         plugin.getChatInputHandler().cleanup(uuid);
-        plugin.getSignInputHandler().cleanup(uuid);
         plugin.getLimboManager().cleanup(event.getPlayer());
         plugin.getLoveAuthAdminCommand().invalidateOnlineSession(uuid);
     }

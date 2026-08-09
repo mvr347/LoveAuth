@@ -81,7 +81,7 @@ public final class GuiClickListener implements Listener {
                     });
                 });
             } else if (slot == 14) {
-                auth.switchInputMethod(player).thenRun(() -> Bukkit.getScheduler().runTask(plugin, accountGui::refresh));
+                auth.switchAuthMethod(player).thenRun(() -> Bukkit.getScheduler().runTask(plugin, accountGui::refresh));
             } else if (slot == 15) {
                 new DiscordGui(player, plugin.getLangManager(), plugin.getConfigManager(), plugin.getDiscordAuthManager(), auth).open();
             } else if (slot == 16) {
