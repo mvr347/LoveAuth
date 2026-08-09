@@ -1,7 +1,6 @@
 package me.lovelace.loveAuth.config;
 
 import me.lovelace.loveAuth.LoveAuth;
-import me.lovelace.loveAuth.input.InputMethod;
 import org.bukkit.configuration.file.FileConfiguration;
 
 import java.util.ArrayList;
@@ -54,12 +53,6 @@ public final class ConfigManager {
             plugin.saveConfig();
             warningKeys.add("log.config-warn-min-password-length");
         }
-        try {
-            InputMethod.valueOf(config.getString("default-input-method", "CHAT").toUpperCase());
-        } catch (IllegalArgumentException ignored) {
-            config.set("default-input-method", "CHAT");
-            plugin.saveConfig();
-        }
     }
 
     public List<String> consumeWarningKeys() {
@@ -107,13 +100,6 @@ public final class ConfigManager {
     public int getQueueMaxPlayers() { return config.getInt("queue.max-players", 100); }
     public boolean isLimboEnabled() { return config.getBoolean("limbo.enabled", true); }
     public String getLimboWorldName() { return config.getString("limbo.world-name", "loveauth_limbo"); }
-    public InputMethod getDefaultInputMethod() {
-        try {
-            return InputMethod.valueOf(config.getString("default-input-method", "CHAT").toUpperCase());
-        } catch (IllegalArgumentException ignored) {
-            return InputMethod.CHAT;
-        }
-    }
     public boolean isDiscordEnabled() { return config.getBoolean("discord.enabled", false); }
     public String getDiscordBotToken() { return config.getString("discord.bot-token", ""); }
     public String getDiscordGuildId() { return config.getString("discord.guild-id", ""); }

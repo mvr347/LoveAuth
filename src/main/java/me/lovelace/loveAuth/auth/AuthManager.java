@@ -3,7 +3,6 @@ package me.lovelace.loveAuth.auth;
 import me.lovelace.loveAuth.LoveAuth;
 import me.lovelace.loveAuth.config.ConfigManager;
 import me.lovelace.loveAuth.database.DatabaseManager;
-import me.lovelace.loveAuth.input.InputMethod;
 import me.lovelace.loveAuth.lang.LangManager;
 import me.lovelace.loveAuth.limbo.LimboManager;
 import me.lovelace.loveAuth.security.SecurityUtils;
@@ -135,18 +134,31 @@ public final class AuthManager {
                 boolean hasDiscord = record.hasDiscord();
 
                 if (!hasPassword && hasDiscord) {
-                    plugin.getDiscordAuthManager().requestDiscordLogin(player)
-                        .thenAccept(sent -> Bukkit.getScheduler().runTask(plugin, () -> {
-                            if (!player.isOnline()) return;
-                            if (!sent) {
-                                plugin.getGuiManager().openAuthMethod(player);
-                            }
-                        }));
+                    attemptDiscordLogin(player);
+                } else if (hasPassword && hasDiscord) {
+                    // Both methods are set up - skip the manual chooser and go straight to
+                    // whichever one the player picked as their preferred login method in
+                    // /loveauth account, instead of asking every single time.
+                    if (record.preferredAuthMethod() == AuthMethod.DISCORD) {
+                        attemptDiscordLogin(player);
+                    } else {
+                        plugin.getGuiManager().openPassword(player);
+                    }
                 } else {
                     plugin.getGuiManager().openAuthMethod(player);
                 }
             }, 1L);
         }));
+    }
+
+    private void attemptDiscordLogin(Player player) {
+        plugin.getDiscordAuthManager().requestDiscordLogin(player)
+            .thenAccept(sent -> Bukkit.getScheduler().runTask(plugin, () -> {
+                if (!player.isOnline()) return;
+                if (!sent) {
+                    plugin.getGuiManager().openAuthMethod(player);
+                }
+            }));
     }
 
     private void handleFirstJoin(Player player) {
@@ -158,7 +170,7 @@ public final class AuthManager {
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             if (!player.isOnline()) return;
             if (config.isPremiumSkipEnabled() && isPremium(player)) {
-                database.createPlayer(player.getUniqueId(), player.getName(), true, config.getDefaultInputMethod())
+                database.createPlayer(player.getUniqueId(), player.getName(), true)
                     .thenRun(() -> registeredCache.add(player.getUniqueId()));
                 plugin.getGuiManager().openPremiumWelcome(player);
             } else {
@@ -222,7 +234,7 @@ public final class AuthManager {
         return database.isRegistered(player.getUniqueId()).thenCompose(registered -> {
             if (registered) { registrationLock.remove(name); return CompletableFuture.completedFuture(false); }
             return supplyAsync(() -> SecurityUtils.hashPassword(password, pepper, config))
-                .thenCompose(hash -> database.registerPlayer(player.getUniqueId(), player.getName(), hash, false, config.getDefaultInputMethod()))
+                .thenCompose(hash -> database.registerPlayer(player.getUniqueId(), player.getName(), hash, false))
                 .thenCompose(v -> database.updateLastLogin(player.getUniqueId(), ip))
                 .thenRun(() -> {
                     registrationLock.remove(name);
@@ -298,56 +310,64 @@ public final class AuthManager {
 
     public void requestPasswordLogin(Player player) {
         if (isAuthenticated(player.getUniqueId())) return;
-        resolveInputMethod(player).thenAccept(m -> Bukkit.getScheduler().runTask(plugin, () -> 
-            plugin.getGuiManager().awaitInput(player, m, "login.prompt-" + m.name().toLowerCase(), p -> login(player, p))));
+        plugin.getGuiManager().awaitInput(player, "login.prompt-chat", p -> login(player, p));
     }
 
     public void requestRegistration(Player player) {
         if (isRegisteredCached(player.getUniqueId())) return;
-        resolveInputMethod(player).thenAccept(m -> Bukkit.getScheduler().runTask(plugin, () -> 
-            plugin.getGuiManager().awaitInput(player, m, "register.prompt-password", p1 -> {
-                if (!validatePassword(player, p1)) {
+        plugin.getGuiManager().awaitInput(player, "register.prompt-password", p1 -> {
+            if (!validatePassword(player, p1)) {
+                Bukkit.getScheduler().runTaskLater(plugin, () -> { if (player.isOnline()) requestRegistration(player); }, VALIDATION_RETRY_DELAY_TICKS);
+                return;
+            }
+            plugin.getGuiManager().awaitInput(player, "register.prompt-confirm", p2 -> {
+                if (p1.equals(p2)) register(player, p1);
+                else {
+                    lang.sendActionBar(player, "register.password-mismatch", Map.of());
+                    SoundUtils.error(player);
                     Bukkit.getScheduler().runTaskLater(plugin, () -> { if (player.isOnline()) requestRegistration(player); }, VALIDATION_RETRY_DELAY_TICKS);
-                    return;
                 }
-                plugin.getGuiManager().awaitInput(player, m, "register.prompt-confirm", p2 -> {
-                    if (p1.equals(p2)) register(player, p1);
-                    else {
-                        lang.sendActionBar(player, "register.password-mismatch", Map.of());
-                        SoundUtils.error(player);
-                        Bukkit.getScheduler().runTaskLater(plugin, () -> { if (player.isOnline()) requestRegistration(player); }, VALIDATION_RETRY_DELAY_TICKS);
-                    }
-                });
-            })));
+            });
+        });
     }
 
-    public CompletableFuture<InputMethod> resolveInputMethod(Player player) {
-        return database.findPlayer(player.getUniqueId()).thenApply(r -> r.map(DatabaseManager.PlayerRecord::inputMethod).orElse(config.getDefaultInputMethod()));
-    }
-    
-    public CompletableFuture<Void> switchInputMethod(Player player) {
-        return resolveInputMethod(player).thenCompose(curr -> {
-            InputMethod next = curr == InputMethod.CHAT ? InputMethod.SIGN : InputMethod.CHAT;
-            return database.setInputMethod(player.getUniqueId(), next).thenRun(() -> Bukkit.getScheduler().runTask(plugin, () -> 
-                lang.send(player, "commands.input-method-changed", Map.of("method", lang.plain(next == InputMethod.CHAT ? "gui.account.input-chat" : "gui.account.input-sign")))));
+    /**
+     * Переключает предпочитаемый способ входа (пароль/Discord), если реально доступны
+     * оба - иначе не переключает и объясняет игроку почему нельзя.
+     */
+    public CompletableFuture<Void> switchAuthMethod(Player player) {
+        return database.findPlayer(player.getUniqueId()).thenCompose(record -> {
+            if (record.isEmpty()) return CompletableFuture.completedFuture(null);
+            DatabaseManager.PlayerRecord pr = record.get();
+            boolean hasPassword = pr.hasPassword() && pr.passwordEnabled();
+            boolean hasDiscord = pr.hasDiscord();
+            if (!hasPassword || !hasDiscord) {
+                Bukkit.getScheduler().runTask(plugin, () -> lang.send(player,
+                        !hasPassword ? "commands.login-method-needs-password" : "commands.login-method-needs-discord"));
+                return CompletableFuture.completedFuture(null);
+            }
+            AuthMethod next = pr.preferredAuthMethod() == AuthMethod.PASSWORD ? AuthMethod.DISCORD : AuthMethod.PASSWORD;
+            return database.setPreferredAuthMethod(player.getUniqueId(), next).thenRun(() -> Bukkit.getScheduler().runTask(plugin, () ->
+                    lang.send(player, "commands.login-method-changed", Map.of("method", lang.plain(
+                            next == AuthMethod.PASSWORD ? "gui.account.login-password" : "gui.account.login-discord")))));
         });
     }
 
     public CompletableFuture<Void> forceLogout(UUID uuid) { authenticated.remove(uuid); return sessionManager.invalidate(uuid); }
-    public CompletableFuture<Boolean> forceLogin(UUID uuid) { 
-        Player p = Bukkit.getPlayer(uuid); 
+    public CompletableFuture<Boolean> forceLogin(UUID uuid) {
+        Player p = Bukkit.getPlayer(uuid);
         if (p != null) Bukkit.getScheduler().runTask(plugin, () -> markAuthenticated(p, true));
         return CompletableFuture.completedFuture(p != null);
     }
     public CompletableFuture<Void> forceRegister(UUID uuid, String pass) {
         return supplyAsync(() -> SecurityUtils.hashPassword(pass, pepper, config))
-            .thenCompose(h -> database.registerPlayer(uuid, "Unknown", h, false, config.getDefaultInputMethod()))
+            .thenCompose(h -> database.registerPlayer(uuid, "Unknown", h, false))
             .thenRun(() -> registeredCache.add(uuid));
     }
 
     public void requestPasswordChange(Player player) {
-        resolveInputMethod(player).thenAccept(m -> Bukkit.getScheduler().runTask(plugin, () -> {
-            plugin.getGuiManager().awaitInput(player, m, "register.prompt-password", p -> {
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            plugin.getGuiManager().awaitInput(player, "register.prompt-password", p -> {
                 if (!validatePassword(player, p)) {
                     Bukkit.getScheduler().runTaskLater(plugin, () -> { if (player.isOnline()) requestPasswordChange(player); }, VALIDATION_RETRY_DELAY_TICKS);
                     return;
@@ -365,7 +385,7 @@ public final class AuthManager {
                     }
                 });
             });
-        }));
+        });
     }
 
     public CompletableFuture<Boolean> updatePassword(Player player, String pass) {

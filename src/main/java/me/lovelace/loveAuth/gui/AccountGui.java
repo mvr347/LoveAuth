@@ -1,6 +1,7 @@
 package me.lovelace.loveAuth.gui;
 
 import me.lovelace.loveAuth.auth.AuthManager;
+import me.lovelace.loveAuth.auth.AuthMethod;
 import me.lovelace.loveAuth.config.ConfigManager;
 import me.lovelace.loveAuth.database.DatabaseManager;
 import me.lovelace.loveAuth.lang.LangManager;
@@ -102,11 +103,16 @@ public final class AccountGui implements LoveAuthHolder {
                     setItem(13, HeadTextures.HEAD_INACTIVE, "gui.account.session-unavailable", "gui.account.session-unavailable-lore");
                 }
 
-                // Slot 14: Input Method
-                auth.resolveInputMethod(player).thenAccept(method -> {
-                    String mStr = lang.plain(method == me.lovelace.loveAuth.input.InputMethod.CHAT ? "gui.account.input-chat" : "gui.account.input-sign");
-                    Bukkit.getScheduler().runTask(auth.getPlugin(), () -> setItem(14, HeadTextures.HEAD_INFO, "gui.account.input-method", "gui.account.input-method-lore", Map.of("method", mStr)));
-                });
+                // Slot 14: Login Method (password or Discord) - only switchable once both are set up
+                boolean canSwitchMethod = pr.hasPassword() && pr.passwordEnabled() && hasDiscord;
+                boolean preferDiscord = pr.preferredAuthMethod() == AuthMethod.DISCORD;
+                String methodStr = lang.plain(preferDiscord ? "gui.account.login-discord" : "gui.account.login-password");
+                String methodTexture = preferDiscord ? HeadTextures.HEAD_DISCORD : HeadTextures.HEAD_PASSWORD;
+                if (canSwitchMethod) {
+                    setItem(14, methodTexture, "gui.account.login-method", "gui.account.login-method-lore", Map.of("method", methodStr));
+                } else {
+                    setItem(14, HeadTextures.HEAD_INACTIVE, "gui.account.login-method-locked", "gui.account.login-method-locked-lore", Map.of("method", methodStr));
+                }
 
                 // Slot 15: Discord Settings
                 setItem(15, HeadTextures.HEAD_DISCORD,

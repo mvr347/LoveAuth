@@ -10,7 +10,6 @@ import me.lovelace.loveAuth.database.DatabaseManager;
 import me.lovelace.loveAuth.discord.DiscordAuthManager;
 import me.lovelace.loveAuth.gui.GuiManager;
 import me.lovelace.loveAuth.input.ChatInputHandler;
-import me.lovelace.loveAuth.input.SignInputHandler;
 import me.lovelace.loveAuth.lang.LangManager;
 import me.lovelace.loveAuth.limbo.LimboManager;
 import me.lovelace.loveAuth.listeners.*;
@@ -48,7 +47,6 @@ public final class LoveAuth extends JavaPlugin {
     private GuiManager guiManager;
     private DiscordAuthManager discordAuthManager;
     private ChatInputHandler chatInputHandler;
-    private SignInputHandler signInputHandler;
     private LoveAuthAdminCommand loveAuthAdminCommand;
     private PremiumVerificationManager premiumVerificationManager;
 
@@ -88,8 +86,7 @@ public final class LoveAuth extends JavaPlugin {
         discordAuthManager = new DiscordAuthManager(this, configManager, langManager, databaseManager, authManager);
         discordAuthManager.initialize();
         chatInputHandler = new ChatInputHandler(this, langManager);
-        signInputHandler = new SignInputHandler(this);
-        guiManager = new GuiManager(this, langManager, configManager, authManager, queueManager, discordAuthManager, chatInputHandler, signInputHandler);
+        guiManager = new GuiManager(this, langManager, configManager, authManager, queueManager, discordAuthManager, chatInputHandler);
 
         registerListeners();
         registerCommands();
@@ -100,7 +97,7 @@ public final class LoveAuth extends JavaPlugin {
             logManager.infoKey("log.placeholder-registered");
         }
 
-        logManager.infoKey("log.plugin-enable", Map.of("version", getDescription().getVersion()));
+        logManager.infoKey("log.plugin-enable", Map.of("version", getPluginMeta().getVersion()));
     }
 
     @Override
@@ -125,7 +122,6 @@ public final class LoveAuth extends JavaPlugin {
         pm.registerEvents(new GuiClickListener(this), this);
         pm.registerEvents(new GuiCloseListener(this), this);
         pm.registerEvents(chatInputHandler, this);
-        pm.registerEvents(signInputHandler, this);
     }
 
     private void registerCommands() {
@@ -156,7 +152,6 @@ public final class LoveAuth extends JavaPlugin {
     public GuiManager getGuiManager() { return guiManager; }
     public DiscordAuthManager getDiscordAuthManager() { return discordAuthManager; }
     public ChatInputHandler getChatInputHandler() { return chatInputHandler; }
-    public SignInputHandler getSignInputHandler() { return signInputHandler; }
     public LoveAuthAdminCommand getLoveAuthAdminCommand() { return loveAuthAdminCommand; }
     public PremiumVerificationManager getPremiumVerificationManager() { return premiumVerificationManager; }
 }

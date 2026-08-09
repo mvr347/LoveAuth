@@ -4,7 +4,7 @@ import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import me.lovelace.loveAuth.LoveAuth;
 import me.lovelace.loveAuth.config.ConfigManager;
-import me.lovelace.loveAuth.input.InputMethod;
+import me.lovelace.loveAuth.auth.AuthMethod;
 import me.lovelace.loveAuth.security.SecurityUtils;
 
 import javax.crypto.SecretKey;
@@ -72,7 +72,7 @@ public final class DatabaseManager {
                     discord_id_hash TEXT,
                     is_locked INTEGER NOT NULL DEFAULT 0,
                     password_enabled INTEGER NOT NULL DEFAULT 1,
-                    input_method TEXT NOT NULL DEFAULT 'SIGN',
+                    preferred_auth_method TEXT NOT NULL DEFAULT 'PASSWORD',
                     session_duration INTEGER DEFAULT 7,
                     registered_at INTEGER NOT NULL,
                     last_login INTEGER,
@@ -114,6 +114,7 @@ public final class DatabaseManager {
         runMigration(statement, "ALTER TABLE players ADD COLUMN last_ip TEXT;");
         runMigration(statement, "ALTER TABLE ip_blocks ADD COLUMN raw_ip TEXT;");
         runMigration(statement, "ALTER TABLE players ADD COLUMN discord_id_hash TEXT;");
+        runMigration(statement, "ALTER TABLE players ADD COLUMN preferred_auth_method TEXT NOT NULL DEFAULT 'PASSWORD';");
     }
 
     /**
@@ -205,32 +206,31 @@ public final class DatabaseManager {
         });
     }
 
-    public CompletableFuture<Void> createPlayer(UUID uuid, String username, boolean premium, InputMethod inputMethod) {
+    public CompletableFuture<Void> createPlayer(UUID uuid, String username, boolean premium) {
         long now = Instant.now().getEpochSecond();
         return supplyAsync(() -> {
             try (Connection connection = getConnection();
                  PreparedStatement statement = connection.prepareStatement("""
-                         INSERT INTO players (uuid, username, registered_at, input_method)
-                         VALUES (?, ?, ?, ?)
+                         INSERT INTO players (uuid, username, registered_at)
+                         VALUES (?, ?, ?)
                          ON CONFLICT(uuid) DO UPDATE SET username = excluded.username
                          """)) {
                 statement.setString(1, uuid.toString());
                 statement.setString(2, username);
                 statement.setLong(3, now);
-                statement.setString(4, inputMethod.name());
                 statement.executeUpdate();
             }
             return null;
         });
     }
 
-    public CompletableFuture<Void> registerPlayer(UUID uuid, String username, String passwordHash, boolean premium, InputMethod inputMethod) {
+    public CompletableFuture<Void> registerPlayer(UUID uuid, String username, String passwordHash, boolean premium) {
         long now = Instant.now().getEpochSecond();
         return supplyAsync(() -> {
             try (Connection connection = getConnection();
                  PreparedStatement statement = connection.prepareStatement("""
-                         INSERT INTO players (uuid, username, password_hash, password_enabled, input_method, registered_at, last_login)
-                         VALUES (?, ?, ?, 1, ?, ?, ?)
+                         INSERT INTO players (uuid, username, password_hash, password_enabled, registered_at, last_login)
+                         VALUES (?, ?, ?, 1, ?, ?)
                          ON CONFLICT(uuid) DO UPDATE SET
                              password_hash = excluded.password_hash,
                              password_enabled = 1,
@@ -239,9 +239,8 @@ public final class DatabaseManager {
                 statement.setString(1, uuid.toString());
                 statement.setString(2, username);
                 statement.setString(3, passwordHash);
-                statement.setString(4, inputMethod.name());
+                statement.setLong(4, now);
                 statement.setLong(5, now);
-                statement.setLong(6, now);
                 statement.executeUpdate();
             }
             return null;
@@ -357,11 +356,11 @@ public final class DatabaseManager {
         });
     }
 
-    public CompletableFuture<Void> setInputMethod(UUID uuid, InputMethod inputMethod) {
+    public CompletableFuture<Void> setPreferredAuthMethod(UUID uuid, AuthMethod method) {
         return supplyAsync(() -> {
             try (Connection connection = getConnection();
-                 PreparedStatement statement = connection.prepareStatement("UPDATE players SET input_method = ? WHERE uuid = ?")) {
-                statement.setString(1, inputMethod.name());
+                 PreparedStatement statement = connection.prepareStatement("UPDATE players SET preferred_auth_method = ? WHERE uuid = ?")) {
+                statement.setString(1, method.name());
                 statement.setString(2, uuid.toString());
                 statement.executeUpdate();
             }
@@ -608,7 +607,7 @@ public final class DatabaseManager {
                 discordId,
                 resultSet.getInt("is_locked") == 1,
                 resultSet.getInt("password_enabled") == 1,
-                InputMethod.valueOf(resultSet.getString("input_method")),
+                AuthMethod.valueOf(resultSet.getString("preferred_auth_method")),
                 resultSet.getInt("session_duration"),
                 resultSet.getLong("registered_at"),
                 resultSet.getLong("last_login"),
@@ -639,7 +638,7 @@ public final class DatabaseManager {
         T get() throws Exception;
     }
 
-    public record PlayerRecord(UUID uuid, String username, String passwordHash, String discordId, boolean locked, boolean passwordEnabled, InputMethod inputMethod, int sessionDuration, long registeredAt, long lastLogin, String lastIp) {
+    public record PlayerRecord(UUID uuid, String username, String passwordHash, String discordId, boolean locked, boolean passwordEnabled, AuthMethod preferredAuthMethod, int sessionDuration, long registeredAt, long lastLogin, String lastIp) {
         public boolean hasPassword() { return passwordHash != null && !passwordHash.isBlank(); }
         public boolean hasDiscord() { return discordId != null && !discordId.isBlank(); }
     }
