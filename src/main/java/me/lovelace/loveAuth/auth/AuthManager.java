@@ -18,6 +18,9 @@ import org.bukkit.scheduler.BukkitTask;
 
 import javax.crypto.SecretKey;
 import java.net.InetSocketAddress;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -26,6 +29,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 public final class AuthManager {
+    private static final DateTimeFormatter SESSION_EXPIRY_FORMAT =
+            DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm").withZone(ZoneId.systemDefault());
+
     private final LoveAuth plugin;
     private final ConfigManager config;
     private final LangManager lang;
@@ -90,9 +96,16 @@ public final class AuthManager {
         sessionManager.isValid(player.getUniqueId(), ip).thenAccept(valid -> Bukkit.getScheduler().runTask(plugin, () -> {
             if (!player.isOnline()) return;
             if (valid) {
-                markAuthenticated(player, true);
+                // createSession=false: the stored session is still valid, so joining must not
+                // push its expiry out again - it stays fixed to the original login, and expires
+                // on schedule regardless of how many times the player reconnects in between.
+                markAuthenticated(player, false);
                 lang.send(player, "auth.session-restored");
-                lang.sendActionBar(player, "actionbar.session-active", Map.of("expires", "7d"));
+                sessionManager.getExpiry(player.getUniqueId()).thenAccept(expiry -> Bukkit.getScheduler().runTask(plugin, () -> {
+                    if (!player.isOnline()) return;
+                    String expires = expiry.map(e -> SESSION_EXPIRY_FORMAT.format(Instant.ofEpochSecond(e))).orElse("---");
+                    lang.sendActionBar(player, "actionbar.session-active", Map.of("expires", expires));
+                }));
                 log.database(player.getUniqueId(), "SESSION_RESTORE", player.getName(), ip);
                 return;
             }
