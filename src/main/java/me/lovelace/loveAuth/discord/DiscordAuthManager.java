@@ -41,7 +41,6 @@ public final class DiscordAuthManager {
 
     private final Map<String, UUID> pendingLinks = new ConcurrentHashMap<>();
     private final Map<UUID, Long> pendingLogins = new ConcurrentHashMap<>();
-    private final Map<UUID, AdminAction> pendingAdminActions = new ConcurrentHashMap<>();
     // Хеш нового пароля ждёт подтверждения в Discord: в базу он попадает только
     // после нажатия «Подтвердить», иначе смену можно было бы навязать чужими руками.
     private final Map<UUID, String> pendingPasswordHashes = new ConcurrentHashMap<>();
@@ -147,7 +146,11 @@ public final class DiscordAuthManager {
                     }, error -> result.complete(false));
                 }, error -> result.complete(false));
             }, error -> result.complete(false));
-        } catch (Exception e) { result.complete(false); }
+        } catch (Exception e) {
+            plugin.getLogManager().errorKey("log.discord-dm-error",
+                Map.of("message", e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()), e);
+            result.complete(false);
+        }
         return result;
     }
 
@@ -194,7 +197,6 @@ public final class DiscordAuthManager {
                 Button ok = Button.success("admin_confirm:" + player.getUniqueId() + ":" + argsBase, lang.plain("discord.action-btn-confirm"));
                 Button no = Button.danger("admin_deny:" + player.getUniqueId(), lang.plain("discord.action-btn-deny"));
                 channel.sendMessageEmbeds(em).setComponents(ActionRow.of(ok, no)).queue(msg -> {
-                    pendingAdminActions.put(player.getUniqueId(), new AdminAction(args));
                     res.complete(true);
                     msg.delete().queueAfter(2, TimeUnit.MINUTES, null, err -> {});
                 }, e -> res.complete(false));
@@ -205,10 +207,10 @@ public final class DiscordAuthManager {
 
     private void handleConfirmedAction(Player player, String action) {
         switch (action) {
-            case "UNLINK" -> database.setDiscordId(player.getUniqueId(), null).thenRun(() -> { lang.send(player, "discord.unlinked"); plugin.getLogManager().database(player.getUniqueId(), "DISCORD_UNLINK", player.getName(), player.getAddress().getAddress().getHostAddress()); });
-            case "REMOVE_PASSWORD" -> database.setPasswordEnabled(player.getUniqueId(), false).thenRun(() -> { lang.send(player, "commands.password-removed"); plugin.getLogManager().database(player.getUniqueId(), "PASSWORD_DELETE", player.getName(), player.getAddress().getAddress().getHostAddress()); });
+            case "UNLINK" -> database.setDiscordId(player.getUniqueId(), null).thenRun(() -> { lang.send(player, "discord.unlinked"); plugin.getLogManager().database(player.getUniqueId(), "DISCORD_UNLINK", player.getName(), auth.getIp(player)); });
+            case "REMOVE_PASSWORD" -> database.setPasswordEnabled(player.getUniqueId(), false).thenRun(() -> { lang.send(player, "commands.password-removed"); plugin.getLogManager().database(player.getUniqueId(), "PASSWORD_DELETE", player.getName(), auth.getIp(player)); });
             case "PASSWORD_CHANGE" -> applyPendingPasswordChange(player.getUniqueId());
-            case "LOCK_ACCOUNT" -> database.setLocked(player.getUniqueId(), true).thenRun(() -> { lang.send(player, "discord.account-locked-self"); plugin.getLogManager().database(player.getUniqueId(), "MANUAL_LOCK", player.getName(), player.getAddress().getAddress().getHostAddress()); Bukkit.getScheduler().runTask(plugin, () -> player.kick(lang.component("block.account-locked"))); });
+            case "LOCK_ACCOUNT" -> database.setLocked(player.getUniqueId(), true).thenRun(() -> { lang.send(player, "discord.account-locked-self"); plugin.getLogManager().database(player.getUniqueId(), "MANUAL_LOCK", player.getName(), auth.getIp(player)); Bukkit.getScheduler().runTask(plugin, () -> player.kick(lang.component("block.account-locked"))); });
         }
     }
 
@@ -258,7 +260,7 @@ public final class DiscordAuthManager {
                 if (uuid == null) { e.getChannel().sendMessage(lang.plain("discord.link-invalid-code")).queue(); return; }
                 database.findPlayerByDiscordId(dId).thenAccept(ex -> {
                     if (ex.isPresent() && !ex.get().uuid().equals(uuid)) { e.getChannel().sendMessage(lang.plain("discord.already-bound-other")).queue(); return; }
-                    database.setDiscordId(uuid, dId).thenRun(() -> { e.getChannel().sendMessage(lang.plain("discord.link-success-dm")).queue(); Player p = Bukkit.getPlayer(uuid); if (p != null) { lang.send(p, "discord.bind-success"); plugin.getLogManager().database(uuid, "DISCORD_LINK", p.getName(), p.getAddress().getAddress().getHostAddress()); auth.markAuthenticated(p, true); lang.sendActionBar(p, "actionbar.discord-bound", Map.of()); } });
+                    database.setDiscordId(uuid, dId).thenRun(() -> { e.getChannel().sendMessage(lang.plain("discord.link-success-dm")).queue(); Player p = Bukkit.getPlayer(uuid); if (p != null) { lang.send(p, "discord.bind-success"); plugin.getLogManager().database(uuid, "DISCORD_LINK", p.getName(), auth.getIp(p)); auth.markAuthenticated(p, true); lang.sendActionBar(p, "actionbar.discord-bound", Map.of()); } });
                 });
             } else if (cmd.equals("/unlink") || cmd.equals("/отвязать")) { database.findPlayerByDiscordId(dId).thenAccept(r -> { if (r.isEmpty()) { e.getChannel().sendMessage(lang.plain("discord.not-bound-dm")).queue(); return; } database.setDiscordId(r.get().uuid(), null).thenRun(() -> { e.getChannel().sendMessage(lang.plain("discord.unlinked-dm")).queue(); }); });
             } else if (cmd.equals("/lock") || cmd.equals("/заблокировать")) { database.findPlayerByDiscordId(dId).thenAccept(r -> { if (r.isEmpty()) { e.getChannel().sendMessage(lang.plain("discord.not-bound-dm")).queue(); return; } database.setLocked(r.get().uuid(), true).thenRun(() -> { e.getChannel().sendMessage(lang.plain("discord.locked-dm")).queue(); Player p = Bukkit.getPlayer(r.get().uuid()); if (p != null) Bukkit.getScheduler().runTask(plugin, () -> p.kick(lang.component("block.account-locked"))); }); });
@@ -308,7 +310,7 @@ public final class DiscordAuthManager {
             else if (id.startsWith("login_deny:")) { UUID u = UUID.fromString(id.split(":")[1]); pendingLogins.remove(u); e.getMessage().delete().queue(); Bukkit.getScheduler().runTask(plugin, () -> { Player p = Bukkit.getPlayer(u); if (p != null) p.kick(lang.component("discord.login-denied-kick")); }); e.reply("Denied.").setEphemeral(true).queue(); }
             else if (id.startsWith("action_lock:")) { UUID u = UUID.fromString(id.split(":")[1]); database.setLocked(u, true).thenRun(() -> { e.getMessage().delete().queue(); Player p = Bukkit.getPlayer(u); if (p != null) Bukkit.getScheduler().runTask(plugin, () -> p.kick(lang.component("block.account-locked"))); }); e.reply("Locked.").setEphemeral(true).queue(); }
             else if (id.startsWith("confirm_action:")) { String[] p = id.split(":"); UUID u = UUID.fromString(p[1]); e.getMessage().delete().queue(); Bukkit.getScheduler().runTask(plugin, () -> { Player pl = Bukkit.getPlayer(u); if (pl != null) handleConfirmedAction(pl, p[2]); else handleConfirmedActionOffline(u, p[2]); }); e.reply("Confirmed.").setEphemeral(true).queue(); }
-            else if (id.startsWith("deny_action:")) { String[] p = id.split(":"); if (p.length > 1) { try { pendingPasswordHashes.remove(UUID.fromString(p[1])); } catch (IllegalArgumentException ignored) {} } e.getMessage().delete().queue(); e.reply("Cancelled.").setEphemeral(true).queue(); }
+            else if (id.startsWith("deny_action:")) { String[] p = id.split(":"); if (p.length > 1) { try { pendingPasswordHashes.remove(UUID.fromString(p[1])); } catch (IllegalArgumentException ex) { plugin.getLogManager().warnKey("log.listener-error", Map.of("message", "Invalid UUID in deny_action button id: " + ex.getMessage())); } } e.getMessage().delete().queue(); e.reply("Cancelled.").setEphemeral(true).queue(); }
             else if (id.startsWith("admin_confirm:")) { String[] p = id.split(":"); UUID u = UUID.fromString(p[1]); String a = new String(Base64.getDecoder().decode(p[2])); e.getMessage().delete().queue(); Bukkit.getScheduler().runTask(plugin, () -> { Player pl = Bukkit.getPlayer(u); if (pl != null) plugin.getLoveAuthAdminCommand().handleCommand(pl, a.split(" ")); }); e.reply("Admin action confirmed.").setEphemeral(true).queue(); }
             else if (id.startsWith("admin_deny:")) { e.getMessage().delete().queue(); e.reply("Cancelled.").setEphemeral(true).queue(); }
         }
@@ -322,13 +324,12 @@ public final class DiscordAuthManager {
 
     private String generateCode(int l) { String c = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; StringBuilder s = new StringBuilder(); for (int i = 0; i < l; i++) s.append(c.charAt(random.nextInt(c.length()))); return s.toString(); }
     private String generateNumericCode(int l) { String c = "ABCDEFGHJKLMNPQRSTUVWXYZ0123456789"; StringBuilder s = new StringBuilder(); for (int i = 0; i < l; i++) s.append(c.charAt(random.nextInt(c.length()))); return s.toString(); }
-    private record AdminAction(String[] args) {}
 
     public void handleBotLinkCommand(String c, String d) {
         UUID u = pendingLinks.remove(c);
         if (u != null) database.findPlayerByDiscordId(d).thenAccept(ex -> {
             if (ex.isPresent()) return;
-            database.setDiscordId(u, d).thenRun(() -> { Player p = Bukkit.getPlayer(u); if (p != null) { lang.send(p, "discord.bind-success"); plugin.getLogManager().database(u, "DISCORD_LINK", p.getName(), p.getAddress().getAddress().getHostAddress()); auth.markAuthenticated(p, true); } });
+            database.setDiscordId(u, d).thenRun(() -> { Player p = Bukkit.getPlayer(u); if (p != null) { lang.send(p, "discord.bind-success"); plugin.getLogManager().database(u, "DISCORD_LINK", p.getName(), auth.getIp(p)); auth.markAuthenticated(p, true); } });
         });
     }
 

@@ -301,7 +301,11 @@ public final class AuthManager {
     public boolean isAuthenticated(UUID uuid) { return authenticated.contains(uuid); }
     public boolean isRegisteredCached(UUID uuid) { return registeredCache.contains(uuid); }
     public SessionManager getSessionManager() { return sessionManager; }
-    public String getIp(Player player) { return player.getAddress().getAddress().getHostAddress(); }
+    public String getIp(Player player) {
+        InetSocketAddress address = player.getAddress();
+        if (address == null || address.getAddress() == null) return "unknown";
+        return address.getAddress().getHostAddress();
+    }
     private <T> CompletableFuture<T> supplyAsync(java.util.concurrent.Callable<T> s) {
         CompletableFuture<T> f = new CompletableFuture<>();
         plugin.getServer().getAsyncScheduler().runNow(plugin, t -> { try { f.complete(s.call()); } catch (Exception e) { f.completeExceptionally(e); } });

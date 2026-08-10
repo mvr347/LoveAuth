@@ -27,6 +27,7 @@ public final class DatabaseManager {
     private final SecretKey masterKey;
     private HikariDataSource dataSource;
     private CompletableFuture<Void> ready = new CompletableFuture<>();
+    private volatile boolean closed = false;
 
     public DatabaseManager(LoveAuth plugin, ConfigManager configManager, SecretKey masterKey) {
         this.plugin = plugin;
@@ -580,6 +581,7 @@ public final class DatabaseManager {
     }
 
     public void close() {
+        closed = true;
         if (dataSource != null) dataSource.close();
     }
 
@@ -622,7 +624,15 @@ public final class DatabaseManager {
     private <T> CompletableFuture<T> supplyAsync(SqlSupplier<T> supplier) {
         return ready.thenCompose(unused -> {
             CompletableFuture<T> future = new CompletableFuture<>();
+            if (closed) {
+                future.completeExceptionally(new IllegalStateException("DatabaseManager is closed"));
+                return future;
+            }
             plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
+                if (closed) {
+                    future.completeExceptionally(new IllegalStateException("DatabaseManager is closed"));
+                    return;
+                }
                 try {
                     future.complete(supplier.get());
                 } catch (Exception e) {

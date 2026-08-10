@@ -126,8 +126,11 @@ public final class PremiumVerificationManager {
                         parent.pipeline().remove(ACCEPT_HOOK_NAME);
                     }
                 });
-            } catch (Throwable ignored) {
-                // Channel already closing/closed - nothing to clean up.
+            } catch (Throwable t) {
+                // Channel already closing/closed is expected here on plugin disable; log at
+                // FINE so genuine problems are still traceable without spamming console on reload.
+                plugin.getLogger().log(java.util.logging.Level.FINE,
+                        "Failed to remove accept hook (channel likely already closing)", t);
             }
         }
         hookedParents.clear();
