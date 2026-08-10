@@ -143,3 +143,29 @@ Java 21, Paper 1.21. База данных: SQLite.
 - Шифрование данных: **AES-256-GCM** (authenticated encryption)
 - Проверка Premium: **Yggdrasil handshake** (оригинальный протокол Mojang)
 - Хранилище: **SQLite** с HikariCP connection pool
+
+## Последние улучшения (v1.5+)
+
+### Безопасность и надёжность
+
+- **Null-safety в getIp():** Защита от NPE при отсутствии адреса сокета
+- **Timeout защита:** Ограничение времени ожидания (15 сек) для асинхронных операций БД в PlayerLoginListener
+- **Race condition fix:** Синхронизация shutdown() с DatabaseManager для предотвращения исключений при отключении
+- **Localization coverage:** Добавлены все недостающие ключи в lang.yml (12+ ключей для логирования, GUI и ошибок)
+
+### Оптимизация и cleanup
+
+- **Удаление мёртвого кода:** Исключен неиспользуемый pendingAdminActions map
+- **Логирование ошибок:** Добавлено логирование в previousу-безмолвные catch-блоки (Discord DM failures, malformed button IDs)
+- **Graceful shutdown:** Улучшена обработка отключения Netty handlers при перезагрузке
+
+### Обработка сетевых ошибок
+
+- **Timeout handling:** ReadTimeoutException и IOException при хендшейке обрабатываются без error-логов (как ожидаемое поведение)
+- **Netty pipeline stability:** Добавлена зависимость netty-handler для compile-time проверки типов исключений
+
+## Проверка версии
+
+- Минимальная версия: **Paper 1.21**
+- Java: **Java 21+**
+- Проверьте версию вашего сервера: `/version`
