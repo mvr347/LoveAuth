@@ -278,6 +278,14 @@ final class LoginInterceptHandler extends ChannelInboundHandlerAdapter {
             ctx.fireExceptionCaught(cause);
             return;
         }
+        if (cause instanceof io.netty.handler.timeout.ReadTimeoutException || cause instanceof java.io.IOException) {
+            // The client went quiet or dropped the connection mid-handshake (slow link, closed
+            // client, port scanner). Same outcome as our own scheduleTimeout() firing - not a
+            // handshake bug, so it shouldn't be logged as one with a full SEVERE stack trace.
+            finish(ctx);
+            ctx.close();
+            return;
+        }
         manager.logHandshakeError(username == null ? "?" : username, cause);
         finish(ctx);
         ctx.close();

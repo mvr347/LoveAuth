@@ -53,6 +53,7 @@ block:
   account-locked: "{prefix}<dark_red>Ваш аккаунт заблокирован. Обратитесь к администратору."
   account-unlocked: "{prefix}<green>Аккаунт игрока <white>{player}</white> разблокирован."
   password-required: "{prefix}<red>Нельзя отключить пароль без привязанного Discord."
+  password-login-disabled: "{prefix}<red>Вход по паролю недоступен: пароль не установлен."
 
 # ── Очередь ─────────────────────────────────
 queue:
@@ -100,6 +101,7 @@ discord:
   login-denied-dm: "❌ Вход отклонён."
   login-expired: "⏰ Запрос устарел."
   confirm-action-title: "❓ Подтверждение действия"
+  confirm-action-footer: "Нажмите кнопку ниже, чтобы подтвердить или отменить"
   action-btn-confirm: "Подтвердить"
   action-btn-deny: "Отмена"
   confirmation-sent-buttons: "{prefix}<gray>Запрос подтверждения отправлен в Discord."
@@ -157,6 +159,14 @@ gui.auth-method:
   discord-disabled-lore:
     - "<red>Discord-интеграция"
     - "<red>отключена на сервере"
+  password-locked: "<dark_gray><bold>🔒 Вход по паролю"
+  password-locked-lore:
+    - "<red>Пароль не установлен"
+    - "<red>Используйте другой способ входа"
+  discord-bind-button: "<#7289da><bold>🎮 Привязать Discord"
+  discord-bind-lore:
+    - "<gray>Привяжите Discord-аккаунт"
+    - "<gray>чтобы входить через него"
 
 # ── GUI: подменю пароля ──────────────────────
 gui.password:
@@ -186,6 +196,10 @@ gui.discord:
   toggle-locked-lore:
     - "<red>Привяжите Discord чтобы"
     - "<red>управлять этой настройкой"
+  unlink-locked: "<dark_gray><bold>🔗 Отвязать Discord"
+  unlink-locked-lore:
+    - "<red>Сначала установите пароль"
+    - "<red>чтобы отвязать Discord"
 
 # ── GUI: регистрация ─────────────────────────
 gui.register:
@@ -411,4 +425,8 @@ log:
   discord-start-error: "[LoveAuth] Ошибка запуска Discord-бота: {message}"
   discord-dm-error: "[LoveAuth] Ошибка отправки DM в Discord: {message}"
   limbo-created: "[LoveAuth] Limbo-мир готов: {world}"
+  premium-verify-enabled: "[LoveAuth] Проверка лицензии включена: перехват установлен на {count} слушающих каналах."
+  premium-verify-setup-failed: "[LoveAuth] Не удалось настроить проверку лицензии: {message}"
+  premium-verify-error: "[LoveAuth] Ошибка проверки лицензии для игрока {player}: {message}"
+  premium-name-blocked: "[LoveAuth] Заблокирован вход под именем лицензионного игрока: {player}"
   placeholder-registered: "[LoveAuth] PlaceholderAPI expansion зарегистрирован."
