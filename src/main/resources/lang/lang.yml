@@ -70,6 +70,7 @@ protection:
 kick:
   closed-gui: "<gradient:#ff6eb4:#a855f7>LoveAuth</gradient> <dark_gray>»</dark_gray> <red>Вы закрыли меню авторизации. Подключитесь снова."
   timeout: "<gradient:#ff6eb4:#a855f7>LoveAuth</gradient> <dark_gray>»</dark_gray> <red>Время авторизации истекло. Подключитесь снова."
+  auth-error: "<gradient:#ff6eb4:#a855f7>LoveAuth</gradient> <dark_gray>»</dark_gray> <red>Произошла ошибка авторизации. Попробуйте подключиться снова."
 
 # ── Discord ──────────────────────────────────
 discord:
