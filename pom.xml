@@ -27,9 +27,20 @@
             <id>placeholderapi</id>
             <url>https://repo.extendedclip.com/content/repositories/placeholderapi/</url>
         </repository>
+        <repository>
+            <id>jitpack.io</id>
+            <url>https://jitpack.io</url>
+        </repository>
     </repositories>
 
     <dependencies>
+        <!-- LoveCore API - soft dependency, AuthOracle/PlayerAuthenticatedEvent -->
+        <dependency>
+            <groupId>com.github.mvr347.LoveCore</groupId>
+            <artifactId>lovecore-api</artifactId>
+            <version>d97cef40ff</version>
+            <scope>provided</scope>
+        </dependency>
         <dependency>
             <groupId>io.papermc.paper</groupId>
             <artifactId>paper-api</artifactId>
