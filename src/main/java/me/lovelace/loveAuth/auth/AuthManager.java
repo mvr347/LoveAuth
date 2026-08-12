@@ -272,10 +272,16 @@ public final class AuthManager {
     }
 
     public void markAuthenticated(Player player, boolean createSession) {
-        authenticated.add(player.getUniqueId());
+        boolean wasNewlyAuthenticated = authenticated.add(player.getUniqueId());
         cancelTimeout(player.getUniqueId());
         limboManager.restore(player);
         if (createSession) sessionManager.create(player.getUniqueId(), getIp(player));
+        // Единая точка, где состояние реально переходит в "залогинен" - отсюда и стреляет
+        // PlayerAuthenticatedEvent, чтобы соседние плагины не активировались раньше времени.
+        // Дедуп по add(): повторный вызов на уже залогиненного игрока событие не шлёт.
+        if (wasNewlyAuthenticated) {
+            Bukkit.getPluginManager().callEvent(new dev.lovelace.lovecore.api.auth.PlayerAuthenticatedEvent(player));
+        }
     }
 
     public void cleanup(UUID uuid) {

@@ -92,6 +92,19 @@ public final class LoveAuth extends JavaPlugin {
         registerCommands();
         LoveAuthAPI.setInstance(new LoveAuthAPI(this));
 
+        if (Bukkit.getPluginManager().getPlugin("LoveCore") != null) {
+            try {
+                Bukkit.getServicesManager().register(
+                        dev.lovelace.lovecore.api.auth.AuthOracle.class,
+                        new me.lovelace.loveAuth.integration.LoveAuthOracle(this),
+                        this,
+                        org.bukkit.plugin.ServicePriority.Normal);
+                getLogger().info("LoveCore integration: AuthOracle registered.");
+            } catch (Throwable t) {
+                getLogger().warning("Не удалось зарегистрировать AuthOracle в LoveCore: " + t.getMessage());
+            }
+        }
+
         if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
             new LoveAuthExpansion(this).register();
             logManager.infoKey("log.placeholder-registered");

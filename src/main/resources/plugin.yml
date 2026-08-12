@@ -4,7 +4,7 @@ main: me.lovelace.loveAuth.LoveAuth
 api-version: '26.2'
 authors: [ Lovelace ]
 depend: []
-softdepend: [ PlaceholderAPI ]
+softdepend: [ PlaceholderAPI, LoveCore ]
 commands:
   loveauth:
     aliases: [ auth, авторизация, регистрация, вход ]
