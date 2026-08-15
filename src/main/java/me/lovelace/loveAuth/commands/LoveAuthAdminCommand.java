@@ -133,13 +133,23 @@ public final class LoveAuthAdminCommand implements CommandExecutor, TabCompleter
             return;
         }
         plugin.getChatInputHandler().awaitInput(player, "gui.admin.admin-password-prompt", input -> {
-            if (SecurityUtils.verifyPassword(input, passwordHash, plugin.getPepper())) {
-                adminPasswordAttempts.invalidate(uuid);
-                recordAdminSession(uuid);
-                handleCommand(player, args);
-            } else {
-                recordAdminPasswordFailure(player);
-            }
+            // Argon2 verification is intentionally slow (that's what makes it resistant to
+            // brute-forcing) - running it here would freeze the whole server's main thread for
+            // the duration of every admin-password check. Hash off-thread and only hop back to
+            // main for the Bukkit-API-touching follow-up (session bookkeeping, running the command).
+            plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
+                boolean valid = SecurityUtils.verifyPassword(input, passwordHash, plugin.getPepper());
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    if (!player.isOnline()) return;
+                    if (valid) {
+                        adminPasswordAttempts.invalidate(uuid);
+                        recordAdminSession(uuid);
+                        handleCommand(player, args);
+                    } else {
+                        recordAdminPasswordFailure(player);
+                    }
+                });
+            });
         });
     }
 
