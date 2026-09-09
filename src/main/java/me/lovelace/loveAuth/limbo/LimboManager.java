@@ -52,18 +52,20 @@ public final class LimboManager {
             creator.generateStructures(false);
             limboWorld = creator.createWorld();
         }
-        if (limboWorld != null) {
-            limboWorld.setGameRule(org.bukkit.GameRule.DO_DAYLIGHT_CYCLE, false);
-            limboWorld.setGameRule(org.bukkit.GameRule.DO_MOB_SPAWNING, false);
-            limboWorld.setGameRule(org.bukkit.GameRule.DO_WEATHER_CYCLE, false);
-            limboWorld.setTime(6000L);
-            
-            // Physical platform
-            Block block = limboWorld.getBlockAt(0, 99, 0);
-            block.setType(Material.BARRIER);
-            
-            log.infoKey("log.limbo-created", Map.of("world", worldName));
+        if (limboWorld == null) {
+            log.warnKey("log.limbo-create-failed", Map.of("world", worldName));
+            return;
         }
+        limboWorld.setGameRule(org.bukkit.GameRule.DO_DAYLIGHT_CYCLE, false);
+        limboWorld.setGameRule(org.bukkit.GameRule.DO_MOB_SPAWNING, false);
+        limboWorld.setGameRule(org.bukkit.GameRule.DO_WEATHER_CYCLE, false);
+        limboWorld.setTime(6000L);
+
+        // Physical platform
+        Block block = limboWorld.getBlockAt(0, 99, 0);
+        block.setType(Material.BARRIER);
+
+        log.infoKey("log.limbo-created", Map.of("world", worldName));
     }
 
     public void sendToLimbo(Player player) {
