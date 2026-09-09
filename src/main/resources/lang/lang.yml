@@ -425,6 +425,8 @@ log:
   discord-start-error: "[LoveAuth] Ошибка запуска Discord-бота: {message}"
   discord-dm-error: "[LoveAuth] Ошибка отправки DM в Discord: {message}"
   limbo-created: "[LoveAuth] Limbo-мир готов: {world}"
+  limbo-create-failed: "[LoveAuth] Не удалось создать/загрузить limbo-мир '{world}' - WorldCreator.createWorld() вернул null. Система limbo отключена до перезапуска. Проверьте, не изменилась ли структура хранения миров/измерений на этой версии сервера (Paper/Purpur 26.1+ переместили измерения под <мир>/dimensions/<namespace>/<key>/), и что папка мира не повреждена."
+  register-spawn-world-missing: "[LoveAuth] register-spawn.world '{world}' не найден (Bukkit.getWorld вернул null) - игрок {player} не телепортирован на спавн после регистрации. Проверьте название мира в config.yml: на Paper/Purpur 26.1+ структура хранения миров/измерений изменилась."
   premium-verify-enabled: "[LoveAuth] Проверка лицензии включена: перехват установлен на {count} слушающих каналах."
   premium-verify-setup-failed: "[LoveAuth] Не удалось настроить проверку лицензии: {message}"
   premium-verify-error: "[LoveAuth] Ошибка проверки лицензии для игрока {player}: {message}"

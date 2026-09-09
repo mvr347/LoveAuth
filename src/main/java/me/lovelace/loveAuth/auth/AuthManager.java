@@ -245,10 +245,14 @@ public final class AuthManager {
                         log.database(player.getUniqueId(), "REGISTER_SUCCESS", player.getName(), ip);
                         SoundUtils.success(player);
                         if (config.isRegisterSpawnEnabled()) {
-                            World spawnWorld = Bukkit.getWorld(config.getRegisterSpawnWorld());
+                            String spawnWorldName = config.getRegisterSpawnWorld();
+                            World spawnWorld = Bukkit.getWorld(spawnWorldName);
                             if (spawnWorld != null) {
                                 player.teleport(spawnWorld.getSpawnLocation());
                                 player.setGameMode(GameMode.SURVIVAL);
+                            } else {
+                                log.warnKey("log.register-spawn-world-missing",
+                                        Map.of("world", spawnWorldName, "player", player.getName()));
                             }
                         }
                     });
