@@ -6,12 +6,21 @@ import me.lovelace.loveAuth.config.ConfigManager;
 import me.lovelace.loveAuth.database.DatabaseManager;
 import me.lovelace.loveAuth.lang.LangManager;
 import me.lovelace.loveAuth.security.SecurityUtils;
+import dev.lovelace.lovecore.api.LoveCore;
+import dev.lovelace.lovecore.api.tickets.MessageSource;
+import dev.lovelace.lovecore.api.tickets.TicketOracle;
+import dev.lovelace.lovecore.api.tickets.TicketSnapshot;
+import dev.lovelace.lovecore.api.tickets.TicketType;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
+import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.MessageEmbed;
+import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.entities.channel.ChannelType;
+import net.dv8tion.jda.api.entities.channel.concrete.Category;
+import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
@@ -24,6 +33,7 @@ import org.bukkit.entity.Player;
 
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -249,7 +259,11 @@ public final class DiscordAuthManager {
     private class DiscordEventListener extends ListenerAdapter {
         @Override
         public void onMessageReceived(MessageReceivedEvent e) {
-            if (e.getAuthor().isBot() || !e.isFromType(ChannelType.PRIVATE)) return;
+            if (e.getAuthor().isBot()) return;
+            if (!e.isFromType(ChannelType.PRIVATE)) {
+                handleTicketChannelMessage(e);
+                return;
+            }
             String[] args = e.getMessage().getContentRaw().trim().split("\\s+");
             String dId = e.getAuthor().getId();
             boolean isAdmin = config.getDiscordAdminIds().contains(dId);
@@ -334,4 +348,107 @@ public final class DiscordAuthManager {
     }
 
     public void handleBotUnlockCommand(String d) { database.findPlayerByDiscordId(d).thenAccept(r -> { if (r.isPresent()) database.setLocked(r.get().uuid(), false); }); }
+
+    // ---------- Тикеты (апелляции/поддержка/жалобы) — мост к LoveWebAdmin через LoveCore ----------
+
+    private static final Map<TicketType, String> TICKET_TYPE_TITLES = Map.of(
+            TicketType.APPEAL, "Апелляция",
+            TicketType.SUPPORT, "Поддержка",
+            TicketType.REPORT, "Жалоба"
+    );
+
+    /**
+     * Создаёт приватный текстовый канал под тикет и привязывает его id обратно через
+     * TicketOracle#setDiscordChannel. Топик канала хранит "ticket:{id}" - это единственный
+     * способ, которым handleTicketChannelMessage() узнаёт, к какому тикету относится входящее
+     * сообщение (без этого пришлось бы держать отдельный кэш channelId->ticketId, который не
+     * переживал бы перезапуск сервера).
+     */
+    public void handleTicketCreated(long ticketId, TicketType type, UUID playerUuid, String playerName,
+                                     String subject, UUID targetUuid, String targetName) {
+        if (!isEnabled()) return;
+        String categoryId = config.getDiscordTicketsCategoryId();
+        String guildId = config.getDiscordGuildId();
+        if (categoryId.isBlank() || guildId.isBlank()) return;
+
+        Guild guild = jda.getGuildById(guildId);
+        if (guild == null) return;
+        Category category = guild.getCategoryById(categoryId);
+        if (category == null) return;
+
+        database.findPlayer(playerUuid).thenAccept(record -> {
+            String discordId = record.filter(DatabaseManager.PlayerRecord::hasDiscord)
+                    .map(DatabaseManager.PlayerRecord::discordId).orElse(null);
+            String channelName = ("ticket-" + ticketId + "-" + playerName).toLowerCase().replaceAll("[^a-z0-9-]+", "-");
+
+            var action = category.createTextChannel(channelName)
+                    .setTopic("ticket:" + ticketId)
+                    .addPermissionOverride(guild.getPublicRole(), null, EnumSet.of(net.dv8tion.jda.api.Permission.VIEW_CHANNEL));
+
+            String staffRoleId = config.getDiscordTicketsStaffRoleId();
+            if (!staffRoleId.isBlank()) {
+                Role staffRole = guild.getRoleById(staffRoleId);
+                if (staffRole != null) {
+                    action = action.addPermissionOverride(staffRole,
+                            EnumSet.of(net.dv8tion.jda.api.Permission.VIEW_CHANNEL, net.dv8tion.jda.api.Permission.MESSAGE_SEND), null);
+                }
+            }
+
+            action.queue(channel -> {
+                if (discordId != null) {
+                    guild.retrieveMemberById(discordId).queue(
+                            member -> channel.upsertPermissionOverride(member)
+                                    .setAllowed(EnumSet.of(net.dv8tion.jda.api.Permission.VIEW_CHANNEL, net.dv8tion.jda.api.Permission.MESSAGE_SEND))
+                                    .queue(null, err -> {}),
+                            err -> {});
+                }
+
+                EmbedBuilder embed = new EmbedBuilder()
+                        .setTitle(TICKET_TYPE_TITLES.getOrDefault(type, "Тикет") + " #" + ticketId)
+                        .setDescription(subject)
+                        .addField("Игрок", playerName, true)
+                        .setColor(java.awt.Color.decode("#a855f7"));
+                if (targetName != null) embed.addField("На кого жалоба", targetName, true);
+                if (discordId == null) embed.addField("Discord", "не привязан — игрок пока виден только в панели", false);
+                channel.sendMessageEmbeds(embed.build()).queue();
+
+                LoveCore.service(TicketOracle.class).ifPresent(oracle -> oracle.setDiscordChannel(ticketId, channel.getId()));
+            }, err -> plugin.getLogger().warning("Не удалось создать канал тикета #" + ticketId + ": " + err.getMessage()));
+        });
+    }
+
+    /** Relays a panel/system message into the ticket's channel. Discord-sourced messages are skipped - they're already there. */
+    public void handleTicketMessage(long ticketId, String authorName, String body, MessageSource source) {
+        if (!isEnabled() || source == MessageSource.DISCORD) return;
+        withTicketChannel(ticketId, channel -> channel.sendMessage("**" + authorName + "**: " + body).queue());
+    }
+
+    public void handleTicketClosed(long ticketId) {
+        if (!isEnabled()) return;
+        withTicketChannel(ticketId, channel -> channel.sendMessage("🔒 Тикет закрыт администрацией.").queue());
+    }
+
+    private void withTicketChannel(long ticketId, java.util.function.Consumer<TextChannel> action) {
+        LoveCore.service(TicketOracle.class)
+                .flatMap(oracle -> oracle.getTicket(ticketId))
+                .map(TicketSnapshot::discordChannelId)
+                .filter(id -> id != null && !id.isBlank())
+                .map(jda::getTextChannelById)
+                .ifPresent(action);
+    }
+
+    /** Incoming message in a guild channel - relayed to the ticket if the channel's topic identifies one. */
+    private void handleTicketChannelMessage(MessageReceivedEvent e) {
+        if (!(e.getChannel() instanceof TextChannel channel)) return;
+        String topic = channel.getTopic();
+        if (topic == null || !topic.startsWith("ticket:")) return;
+        long ticketId;
+        try {
+            ticketId = Long.parseLong(topic.substring("ticket:".length()));
+        } catch (NumberFormatException ex) {
+            return;
+        }
+        LoveCore.service(TicketOracle.class).ifPresent(oracle ->
+                oracle.addMessage(ticketId, e.getAuthor().getName(), e.getMessage().getContentRaw(), MessageSource.DISCORD));
+    }
 }
