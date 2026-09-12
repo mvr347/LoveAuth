@@ -207,7 +207,11 @@ public final class DiscordAuthManager {
 
     private void handleConfirmedAction(Player player, String action) {
         switch (action) {
-            case "UNLINK" -> database.setDiscordId(player.getUniqueId(), null).thenRun(() -> { lang.send(player, "discord.unlinked"); plugin.getLogManager().database(player.getUniqueId(), "DISCORD_UNLINK", player.getName(), auth.getIp(player)); });
+            case "UNLINK" -> database.setDiscordId(player.getUniqueId(), null).thenRun(() -> {
+                syncWithLoveCore(player.getUniqueId(), null);
+                lang.send(player, "discord.unlinked");
+                plugin.getLogManager().database(player.getUniqueId(), "DISCORD_UNLINK", player.getName(), auth.getIp(player));
+            });
             case "REMOVE_PASSWORD" -> database.setPasswordEnabled(player.getUniqueId(), false).thenRun(() -> { lang.send(player, "commands.password-removed"); plugin.getLogManager().database(player.getUniqueId(), "PASSWORD_DELETE", player.getName(), auth.getIp(player)); });
             case "PASSWORD_CHANGE" -> applyPendingPasswordChange(player.getUniqueId());
             case "LOCK_ACCOUNT" -> database.setLocked(player.getUniqueId(), true).thenRun(() -> { lang.send(player, "discord.account-locked-self"); plugin.getLogManager().database(player.getUniqueId(), "MANUAL_LOCK", player.getName(), auth.getIp(player)); Bukkit.getScheduler().runTask(plugin, () -> player.kick(lang.component("block.account-locked"))); });
@@ -215,7 +219,10 @@ public final class DiscordAuthManager {
     }
 
     private void handleConfirmedActionOffline(UUID u, String a) {
-        if (a.equals("UNLINK")) database.setDiscordId(u, null);
+        if (a.equals("UNLINK")) {
+            database.setDiscordId(u, null);
+            syncWithLoveCore(u, null);
+        }
         else if (a.equals("LOCK_ACCOUNT")) database.setLocked(u, true);
         else if (a.equals("PASSWORD_CHANGE")) applyPendingPasswordChange(u);
     }
@@ -260,9 +267,27 @@ public final class DiscordAuthManager {
                 if (uuid == null) { e.getChannel().sendMessage(lang.plain("discord.link-invalid-code")).queue(); return; }
                 database.findPlayerByDiscordId(dId).thenAccept(ex -> {
                     if (ex.isPresent() && !ex.get().uuid().equals(uuid)) { e.getChannel().sendMessage(lang.plain("discord.already-bound-other")).queue(); return; }
-                    database.setDiscordId(uuid, dId).thenRun(() -> { e.getChannel().sendMessage(lang.plain("discord.link-success-dm")).queue(); Player p = Bukkit.getPlayer(uuid); if (p != null) { lang.send(p, "discord.bind-success"); plugin.getLogManager().database(uuid, "DISCORD_LINK", p.getName(), auth.getIp(p)); auth.markAuthenticated(p, true); lang.sendActionBar(p, "actionbar.discord-bound", Map.of()); } });
+                    database.setDiscordId(uuid, dId).thenRun(() -> {
+                        syncWithLoveCore(uuid, dId);
+                        e.getChannel().sendMessage(lang.plain("discord.link-success-dm")).queue();
+                        Player p = Bukkit.getPlayer(uuid);
+                        if (p != null) {
+                            lang.send(p, "discord.bind-success");
+                            plugin.getLogManager().database(uuid, "DISCORD_LINK", p.getName(), auth.getIp(p));
+                            auth.markAuthenticated(p, true);
+                            lang.sendActionBar(p, "actionbar.discord-bound", Map.of());
+                        }
+                    });
                 });
-            } else if (cmd.equals("/unlink") || cmd.equals("/отвязать")) { database.findPlayerByDiscordId(dId).thenAccept(r -> { if (r.isEmpty()) { e.getChannel().sendMessage(lang.plain("discord.not-bound-dm")).queue(); return; } database.setDiscordId(r.get().uuid(), null).thenRun(() -> { e.getChannel().sendMessage(lang.plain("discord.unlinked-dm")).queue(); }); });
+            } else if (cmd.equals("/unlink") || cmd.equals("/отвязать")) {
+                database.findPlayerByDiscordId(dId).thenAccept(r -> {
+                    if (r.isEmpty()) { e.getChannel().sendMessage(lang.plain("discord.not-bound-dm")).queue(); return; }
+                    UUID unlinkingUuid = r.get().uuid();
+                    database.setDiscordId(unlinkingUuid, null).thenRun(() -> {
+                        syncWithLoveCore(unlinkingUuid, null);
+                        e.getChannel().sendMessage(lang.plain("discord.unlinked-dm")).queue();
+                    });
+                });
             } else if (cmd.equals("/lock") || cmd.equals("/заблокировать")) { database.findPlayerByDiscordId(dId).thenAccept(r -> { if (r.isEmpty()) { e.getChannel().sendMessage(lang.plain("discord.not-bound-dm")).queue(); return; } database.setLocked(r.get().uuid(), true).thenRun(() -> { e.getChannel().sendMessage(lang.plain("discord.locked-dm")).queue(); Player p = Bukkit.getPlayer(r.get().uuid()); if (p != null) Bukkit.getScheduler().runTask(plugin, () -> p.kick(lang.component("block.account-locked"))); }); });
             } else if (cmd.equals("/unlock") || cmd.equals("/разблокировать")) { database.findPlayerByDiscordId(dId).thenAccept(r -> { if (r.isEmpty()) { e.getChannel().sendMessage(lang.plain("discord.not-bound-dm")).queue(); return; } database.setLocked(r.get().uuid(), false).thenRun(() -> e.getChannel().sendMessage(lang.plain("discord.unlocked-dm")).queue()); });
             } else if (cmd.equals("/password") || cmd.equals("/пароль")) {
@@ -329,9 +354,33 @@ public final class DiscordAuthManager {
         UUID u = pendingLinks.remove(c);
         if (u != null) database.findPlayerByDiscordId(d).thenAccept(ex -> {
             if (ex.isPresent()) return;
-            database.setDiscordId(u, d).thenRun(() -> { Player p = Bukkit.getPlayer(u); if (p != null) { lang.send(p, "discord.bind-success"); plugin.getLogManager().database(u, "DISCORD_LINK", p.getName(), auth.getIp(p)); auth.markAuthenticated(p, true); } });
+            database.setDiscordId(u, d).thenRun(() -> {
+                syncWithLoveCore(u, d);
+                Player p = Bukkit.getPlayer(u);
+                if (p != null) {
+                    lang.send(p, "discord.bind-success");
+                    plugin.getLogManager().database(u, "DISCORD_LINK", p.getName(), auth.getIp(p));
+                    auth.markAuthenticated(p, true);
+                }
+            });
         });
     }
 
     public void handleBotUnlockCommand(String d) { database.findPlayerByDiscordId(d).thenAccept(r -> { if (r.isPresent()) database.setLocked(r.get().uuid(), false); }); }
+
+    public void syncWithLoveCore(UUID uuid, String discordId) {
+        if (uuid == null) return;
+        try {
+            if (Bukkit.getPluginManager().isPluginEnabled("LoveCore")) {
+                dev.lovelace.lovecore.api.LoveCore.service(dev.lovelace.lovecore.api.discord.DiscordService.class)
+                    .ifPresent(core -> {
+                        if (discordId != null && !discordId.isBlank()) {
+                            core.setLink(uuid, discordId);
+                        } else {
+                            core.unlink(uuid);
+                        }
+                    });
+            }
+        } catch (Throwable ignored) {}
+    }
 }
