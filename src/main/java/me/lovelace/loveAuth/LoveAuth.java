@@ -103,13 +103,6 @@ public final class LoveAuth extends JavaPlugin {
             } catch (Throwable t) {
                 getLogger().warning("Не удалось зарегистрировать AuthOracle в LoveCore: " + t.getMessage());
             }
-            try {
-                Bukkit.getPluginManager().registerEvents(
-                        new me.lovelace.loveAuth.listeners.TicketBridgeListener(discordAuthManager), this);
-                getLogger().info("LoveCore integration: TicketOracle bridge listening.");
-            } catch (Throwable t) {
-                getLogger().warning("Не удалось подписаться на события тикетов LoveCore: " + t.getMessage());
-            }
         }
 
         if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {

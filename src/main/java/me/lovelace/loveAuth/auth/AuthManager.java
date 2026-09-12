@@ -92,6 +92,7 @@ public final class AuthManager {
 
     private void handleKnownPlayer(Player player, DatabaseManager.PlayerRecord record, String ip) {
         registeredCache.add(player.getUniqueId());
+        syncDiscordWithLoveCore(player.getUniqueId(), record);
         sessionManager.isValid(player.getUniqueId(), ip).thenAccept(valid -> Bukkit.getScheduler().runTask(plugin, () -> {
             if (!player.isOnline()) return;
             if (valid) {
@@ -171,7 +172,10 @@ public final class AuthManager {
             if (!player.isOnline()) return;
             if (config.isPremiumSkipEnabled() && isPremium(player)) {
                 database.createPlayer(player.getUniqueId(), player.getName(), true)
-                    .thenRun(() -> registeredCache.add(player.getUniqueId()));
+                    .thenRun(() -> {
+                        registeredCache.add(player.getUniqueId());
+                        syncDiscordWithLoveCore(player.getUniqueId(), null);
+                    });
                 plugin.getGuiManager().openPremiumWelcome(player);
             } else {
                 plugin.getGuiManager().openRegister(player);
@@ -239,6 +243,7 @@ public final class AuthManager {
                 .thenRun(() -> {
                     registrationLock.remove(name);
                     registeredCache.add(player.getUniqueId());
+                    syncDiscordWithLoveCore(player.getUniqueId(), null);
                     Bukkit.getScheduler().runTask(plugin, () -> {
                         markAuthenticated(player, true);
                         lang.showTitle(player, "title.register-success-main", "title.register-success-sub");
@@ -448,5 +453,23 @@ public final class AuthManager {
     private CompletableFuture<Void> createSessionForCurrentDevice(Player player) {
         if (!isAuthenticated(player.getUniqueId())) return CompletableFuture.completedFuture(null);
         return sessionManager.create(player.getUniqueId(), getIp(player));
+    }
+
+    private void syncDiscordWithLoveCore(UUID uuid, DatabaseManager.PlayerRecord record) {
+        if (uuid == null) return;
+        try {
+            if (Bukkit.getPluginManager().isPluginEnabled("LoveCore")) {
+                dev.lovelace.lovecore.api.LoveCore.service(dev.lovelace.lovecore.api.discord.DiscordService.class)
+                    .ifPresent(core -> {
+                        if (record != null && record.hasDiscord()) {
+                            core.setLink(uuid, record.discordId());
+                        } else {
+                            core.getLinkedDiscordId(uuid).ifPresent(coreDiscordId -> {
+                                database.setDiscordId(uuid, coreDiscordId);
+                            });
+                        }
+                    });
+            }
+        } catch (Throwable ignored) {}
     }
 }
