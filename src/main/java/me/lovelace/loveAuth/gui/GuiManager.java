@@ -69,7 +69,15 @@ public final class GuiManager {
 
     public void awaitInput(Player player, String promptKey, Consumer<String> callback) {
         player.closeInventory();
-        chatInput.awaitInput(player, promptKey, callback);
+        // Sending the actionbar prompt in the same tick as closeInventory() is unreliable -
+        // the client is still processing the close-window packet and may silently drop the
+        // one right behind it, same failure mode as the limbo-teleport/open-screen race
+        // documented in AuthManager. The prompt then only shows up once ChatInputHandler's
+        // periodic refresh fires (2.5s later), which reads as "the prompt didn't appear until
+        // after I'd already typed something". Defer by a tick so the close has landed first.
+        org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (player.isOnline()) chatInput.awaitInput(player, promptKey, callback);
+        }, 1L);
     }
 
     public boolean checkCooldown(Player player) {
