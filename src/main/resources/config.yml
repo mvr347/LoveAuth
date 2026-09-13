@@ -94,6 +94,17 @@ discord:
   guild-id: ''
   # Список Discord ID администраторов для доступа к /admin в боте
   admin-ids: []
+  # Категория Discord для тикетов апелляций/поддержки/репортов, создаваемых через LoveCore
+  # DiscordService (LoveWebAdmin и т.п.) — заполняются, только если этот бот взял на себя
+  # тикеты всей экосистемы (см. tickets-bridge.enabled ниже).
+  appeals-category-id: ''
+  support-category-id: ''
+  # Тикет-мост: когда включено, этот бот (LoveAuth) регистрируется в LoveCore как
+  # реализация DiscordService с приоритетом выше, чем собственный REST-бот LoveCore —
+  # тикеты/репорты/апелляции LoveWebAdmin начинают идти через ЭТОГО бота вместо отдельного
+  # токена в LoveCore/config.yml. Отключите, если хотите держать двух разных ботов.
+  tickets-bridge:
+    enabled: true
 
 # ── Меню аккаунта ────────────────────────────
 # Настройки GUI "/loveauth account" в режиме встраивания в чужое меню

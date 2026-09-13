@@ -103,6 +103,24 @@ public final class LoveAuth extends JavaPlugin {
             } catch (Throwable t) {
                 getLogger().warning("Не удалось зарегистрировать AuthOracle в LoveCore: " + t.getMessage());
             }
+
+            // Тикет-мост: когда наш Discord-бот реально поднят и discord.tickets-bridge.enabled
+            // не отключён явно, регистрируем DiscordAuthManager как DiscordService с приоритетом
+            // выше REST-реализации самого LoveCore — тикеты/репорты/апелляции LoveWebAdmin и
+            // остальная экосистема начинают идти через ЭТОГО (уже подключённого по gateway) бота
+            // вместо второго отдельного токена в LoveCore/config.yml.
+            if (discordAuthManager.isEnabled() && configManager.isDiscordTicketsBridgeEnabled()) {
+                try {
+                    Bukkit.getServicesManager().register(
+                            dev.lovelace.lovecore.api.discord.DiscordService.class,
+                            discordAuthManager,
+                            this,
+                            org.bukkit.plugin.ServicePriority.High);
+                    getLogger().info("LoveCore integration: DiscordService (тикет-мост) зарегистрирован поверх бота LoveAuth.");
+                } catch (Throwable t) {
+                    getLogger().warning("Не удалось зарегистрировать DiscordService в LoveCore: " + t.getMessage());
+                }
+            }
         }
 
         if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
