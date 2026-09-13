@@ -157,6 +157,14 @@ public final class LimboManager {
     private static class VoidGenerator extends ChunkGenerator {
         @Override
         public void generateNoise(@NotNull WorldInfo worldInfo, @NotNull Random random, int chunkX, int chunkZ, @NotNull ChunkData chunkData) {}
+        // shouldGenerateBedrock() defaults to true and was never overridden here, so every
+        // chunk still got a real vanilla bedrock layer at the world floor despite generateNoise()
+        // leaving everything else air - looked like a solid slab/box "carved out" of the void
+        // instead of a fully empty world. shouldGenerateSurface()/shouldGenerateNoise() are
+        // harmless no-ops on an all-air chunk, but disabled too so nothing here depends on that.
+        @Override public boolean shouldGenerateNoise() { return false; }
+        @Override public boolean shouldGenerateSurface() { return false; }
+        @Override public boolean shouldGenerateBedrock() { return false; }
         @Override public boolean shouldGenerateCaves() { return false; }
         @Override public boolean shouldGenerateDecorations() { return false; }
         @Override public boolean shouldGenerateMobs() { return false; }
