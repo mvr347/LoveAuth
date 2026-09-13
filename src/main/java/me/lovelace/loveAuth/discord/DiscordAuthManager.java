@@ -1,5 +1,9 @@
 package me.lovelace.loveAuth.discord;
 
+import dev.lovelace.lovecore.api.discord.DiscordEmbed;
+import dev.lovelace.lovecore.api.discord.DiscordService;
+import dev.lovelace.lovecore.api.discord.TicketMessageListener;
+import dev.lovelace.lovecore.api.discord.TicketType;
 import me.lovelace.loveAuth.LoveAuth;
 import me.lovelace.loveAuth.auth.AuthManager;
 import me.lovelace.loveAuth.config.ConfigManager;
@@ -9,9 +13,13 @@ import me.lovelace.loveAuth.security.SecurityUtils;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
+import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.entities.channel.ChannelType;
+import net.dv8tion.jda.api.entities.channel.concrete.Category;
+import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
+import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
 import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
@@ -19,19 +27,31 @@ import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.components.ActionRow;
 import net.dv8tion.jda.api.interactions.components.buttons.Button;
 import net.dv8tion.jda.api.requests.GatewayIntent;
+import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
 import java.security.SecureRandom;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
-public final class DiscordAuthManager {
+/**
+ * Помимо своего изначального назначения (вход/привязка аккаунта через Discord), этот класс
+ * реализует общий {@link DiscordService} из LoveCore: когда {@code discord.tickets-bridge.enabled}
+ * включён (по умолчанию), LoveAuth регистрирует себя в ServicesManager с приоритетом выше
+ * собственного REST-бота LoveCore — тикеты/репорты/апелляции LoveWebAdmin начинают идти через
+ * этот же (уже подключённый по gateway) Discord-бот вместо отдельного токена в LoveCore.
+ */
+public final class DiscordAuthManager implements DiscordService {
     private JDA jda;
     private final LoveAuth plugin;
     private final ConfigManager config;
@@ -45,6 +65,17 @@ public final class DiscordAuthManager {
     // после нажатия «Подтвердить», иначе смену можно было бы навязать чужими руками.
     private final Map<UUID, String> pendingPasswordHashes = new ConcurrentHashMap<>();
     private final SecureRandom random = new SecureRandom();
+
+    // --- DiscordService (мост тикетов LoveCore) ---
+    // discordId в БД хранится зашифрованным и читается только асинхронно, а интерфейс
+    // DiscordService требует синхронного ответа — поэтому здесь лёгкий кэш поверх БД, который
+    // прогревается по мере привязок/отвязок и лениво дозаполняется в фоне при промахах, не
+    // блокируя вызывающий поток.
+    private final Map<UUID, String> linkedDiscordCache = new ConcurrentHashMap<>();
+    private final Map<String, UUID> linkedPlayerCache = new ConcurrentHashMap<>();
+    private final Map<String, String> activeTicketChannels = new ConcurrentHashMap<>(); // ticketId -> channelId
+    private final Map<String, String> ticketChannelToId = new ConcurrentHashMap<>(); // channelId -> ticketId
+    private final List<TicketMessageListener> ticketMessageListeners = new CopyOnWriteArrayList<>();
 
     public DiscordAuthManager(LoveAuth plugin, ConfigManager config, LangManager lang, DatabaseManager database, AuthManager auth) {
         this.plugin = plugin;
@@ -107,11 +138,27 @@ public final class DiscordAuthManager {
 
     public void startBinding(Player player) {
         if (!isEnabled()) { lang.send(player, "discord.not-enabled"); return; }
-        String code = generateCode(8);
-        pendingLinks.put(code, player.getUniqueId());
-        plugin.getServer().getAsyncScheduler().runDelayed(plugin, t -> pendingLinks.remove(code), 10, TimeUnit.MINUTES);
+        String code = registerPendingLinkCode(player.getUniqueId());
         net.kyori.adventure.text.Component msg = net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize(lang.get("discord.bind-instructions", Map.of("code", code)));
         player.sendMessage(msg);
+    }
+
+    private String registerPendingLinkCode(UUID uuid) {
+        String code = generateCode(8);
+        pendingLinks.put(code, uuid);
+        plugin.getServer().getAsyncScheduler().runDelayed(plugin, t -> pendingLinks.remove(code), 10, TimeUnit.MINUTES);
+        return code;
+    }
+
+    private void cacheLink(UUID uuid, String discordId) {
+        String prevDiscord = linkedDiscordCache.put(uuid, discordId);
+        if (prevDiscord != null && !prevDiscord.equals(discordId)) linkedPlayerCache.remove(prevDiscord);
+        linkedPlayerCache.put(discordId, uuid);
+    }
+
+    private void uncacheLink(UUID uuid) {
+        String prev = linkedDiscordCache.remove(uuid);
+        if (prev != null) linkedPlayerCache.remove(prev);
     }
 
     public CompletableFuture<Boolean> requestDiscordLogin(Player player) {
@@ -253,10 +300,214 @@ public final class DiscordAuthManager {
         });
     }
 
+    // =========================================================================================
+    // dev.lovelace.lovecore.api.discord.DiscordService — мост тикетов/репортов/апелляций LoveCore
+    // =========================================================================================
+
+    @Override
+    public Optional<String> getLinkedDiscordId(UUID playerUuid) {
+        String cached = linkedDiscordCache.get(playerUuid);
+        if (cached == null) {
+            // Не блокируем вызывающего (интерфейс синхронный) — просто прогреваем кэш на будущее.
+            database.findPlayer(playerUuid).thenAccept(rec -> {
+                if (rec.isPresent() && rec.get().hasDiscord()) cacheLink(playerUuid, rec.get().discordId());
+            });
+        }
+        return Optional.ofNullable(cached);
+    }
+
+    @Override
+    public Optional<UUID> getLinkedPlayer(String discordId) {
+        if (discordId == null || discordId.isBlank()) return Optional.empty();
+        UUID cached = linkedPlayerCache.get(discordId);
+        if (cached == null) {
+            database.findPlayerByDiscordId(discordId).thenAccept(rec -> rec.ifPresent(r -> cacheLink(r.uuid(), discordId)));
+        }
+        return Optional.ofNullable(cached);
+    }
+
+    @Override
+    public String generateLinkCode(UUID playerUuid) {
+        return registerPendingLinkCode(playerUuid);
+    }
+
+    @Override
+    public boolean completeLink(String discordId, String code) {
+        if (code == null || discordId == null || discordId.isBlank()) return false;
+        UUID uuid = pendingLinks.remove(code.trim().toUpperCase(Locale.ROOT));
+        if (uuid == null) return false;
+        database.findPlayerByDiscordId(discordId).thenAccept(existing -> {
+            if (existing.isPresent() && !existing.get().uuid().equals(uuid)) return;
+            database.setDiscordId(uuid, discordId).thenRun(() -> {
+                cacheLink(uuid, discordId);
+                Player p = Bukkit.getPlayer(uuid);
+                if (p != null) {
+                    lang.send(p, "discord.bind-success");
+                    auth.markAuthenticated(p, true);
+                }
+            });
+        });
+        return true;
+    }
+
+    @Override
+    public void unlink(UUID playerUuid) {
+        if (playerUuid == null) return;
+        uncacheLink(playerUuid);
+        database.setDiscordId(playerUuid, null);
+    }
+
+    @Override
+    public void setLink(UUID playerUuid, String discordId) {
+        if (playerUuid == null) return;
+        if (discordId == null || discordId.isBlank()) { unlink(playerUuid); return; }
+        cacheLink(playerUuid, discordId);
+        database.setDiscordId(playerUuid, discordId);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> sendDirectMessage(String discordUserId, String message, DiscordEmbed embed) {
+        if (!isEnabled() || discordUserId == null || discordUserId.isBlank()) {
+            return CompletableFuture.completedFuture(false);
+        }
+        CompletableFuture<Boolean> result = new CompletableFuture<>();
+        jda.retrieveUserById(discordUserId).queue(
+            user -> user.openPrivateChannel().queue(
+                channel -> sendToChannel(channel, message, embed, result),
+                err -> result.complete(false)),
+            err -> result.complete(false));
+        return result;
+    }
+
+    @Override
+    public CompletableFuture<Boolean> sendChannelMessage(String channelId, String message, DiscordEmbed embed) {
+        if (!isEnabled() || channelId == null || channelId.isBlank()) {
+            return CompletableFuture.completedFuture(false);
+        }
+        CompletableFuture<Boolean> result = new CompletableFuture<>();
+        MessageChannel channel = jda.getChannelById(MessageChannel.class, channelId);
+        if (channel == null) {
+            result.complete(false);
+            return result;
+        }
+        sendToChannel(channel, message, embed, result);
+        return result;
+    }
+
+    private void sendToChannel(MessageChannel channel, String message, DiscordEmbed embed, CompletableFuture<Boolean> result) {
+        MessageCreateBuilder builder = new MessageCreateBuilder();
+        if (message != null && !message.isBlank()) builder.setContent(message);
+        if (embed != null) builder.setEmbeds(toMessageEmbed(embed));
+        if (builder.isEmpty()) {
+            result.complete(false);
+            return;
+        }
+        channel.sendMessage(builder.build()).queue(msg -> result.complete(true), err -> result.complete(false));
+    }
+
+    private MessageEmbed toMessageEmbed(DiscordEmbed embed) {
+        EmbedBuilder eb = new EmbedBuilder();
+        if (embed.title() != null) eb.setTitle(embed.title());
+        if (embed.description() != null) eb.setDescription(embed.description());
+        if (embed.color() != null) eb.setColor(embed.color());
+        if (embed.footer() != null) eb.setFooter(embed.footer());
+        if (embed.timestamp() != null) eb.setTimestamp(embed.timestamp());
+        if (embed.fields() != null) {
+            for (DiscordEmbed.Field f : embed.fields()) eb.addField(f.name(), f.value(), f.inline());
+        }
+        return eb.build();
+    }
+
+    @Override
+    public CompletableFuture<String> createTicketChannel(TicketType type, String ticketId, String playerName, String initialReason) {
+        String guildId = config.getDiscordGuildId();
+        if (!isEnabled() || guildId.isBlank()) {
+            return CompletableFuture.completedFuture(null);
+        }
+        Guild guild = jda.getGuildById(guildId);
+        if (guild == null) {
+            return CompletableFuture.completedFuture(null);
+        }
+
+        String prefix = type == TicketType.BAN_APPEAL ? "бан-" : (type == TicketType.SUPPORT ? "саппорт-" : "репорт-");
+        String sanitizedName = playerName.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9_-]", "");
+        String channelName = "ticket-" + prefix + sanitizedName;
+
+        var action = guild.createTextChannel(channelName)
+            .setTopic("Тикет: " + ticketId + " | Игрок: " + playerName + " | Причина: " + initialReason);
+        String categoryId = type == TicketType.BAN_APPEAL ? config.getDiscordAppealsCategoryId() : config.getDiscordSupportCategoryId();
+        if (!categoryId.isBlank()) {
+            Category category = guild.getCategoryById(categoryId);
+            if (category != null) action = action.setParent(category);
+        }
+
+        CompletableFuture<String> result = new CompletableFuture<>();
+        action.queue(channel -> {
+            activeTicketChannels.put(ticketId, channel.getId());
+            ticketChannelToId.put(channel.getId(), ticketId);
+
+            String title = "⚔ Тикет " + (type == TicketType.BAN_APPEAL ? "апелляции бана" : type == TicketType.SUPPORT ? "поддержки" : "жалобы");
+            DiscordEmbed intro = new DiscordEmbed(
+                title,
+                "**Игрок:** `" + playerName + "`\n**Тикет ID:** `" + ticketId + "`\n**Описание:** " + initialReason
+                    + "\n\n*Сообщения из этого канала синхронизируются с панелью LoveWebAdmin.*",
+                0xE67E22,
+                List.of(),
+                "LoveAuth Ticket Bridge",
+                Instant.now()
+            );
+            sendToChannel(channel, "@here Новое обращение от игрока `" + playerName + "`", intro, new CompletableFuture<>());
+            result.complete(channel.getId());
+        }, err -> result.complete(null));
+        return result;
+    }
+
+    @Override
+    public CompletableFuture<Boolean> closeTicketChannel(String channelId, String reason) {
+        if (!isEnabled() || channelId == null || channelId.isBlank()) {
+            return CompletableFuture.completedFuture(false);
+        }
+        TextChannel channel = jda.getTextChannelById(channelId);
+        CompletableFuture<Boolean> result = new CompletableFuture<>();
+        if (channel == null) {
+            result.complete(false);
+            return result;
+        }
+        channel.sendMessage("🔒 **Тикет закрыт.** Причина: " + (reason != null ? reason : "Вопрос решён.")).queue(
+            msg -> channel.delete().queueAfter(3, TimeUnit.SECONDS, v -> {
+                String ticketId = ticketChannelToId.remove(channelId);
+                if (ticketId != null) activeTicketChannels.remove(ticketId);
+                result.complete(true);
+            }, err -> result.complete(false)),
+            err -> result.complete(false));
+        return result;
+    }
+
+    @Override
+    public void registerTicketMessageListener(TicketMessageListener listener) {
+        if (listener != null) ticketMessageListeners.add(listener);
+    }
+
     private class DiscordEventListener extends ListenerAdapter {
         @Override
         public void onMessageReceived(MessageReceivedEvent e) {
-            if (e.getAuthor().isBot() || !e.isFromType(ChannelType.PRIVATE)) return;
+            if (e.getAuthor().isBot()) return;
+            if (!e.isFromType(ChannelType.PRIVATE)) {
+                String ticketId = ticketChannelToId.get(e.getChannel().getId());
+                if (ticketId != null) {
+                    String content = e.getMessage().getContentRaw();
+                    if (!content.isBlank()) {
+                        for (TicketMessageListener listener : ticketMessageListeners) {
+                            try {
+                                listener.onTicketMessage(ticketId, e.getAuthor().getName(), true, content);
+                            } catch (Throwable t) {
+                                plugin.getLogger().warning("Ошибка ticket listener: " + t.getMessage());
+                            }
+                        }
+                    }
+                }
+                return;
+            }
             String[] args = e.getMessage().getContentRaw().trim().split("\\s+");
             String dId = e.getAuthor().getId();
             boolean isAdmin = config.getDiscordAdminIds().contains(dId);

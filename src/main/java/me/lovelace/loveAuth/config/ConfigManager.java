@@ -109,6 +109,9 @@ public final class ConfigManager {
     public long getPremiumVerificationTimeoutMs() { return config.getLong("premium-verification.timeout-ms", 5000); }
     public boolean isPremiumNameProtectionEnabled() { return config.getBoolean("premium-verification.block-cracked-with-premium-name", true); }
     public List<String> getDiscordAdminIds() { return config.getStringList("discord.admin-ids"); }
+    public String getDiscordAppealsCategoryId() { return config.getString("discord.appeals-category-id", "").trim(); }
+    public String getDiscordSupportCategoryId() { return config.getString("discord.support-category-id", "").trim(); }
+    public boolean isDiscordTicketsBridgeEnabled() { return config.getBoolean("discord.tickets-bridge.enabled", true); }
     public boolean isRegisterSpawnEnabled() { return config.getBoolean("register-spawn.enabled", false); }
     public String getRegisterSpawnWorld() { return config.getString("register-spawn.world", "spawn"); }
     public boolean isAccountProfileEnabled() { return config.getBoolean("gui.account.show-profile", true); }
