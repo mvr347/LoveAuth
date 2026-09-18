@@ -140,6 +140,29 @@ public final class LimboManager {
         originalLocations.remove(uuid);
     }
 
+    /**
+     * Called from {@code onDisable()}. {@link #restore} normally defers the actual restore by
+     * a tick via the scheduler, but Bukkit/Paper/Folia stop running a disabling plugin's
+     * scheduled tasks, so that deferred restore would simply never happen. Any player still
+     * frozen in limbo at shutdown would then have Bukkit persist whatever corrupted in-memory
+     * state they're sitting in (ADVENTURE, flying, invisible, limbo coordinates) as their real
+     * playerdata. Worse, the frozen-players cache is in-memory only and is empty again after a
+     * restart, so {@link #restore} has no record telling it a restore is still owed - the next
+     * join sees an "unfrozen" player already sitting in that broken state forever. Runs
+     * synchronously, right now, instead of scheduling anything.
+     */
+    public void restoreAllFrozenSync() {
+        for (UUID uuid : new java.util.ArrayList<>(frozenPlayers.asMap().keySet())) {
+            Player player = Bukkit.getPlayer(uuid);
+            if (player == null || !player.isOnline()) continue;
+            Location original = originalLocations.remove(uuid);
+            if (original != null && !original.getWorld().getName().equals(config.getLimboWorldName())) {
+                player.teleport(original);
+            }
+            unfreeze(player);
+        }
+    }
+
     /** Only ever called while a frozen {@link PlayerState} exists - both call sites guard on it. */
     private void unfreeze(Player player) {
         PlayerState state = frozenPlayers.getIfPresent(player.getUniqueId());
