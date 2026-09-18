@@ -136,6 +136,7 @@ public final class LoveAuth extends JavaPlugin {
         // Synchronous on purpose: Bukkit/Paper/Folia refuse to schedule new async-scheduler
         // tasks once the plugin is marked disabled (which it already is by this point), so
         // routing this through the normal async DB path throws IllegalPluginAccessException.
+        if (limboManager != null) limboManager.restoreAllFrozenSync();
         if (sessionManager != null) sessionManager.saveActiveSessionsSync();
         if (queueManager != null) queueManager.stop();
         if (premiumVerificationManager != null) premiumVerificationManager.shutdown();

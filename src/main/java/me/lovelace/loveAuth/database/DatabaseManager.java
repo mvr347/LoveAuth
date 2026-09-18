@@ -95,12 +95,9 @@ public final class DatabaseManager {
                     raw_ip TEXT
                 );
                 """);
-        statement.execute("""
-                CREATE TABLE IF NOT EXISTS admin_passwords (
-                    uuid TEXT PRIMARY KEY,
-                    password_hash TEXT NOT NULL
-                );
-                """);
+        // Функция админ-пароля (второй фактор поверх loveauth.admin) удалена - таблица больше
+        // не создаётся, а старая (если была) сносится, чтобы не хранить лишние хеши.
+        statement.execute("DROP TABLE IF EXISTS admin_passwords;");
         statement.execute("""
                 CREATE TABLE IF NOT EXISTS logs (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -253,7 +250,6 @@ public final class DatabaseManager {
             try (Connection connection = getConnection()) {
                 for (String sql : List.of(
                     "DELETE FROM sessions WHERE uuid = ?",
-                    "DELETE FROM admin_passwords WHERE uuid = ?",
                     "DELETE FROM logs WHERE uuid = ?",
                     "DELETE FROM players WHERE uuid = ?"
                 )) {
@@ -276,31 +272,6 @@ public final class DatabaseManager {
                 statement.executeUpdate();
             }
             return null;
-        });
-    }
-
-    public CompletableFuture<Void> setAdminPassword(UUID uuid, String passwordHash) {
-        return supplyAsync(() -> {
-            try (Connection connection = getConnection();
-                 PreparedStatement statement = connection.prepareStatement("INSERT INTO admin_passwords (uuid, password_hash) VALUES (?, ?) ON CONFLICT(uuid) DO UPDATE SET password_hash = excluded.password_hash")) {
-                statement.setString(1, uuid.toString());
-                statement.setString(2, passwordHash);
-                statement.executeUpdate();
-            }
-            return null;
-        });
-    }
-
-    public CompletableFuture<Optional<String>> getAdminPassword(UUID uuid) {
-        return supplyAsync(() -> {
-            try (Connection connection = getConnection();
-                 PreparedStatement statement = connection.prepareStatement("SELECT password_hash FROM admin_passwords WHERE uuid = ?")) {
-                statement.setString(1, uuid.toString());
-                try (ResultSet resultSet = statement.executeQuery()) {
-                    if (resultSet.next()) return Optional.of(resultSet.getString("password_hash"));
-                }
-            }
-            return Optional.empty();
         });
     }
 

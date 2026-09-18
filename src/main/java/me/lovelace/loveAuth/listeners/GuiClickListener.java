@@ -16,8 +16,6 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.InventoryView;
 
-import java.util.Map;
-
 public final class GuiClickListener implements Listener {
     private final LoveAuth plugin;
 
@@ -134,69 +132,6 @@ public final class GuiClickListener implements Listener {
             if (slot == 25) plugin.getGuiManager().openAuthMethod(player);
             else if (slot == 13) plugin.getAuthManager().requestPasswordLogin(player);
             else if (slot == 26) closeAuthGate(player);
-            return;
-        }
-
-        if (holder instanceof AdminGui adminGui) {
-            event.setCancelled(true);
-            if (!player.hasPermission("loveauth.admin")) return;
-            SoundUtils.click(player);
-            int slot = event.getRawSlot();
-
-            switch (slot) {
-                case 2 -> {
-                    plugin.getDatabaseManager().getLockedUsernames().thenAccept(list -> {
-                        Bukkit.getScheduler().runTask(plugin, () -> {
-                            if (list.isEmpty()) {
-                                plugin.getLangManager().send(player, "gui.admin.no-locked");
-                            } else {
-                                plugin.getLangManager().send(player, "gui.admin.locked-list-header");
-                                list.forEach(name -> player.sendMessage(
-                                    plugin.getLangManager().component("gui.admin.locked-list-entry",
-                                        Map.of("player", name))));
-                            }
-                        });
-                    });
-                }
-                case 3 -> {
-                    player.closeInventory();
-                    plugin.getChatInputHandler().awaitInput(player, "gui.admin.unlock-prompt", name ->
-                        plugin.getDatabaseManager().findPlayerByName(name).thenAccept(record -> {
-                            if (record.isEmpty()) {
-                                plugin.getLangManager().send(player, "general.player-not-found", Map.of("player", name));
-                            } else {
-                                plugin.getBruteForceProtection().unlockAccount(record.get().uuid())
-                                    .thenRun(() -> plugin.getLangManager().send(player,
-                                        "commands.admin-unlock", Map.of("player", name)));
-                            }
-                        })
-                    );
-                }
-                case 4 -> {
-                    adminGui.refresh();
-                }
-                case 5 -> {
-                    player.closeInventory();
-                    plugin.getChatInputHandler().awaitInput(player, "gui.admin.session-reset-prompt", name ->
-                        plugin.getDatabaseManager().findPlayerByName(name).thenAccept(record -> {
-                            if (record.isEmpty()) {
-                                plugin.getLangManager().send(player, "general.player-not-found", Map.of("player", name));
-                            } else {
-                                plugin.getSessionManager().invalidate(record.get().uuid())
-                                    .thenRun(() -> plugin.getLangManager().send(player,
-                                        "commands.session-reset-for", Map.of("player", name)));
-                            }
-                        })
-                    );
-                }
-                case 6 -> {
-                    plugin.getDatabaseManager().clearAllIpBlocks().thenRun(() -> {
-                        plugin.getLangManager().send(player, "commands.ip-blocks-cleared");
-                        Bukkit.getScheduler().runTask(plugin, adminGui::refresh);
-                    });
-                }
-                case 53 -> player.closeInventory();
-            }
             return;
         }
 

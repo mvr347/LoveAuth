@@ -61,7 +61,6 @@ public final class GuiManager {
     public void openAccount(Player player) { if (!checkCooldown(player)) new AccountGui(player, lang, auth, config).open(); }
     public void openAccount(Player player, String returnCommand) { if (!checkCooldown(player)) new AccountGui(player, lang, auth, config, returnCommand != null).open(); }
     public void openQueue(Player player) { if (!checkCooldown(player)) new QueueGui(player, lang, queue).open(); }
-    public void openAdmin(Player player) { if (!checkCooldown(player)) new AdminGui(player, plugin, lang, auth).open(); }
 
     public void openConfirm(Player player, String descriptionKey, Runnable onConfirm, Runnable onCancel) {
         if (!checkCooldown(player)) new ConfirmGui(player, lang, descriptionKey, onConfirm, onCancel).open();

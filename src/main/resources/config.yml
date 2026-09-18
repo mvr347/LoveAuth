@@ -41,10 +41,6 @@ auth:
   lockout-duration-minutes: 60
   # Минимальная длина пароля игрока (3-25)
   min-password-length: 6
-  # Максимум неверных попыток ввода admin-пароля (/loveauthadmin) до временной блокировки
-  admin-max-attempts: 5
-  # Время блокировки ввода admin-пароля в минутах после исчерпания попыток
-  admin-lockout-duration-minutes: 15
   # Пропускать авторизацию для лицензионных игроков
   premium-skip: true
 
