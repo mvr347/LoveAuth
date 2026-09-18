@@ -88,8 +88,6 @@ discord:
   bot-token: ''
   # ID сервера Discord
   guild-id: ''
-  # Список Discord ID администраторов для доступа к /admin в боте
-  admin-ids: []
   # Категория Discord для тикетов апелляций/поддержки/репортов, создаваемых через LoveCore
   # DiscordService (LoveWebAdmin и т.п.) — заполняются, только если этот бот взял на себя
   # тикеты всей экосистемы (см. tickets-bridge.enabled ниже).

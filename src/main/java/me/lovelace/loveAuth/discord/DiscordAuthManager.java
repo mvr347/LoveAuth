@@ -490,7 +490,6 @@ public final class DiscordAuthManager implements DiscordService {
             }
             String[] args = e.getMessage().getContentRaw().trim().split("\\s+");
             String dId = e.getAuthor().getId();
-            boolean isAdmin = config.getDiscordAdminIds().contains(dId);
             String cmd = args[0].toLowerCase();
             if (cmd.equals("/link") || cmd.equals("/привязать")) {
                 if (args.length < 2) { e.getChannel().sendMessage(lang.plain("discord.link-usage")).queue(); return; }
@@ -538,25 +537,7 @@ public final class DiscordAuthManager implements DiscordService {
                     } else if (sub.equals("delete") || sub.equals("удалить")) database.setPasswordEnabled(r.get().uuid(), false).thenRun(() -> e.getChannel().sendMessage(lang.plain("discord.password-deleted-dm")).queue());
                 });
             } else if (cmd.equals("/info") || cmd.equals("/инфо")) { database.findPlayerByDiscordId(dId).thenAccept(r -> { if (r.isEmpty()) { e.getChannel().sendMessage(lang.plain("discord.not-bound-dm")).queue(); return; } DatabaseManager.PlayerRecord pr = r.get(); plugin.getDatabaseManager().getAlts(pr.lastIp()).thenAccept(alts -> { EmbedBuilder eb = new EmbedBuilder().setTitle(lang.plain("discord.info-title")).addField(lang.plain("discord.info-player"), pr.username(), true).addField(lang.plain("discord.info-status"), pr.locked() ? "Locked" : "Active", true).addField("Alts", String.join(", ", alts), false).setColor(pr.locked() ? java.awt.Color.RED : java.awt.Color.GREEN); e.getChannel().sendMessageEmbeds(eb.build()).queue(); }); });
-            } else if ((cmd.equals("/admin") || cmd.equals("/админ") || cmd.equals("/ladmin") || cmd.equals("/админка")) && isAdmin) handleAdminCommand(e, args);
-            else if (cmd.equals("/help") || cmd.equals("/помощь")) e.getChannel().sendMessage(buildHelpMessage(isAdmin)).queue();
-        }
-
-        private void handleAdminCommand(MessageReceivedEvent e, String[] args) {
-            if (args.length < 2) return;
-            String sub = args[1].toLowerCase();
-            if (sub.equals("stats") || sub.equals("статистика")) database.getStats().thenAccept(s -> { EmbedBuilder eb = new EmbedBuilder().setTitle("Stats").addField("Reg", String.valueOf(s.registered()), true).addField("Lock", String.valueOf(s.locked()), true).addField("Sess", String.valueOf(s.sessions()), true).setColor(java.awt.Color.CYAN); e.getChannel().sendMessageEmbeds(eb.build()).queue(); });
-            else if (sub.equals("amnesty") || sub.equals("амнистия")) database.clearAllIpBlocks().thenCompose(u -> database.unlockAllAccounts()).thenRun(() -> e.getChannel().sendMessage("Amnesty done.").queue());
-            else if (args.length >= 3) {
-                database.findPlayerByName(args[2]).thenAccept(r -> {
-                    if (r.isEmpty()) return;
-                    DatabaseManager.PlayerRecord pr = r.get();
-                    if (sub.equals("info") || sub.equals("инфо")) plugin.getDatabaseManager().getAlts(pr.lastIp()).thenAccept(alts -> { EmbedBuilder eb = new EmbedBuilder().setTitle("Info: " + pr.username()).addField("UUID", pr.uuid().toString(), false).addField("Alts", String.join(", ", alts), false).setColor(java.awt.Color.ORANGE); e.getChannel().sendMessageEmbeds(eb.build()).queue(); });
-                    else if (sub.equals("lock") || sub.equals("заблокировать")) database.setLocked(pr.uuid(), true).thenRun(() -> { e.getChannel().sendMessage("Locked " + args[2]).queue(); Player p = Bukkit.getPlayer(pr.uuid()); if (p != null) Bukkit.getScheduler().runTask(plugin, () -> p.kick(lang.component("block.account-locked"))); });
-                    else if (sub.equals("unlock") || sub.equals("разблокировать")) database.setLocked(pr.uuid(), false).thenRun(() -> e.getChannel().sendMessage("Unlocked " + args[2]).queue());
-                    else if (sub.equals("reset") || sub.equals("сброс")) plugin.getSessionManager().invalidate(pr.uuid()).thenRun(() -> { e.getChannel().sendMessage("Reset " + args[2]).queue(); Player p = Bukkit.getPlayer(pr.uuid()); if (p != null) Bukkit.getScheduler().runTask(plugin, () -> p.kick(lang.component("commands.session-reset"))); });
-                });
-            }
+            } else if (cmd.equals("/help") || cmd.equals("/помощь")) e.getChannel().sendMessage(buildHelpMessage()).queue();
         }
 
         @Override
@@ -570,9 +551,8 @@ public final class DiscordAuthManager implements DiscordService {
         }
     }
 
-    private String buildHelpMessage(boolean a) {
+    private String buildHelpMessage() {
         StringBuilder sb = new StringBuilder().append(lang.plain("discord.help-header")).append("\n").append(lang.plain("discord.help-link")).append("\n").append(lang.plain("discord.help-unlink")).append("\n").append(lang.plain("discord.help-lock")).append("\n").append(lang.plain("discord.help-unlock")).append("\n").append(lang.plain("discord.help-password-change")).append("\n").append(lang.plain("discord.help-password-delete")).append("\n").append(lang.plain("discord.help-password-set")).append("\n").append(lang.plain("discord.help-info")).append("\n");
-        if (a) sb.append("\nAdmin:\n/admin stats\n/admin amnesty\n/admin lock <p>\n/admin unlock <p>\n/admin info <p>\n/admin reset <p>");
         return sb.append(lang.plain("discord.help-help")).toString();
     }
 
