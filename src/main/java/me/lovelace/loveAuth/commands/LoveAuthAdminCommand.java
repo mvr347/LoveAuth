@@ -1,12 +1,8 @@
 package me.lovelace.loveAuth.commands;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import me.lovelace.loveAuth.LoveAuth;
 import me.lovelace.loveAuth.database.DatabaseManager;
 import me.lovelace.loveAuth.lang.LangManager;
-import me.lovelace.loveAuth.security.SecurityUtils;
-import me.lovelace.loveAuth.util.SoundUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -16,12 +12,9 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Единая административная команда плагина: {@code /loveauthadmin <subcommand>}.
@@ -32,38 +25,13 @@ import java.util.concurrent.TimeUnit;
  * натыкается на молчание, а получает понятную подсказку.
  */
 public final class LoveAuthAdminCommand implements CommandExecutor, TabCompleter {
-    private static final long ADMIN_SESSION_DURATION_MILLIS = 3_600_000L;
-    /** Sentinel expiry value meaning "valid for as long as the player stays online". */
-    private static final long NO_EXPIRY = -1L;
     /** Legacy command name kept registered purely to redirect players to /loveauthadmin. */
     private static final String LEGACY_COMMAND_NAME = "ladmin";
 
     private final LoveAuth plugin;
-    private final Map<UUID, Long> adminSessions = new ConcurrentHashMap<>();
-    /** Per-player admin-password brute-force tracking: failed attempt count and lockout expiry (0 = not locked). */
-    private final Cache<UUID, AdminAttemptState> adminPasswordAttempts = Caffeine.newBuilder()
-            .expireAfterWrite(2, TimeUnit.HOURS)
-            .build();
-
-    private record AdminAttemptState(int failures, long lockedUntilEpochSecond) {}
 
     public LoveAuthAdminCommand(LoveAuth plugin) {
         this.plugin = plugin;
-    }
-
-    /** In-game admin-password approval: valid until the player logs out, no fixed expiry. */
-    public void recordAdminSession(UUID uuid) {
-        adminSessions.put(uuid, NO_EXPIRY);
-    }
-
-    /** Discord-button-approved admin actions: expire after a fixed duration regardless of online state. */
-    public void recordTimedAdminSession(UUID uuid) {
-        adminSessions.put(uuid, System.currentTimeMillis() + ADMIN_SESSION_DURATION_MILLIS);
-    }
-
-    /** Invalidates only "valid while online" sessions; timed Discord-approved sessions survive logout. */
-    public void invalidateOnlineSession(UUID uuid) {
-        adminSessions.computeIfPresent(uuid, (u, expiry) -> expiry == NO_EXPIRY ? null : expiry);
     }
 
     @Override
@@ -82,101 +50,13 @@ public final class LoveAuthAdminCommand implements CommandExecutor, TabCompleter
             return true;
         }
 
-        if (!(sender instanceof Player player)) {
-            handleCommand(sender, args);
-            return true;
-        }
-
-        Long sessionExpiry = adminSessions.get(player.getUniqueId());
-        if (sessionExpiry != null && (sessionExpiry == NO_EXPIRY || sessionExpiry > System.currentTimeMillis())) {
-            handleCommand(player, args);
-            return true;
-        }
-
-        plugin.getDatabaseManager().getAdminPassword(player.getUniqueId()).thenAccept(opt -> Bukkit.getScheduler().runTask(plugin, () -> {
-            if (opt.isEmpty()) {
-                boolean settingPassword = args.length > 0 && (args[0].equalsIgnoreCase("setadminpass") || args[0].equalsIgnoreCase("установитьадминпароль"));
-                if (settingPassword) {
-                    handleCommand(player, args);
-                } else {
-                    plugin.getLangManager().send(player, "gui.admin.admin-password-not-set");
-                }
-                return;
-            }
-            plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
-                boolean hasDiscord = record.map(r -> r.hasDiscord()).orElse(false);
-                if (hasDiscord && plugin.getDiscordAuthManager().isEnabled()) {
-                    plugin.getDiscordAuthManager().requestAdminConfirmation(player, args)
-                        .thenAccept(sent -> Bukkit.getScheduler().runTask(plugin, () -> {
-                            if (sent) {
-                                plugin.getLangManager().send(player, "gui.admin.discord-confirm-sent");
-                            } else {
-                                checkAdminPassword(player, args, opt.get());
-                            }
-                        }));
-                } else {
-                    checkAdminPassword(player, args, opt.get());
-                }
-            });
-        }));
+        handleCommand(sender, args);
         return true;
-    }
-
-    private void checkAdminPassword(Player player, String[] args, String passwordHash) {
-        UUID uuid = player.getUniqueId();
-        long now = Instant.now().getEpochSecond();
-        AdminAttemptState state = adminPasswordAttempts.getIfPresent(uuid);
-        if (state != null && state.lockedUntilEpochSecond() > now) {
-            long minutes = Math.max(1L, (state.lockedUntilEpochSecond() - now + 59L) / 60L);
-            plugin.getLangManager().send(player, "gui.admin.admin-password-locked", Map.of("minutes", Long.toString(minutes)));
-            SoundUtils.error(player);
-            return;
-        }
-        plugin.getChatInputHandler().awaitInput(player, "gui.admin.admin-password-prompt", input -> {
-            // Argon2 verification is intentionally slow (that's what makes it resistant to
-            // brute-forcing) - running it here would freeze the whole server's main thread for
-            // the duration of every admin-password check. Hash off-thread and only hop back to
-            // main for the Bukkit-API-touching follow-up (session bookkeeping, running the command).
-            plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
-                boolean valid = SecurityUtils.verifyPassword(input, passwordHash, plugin.getPepper());
-                Bukkit.getScheduler().runTask(plugin, () -> {
-                    if (!player.isOnline()) return;
-                    if (valid) {
-                        adminPasswordAttempts.invalidate(uuid);
-                        recordAdminSession(uuid);
-                        handleCommand(player, args);
-                    } else {
-                        recordAdminPasswordFailure(player);
-                    }
-                });
-            });
-        });
-    }
-
-    private void recordAdminPasswordFailure(Player player) {
-        UUID uuid = player.getUniqueId();
-        int maxAttempts = Math.max(1, plugin.getConfigManager().getAdminMaxAttempts());
-        AdminAttemptState previous = adminPasswordAttempts.getIfPresent(uuid);
-        int failures = (previous == null ? 0 : previous.failures()) + 1;
-        if (failures >= maxAttempts) {
-            int lockoutMinutes = Math.max(1, plugin.getConfigManager().getAdminLockoutDurationMinutes());
-            long lockedUntil = Instant.now().getEpochSecond() + TimeUnit.MINUTES.toSeconds(lockoutMinutes);
-            adminPasswordAttempts.put(uuid, new AdminAttemptState(0, lockedUntil));
-            plugin.getLangManager().send(player, "gui.admin.admin-password-locked", Map.of("minutes", Integer.toString(lockoutMinutes)));
-        } else {
-            adminPasswordAttempts.put(uuid, new AdminAttemptState(failures, 0L));
-            plugin.getLangManager().send(player, "gui.admin.admin-password-invalid");
-        }
-        SoundUtils.error(player);
     }
 
     public void handleCommand(CommandSender sender, String[] args) {
         if (args.length == 0) {
-            if (sender instanceof Player player) {
-                plugin.getGuiManager().openAdmin(player);
-            } else {
-                sender.sendMessage("This command is for players. Use /loveauthadmin help for console commands.");
-            }
+            sendHelp(sender);
             return;
         }
 
@@ -251,19 +131,6 @@ public final class LoveAuthAdminCommand implements CommandExecutor, TabCompleter
                     }
                 });
             }
-            case "setadminpass", "установитьадминпароль" -> {
-                if (!(sender instanceof Player player)) {
-                    sender.sendMessage("Only players.");
-                    return;
-                }
-                plugin.getChatInputHandler().awaitInput(player, "gui.admin.admin-password-set-prompt", pass -> {
-                    plugin.getServer().getAsyncScheduler().runNow(plugin, t -> {
-                        String hash = SecurityUtils.hashPassword(pass, plugin.getPepper(), plugin.getConfigManager());
-                        plugin.getDatabaseManager().setAdminPassword(player.getUniqueId(), hash)
-                            .thenRun(() -> lang.send(player, "gui.admin.admin-password-set"));
-                    });
-                });
-            }
             case "delete", "удалить" -> {
                 if (args.length < 2) return;
                 doDeletePlayer(sender, args[1]);
@@ -306,13 +173,11 @@ public final class LoveAuthAdminCommand implements CommandExecutor, TabCompleter
     private void sendHelp(CommandSender sender) {
         LangManager lang = plugin.getLangManager();
         sender.sendMessage(lang.component("commands.admin-help-header"));
-        sender.sendMessage(lang.component("commands.admin-help-open"));
         sendAdminEntry(sender, "reload", "commands.admin-help-reload");
         sendAdminEntry(sender, "unlock [игрок]", "commands.admin-help-unlock");
         sendAdminEntry(sender, "unblockip [ip]", "commands.admin-help-unblockip");
         sendAdminEntry(sender, "info [игрок]", "commands.admin-help-info");
         sendAdminEntry(sender, "session reset [игрок]", "commands.admin-help-session-reset");
-        sendAdminEntry(sender, "setadminpass", "commands.admin-help-setadminpass");
         sendAdminEntry(sender, "delete [игрок]", "commands.admin-help-delete");
         sendAdminEntry(sender, "amnesty", "commands.admin-help-amnesty");
         sender.sendMessage(lang.component("commands.admin-help-footer"));
@@ -327,7 +192,7 @@ public final class LoveAuthAdminCommand implements CommandExecutor, TabCompleter
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (command.getName().equalsIgnoreCase(LEGACY_COMMAND_NAME)) return List.of();
         if (!sender.hasPermission("loveauth.admin")) return List.of();
-        if (args.length == 1) return List.of("help", "reload", "unlock", "unblockip", "session", "info", "setadminpass", "delete", "amnesty", "помощь", "перезагрузка", "разблокировать", "разблокироватьайпи", "сессия", "инфо", "установитьадминпароль", "удалить", "амнистия");
+        if (args.length == 1) return List.of("help", "reload", "unlock", "unblockip", "session", "info", "delete", "amnesty", "помощь", "перезагрузка", "разблокировать", "разблокироватьайпи", "сессия", "инфо", "удалить", "амнистия");
         if (args.length == 2) {
             String sub = args[0].toLowerCase();
             if (sub.equals("unlock") || sub.equals("info") || sub.equals("delete") || sub.equals("разблокировать") || sub.equals("инфо") || sub.equals("удалить")) return null;

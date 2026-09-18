@@ -33,7 +33,6 @@ import org.bukkit.entity.Player;
 
 import java.security.SecureRandom;
 import java.time.Instant;
-import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -231,25 +230,6 @@ public final class DiscordAuthManager implements DiscordService {
         plugin.getServer().getAsyncScheduler().runDelayed(plugin,
             t -> pendingPasswordHashes.remove(uuid, passwordHash), 2, TimeUnit.MINUTES);
         sendConfirmation(player, "PASSWORD_CHANGE");
-    }
-
-    public CompletableFuture<Boolean> requestAdminConfirmation(Player player, String[] args) {
-        if (!isEnabled()) return CompletableFuture.completedFuture(false);
-        return database.findPlayer(player.getUniqueId()).thenCompose(record -> {
-            if (record.isEmpty() || !record.get().hasDiscord()) return CompletableFuture.completedFuture(false);
-            CompletableFuture<Boolean> res = new CompletableFuture<>();
-            jda.retrieveUserById(record.get().discordId()).queue(user -> user.openPrivateChannel().queue(channel -> {
-                MessageEmbed em = new EmbedBuilder().setTitle(lang.plain("discord.admin-embed-title")).setDescription(lang.plain("discord.admin-embed-desc", Map.of("cmd", "/loveauthadmin " + String.join(" ", args)))).setColor(java.awt.Color.RED).build();
-                String argsBase = Base64.getEncoder().encodeToString(String.join(" ", args).getBytes());
-                Button ok = Button.success("admin_confirm:" + player.getUniqueId() + ":" + argsBase, lang.plain("discord.action-btn-confirm"));
-                Button no = Button.danger("admin_deny:" + player.getUniqueId(), lang.plain("discord.action-btn-deny"));
-                channel.sendMessageEmbeds(em).setComponents(ActionRow.of(ok, no)).queue(msg -> {
-                    res.complete(true);
-                    msg.delete().queueAfter(2, TimeUnit.MINUTES, null, err -> {});
-                }, e -> res.complete(false));
-            }, e -> res.complete(false)), e -> res.complete(false));
-            return res;
-        });
     }
 
     private void handleConfirmedAction(Player player, String action) {
@@ -587,8 +567,6 @@ public final class DiscordAuthManager implements DiscordService {
             else if (id.startsWith("action_lock:")) { UUID u = UUID.fromString(id.split(":")[1]); database.setLocked(u, true).thenRun(() -> { e.getMessage().delete().queue(); Player p = Bukkit.getPlayer(u); if (p != null) Bukkit.getScheduler().runTask(plugin, () -> p.kick(lang.component("block.account-locked"))); }); e.reply("Locked.").setEphemeral(true).queue(); }
             else if (id.startsWith("confirm_action:")) { String[] p = id.split(":"); UUID u = UUID.fromString(p[1]); e.getMessage().delete().queue(); Bukkit.getScheduler().runTask(plugin, () -> { Player pl = Bukkit.getPlayer(u); if (pl != null) handleConfirmedAction(pl, p[2]); else handleConfirmedActionOffline(u, p[2]); }); e.reply("Confirmed.").setEphemeral(true).queue(); }
             else if (id.startsWith("deny_action:")) { String[] p = id.split(":"); if (p.length > 1) { try { pendingPasswordHashes.remove(UUID.fromString(p[1])); } catch (IllegalArgumentException ex) { plugin.getLogManager().warnKey("log.listener-error", Map.of("message", "Invalid UUID in deny_action button id: " + ex.getMessage())); } } e.getMessage().delete().queue(); e.reply("Cancelled.").setEphemeral(true).queue(); }
-            else if (id.startsWith("admin_confirm:")) { String[] p = id.split(":"); UUID u = UUID.fromString(p[1]); String a = new String(Base64.getDecoder().decode(p[2])); e.getMessage().delete().queue(); Bukkit.getScheduler().runTask(plugin, () -> { Player pl = Bukkit.getPlayer(u); if (pl != null) plugin.getLoveAuthAdminCommand().handleCommand(pl, a.split(" ")); }); e.reply("Admin action confirmed.").setEphemeral(true).queue(); }
-            else if (id.startsWith("admin_deny:")) { e.getMessage().delete().queue(); e.reply("Cancelled.").setEphemeral(true).queue(); }
         }
     }
 

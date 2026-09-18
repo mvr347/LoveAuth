@@ -132,8 +132,6 @@ discord:
   lock-btn-alert: "Это не я! ЗАБЛОКИРОВАТЬ АККАУНТ"
   password-changed-dm: "✅ Пароль успешно изменён."
   password-deleted-dm: "✅ Пароль удалён. Теперь вход только через Discord."
-  admin-embed-title: "🛡️ Подтверждение админ-действия"
-  admin-embed-desc: "Вы пытаетесь выполнить команду: **{cmd}**\nЭто вы?"
 
 # ── GUI: общие ──────────────────────────────
 gui:
@@ -240,11 +238,6 @@ gui.account:
   delete-password-locked-lore:
     - "<red>Сначала привяжите Discord"
     - "<red>чтобы удалить пароль"
-  lock-account: "<dark_red><bold>🔒 Заблокировать аккаунт"
-  lock-account-lore:
-    - "<gray>Заблокировать аккаунт вручную"
-    - "<gray>для защиты от взлома"
-    - "<gray>(Требуется Discord)"
   session-lore:
     - "<gray>Текущая сессия: <white>{status}</white>"
     - "<gray>Истекает: <white>{expires}</white>"
@@ -254,23 +247,22 @@ gui.account:
     - "<gray>Максимум: <white>28 дней"
   session-unavailable: "<dark_gray><bold>⏱ Сессии недоступны"
   session-unavailable-lore:
-    - "<gray>Установите пароль чтобы"
-    - "<gray>управлять сессиями"
-  login-method: "<light_purple><bold>🔑 Способ входа"
+    - "<red>Установите пароль чтобы"
+    - "<red>управлять сессиями"
+  login-method: "<light_purple><bold>🔁 Способ входа"
   login-method-lore:
     - "<gray>Текущий способ: <white>{method}</white>"
     - "<gray>Нажмите для смены"
-  login-method-locked: "<dark_gray><bold>🔑 Способ входа"
+  login-method-locked: "<dark_gray><bold>🔁 Способ входа"
   login-method-locked-lore:
-    - "<gray>Сейчас доступен только: <white>{method}</white>"
-    - "<gray>Настройте пароль и Discord,"
-    - "<gray>чтобы выбирать между ними"
+    - "<red>Сейчас доступен только: <white>{method}</white>"
+    - "<red>Настройте пароль и Discord,"
+    - "<red>чтобы выбирать между ними"
   logout: "<red><bold>🚪 Выйти из аккаунта"
   logout-lore:
     - "<gray>Завершить текущую сессию"
   session-active: "активна"
   session-disabled: "отключена"
-  session-expired: "истекла"
   login-password: "пароль"
   login-discord: "discord"
 
@@ -297,41 +289,6 @@ gui.confirm:
   reset-session: "<white><bold>Сбросить сессию?"
   lock-account: "<white><bold>Заблокировать аккаунт?"
   logout: "<white><bold>Выйти из аккаунта?"
-  admin-panel: "<white><bold>Открыть админ-панель?"
-
-# ── GUI: Админ-панель ────────────────────────
-gui.admin:
-  title: "<gradient:#ff0000:#a855f7>Админ-панель</gradient>"
-  locked-accounts: "<red><bold>🔒 Заблокированные аккаунты"
-  locked-accounts-lore:
-    - "<gray>Количество: <white>{count}</white>"
-  unlock-player: "<green><bold>🔓 Разблокировать игрока"
-  unlock-player-lore:
-    - "<gray>Введите ник в чат"
-  stats: "<aqua><bold>📊 Статистика"
-  stats-lore:
-    - "<gray>Онлайн: <white>{online}</white>"
-    - "<gray>Зарегистрировано: <white>{registered}</white>"
-    - "<gray>Заблокировано: <white>{locked}</white>"
-  sessions: "<yellow><bold>⏱ Управление сессиями"
-  sessions-lore:
-    - "<gray>Активных сессий: <white>{sessions}</white>"
-  admin-password-prompt: "{prefix}<gray>Введите ваш admin-пароль для подтверждения:"
-  admin-password-set-prompt: "{prefix}<gray>Введите новый admin-пароль:"
-  admin-password-not-set: "{prefix}<red>Сначала установите admin-пароль: <white>/loveauthadmin setadminpass</white>."
-  admin-password-invalid: "{prefix}<red>Неверный admin-пароль."
-  admin-password-locked: "{prefix}<dark_red>Слишком много неверных попыток admin-пароля. Подождите {minutes} мин."
-  admin-password-set: "{prefix}<green>Admin-пароль сохранён."
-  unlock-prompt: "{prefix}<gray>Введите ник игрока для разблокировки:"
-  session-reset-prompt: "{prefix}<gray>Введите ник игрока для сброса сессии:"
-  no-locked: "{prefix}<green>Заблокированных аккаунтов нет."
-  locked-list-header: "{prefix}<red>Заблокированные аккаунты:"
-  locked-list-entry: "  <gray>- <white>{player}"
-  clear-ip-blocks: "<light_purple><bold>🔥 Очистить IP-блоки"
-  clear-ip-blocks-lore:
-    - "<gray>Разблокировать все IP-адреса"
-    - "<gray>попавшие под брутфорс-фильтр"
-  discord-confirm-sent: "{prefix}<gray>Запрос подтверждения отправлен в ваш Discord."
 
 # ── Команды ──────────────────────────────────
 commands:
@@ -347,13 +304,11 @@ commands:
   admin-command-moved: "{prefix}<yellow>Эта команда переехала: используйте <white>/loveauthadmin</white>.</yellow>"
   admin-help-header: "<gradient:#ff0000:#a855f7>══ LoveAuth Admin — Команды ══</gradient>"
   admin-help-entry: "<gray> <white>/loveauthadmin {command}</white> — {description}"
-  admin-help-open: "<gray> <white>/loveauthadmin</white> — открыть админ-панель"
   admin-help-reload: "перезагрузить конфиг"
   admin-help-unlock: "разблокировать аккаунт"
   admin-help-unblockip: "разблокировать IP"
   admin-help-info: "подробная информация об игроке"
   admin-help-session-reset: "сбросить сессию игрока"
-  admin-help-setadminpass: "установить admin-пароль"
   admin-help-delete: "удалить данные игрока"
   admin-help-amnesty: "снять все блокировки"
   admin-help-footer: "<gradient:#ff0000:#a855f7>══════════════════════════════</gradient>"

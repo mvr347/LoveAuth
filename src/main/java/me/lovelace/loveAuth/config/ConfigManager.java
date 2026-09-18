@@ -88,8 +88,6 @@ public final class ConfigManager {
     public int getArgon2MemoryKb() { return config.getInt("security.argon2-memory-kb", 65536); }
     public int getArgon2Parallelism() { return config.getInt("security.argon2-parallelism", 1); }
     public int getMinPasswordLength() { return config.getInt("auth.min-password-length", 6); }
-    public int getAdminMaxAttempts() { return config.getInt("auth.admin-max-attempts", 5); }
-    public int getAdminLockoutDurationMinutes() { return config.getInt("auth.admin-lockout-duration-minutes", 15); }
     public boolean isSessionEnabled() { return config.getBoolean("session.enabled", true) && getSessionDurationDays() > 0; }
     public int getSessionDurationDays() { return config.getInt("session.duration-days", 7); }
     public boolean isSessionBindToIp() { return config.getBoolean("session.bind-to-ip", true); }
