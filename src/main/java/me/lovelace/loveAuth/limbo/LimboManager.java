@@ -123,6 +123,21 @@ public final class LimboManager {
         });
     }
 
+    /**
+     * Discards any pending "teleport back to original pre-limbo location" for this player
+     * without unfreezing them yet - for a caller that's about to place the player somewhere
+     * deliberately different right after {@link #restore} runs (e.g. register-spawn on first
+     * registration), where "original" is meaningless anyway (just wherever Bukkit happened to
+     * spawn a brand-new player) and restoring it first only means bouncing the player through
+     * two rapid cross-world teleports a tick apart - which was observed landing them above the
+     * ground at the final destination instead of on it, presumably a client-side dimension-
+     * change/physics-settling race. {@link #restore}'s gamemode/flight unfreeze still runs as
+     * normal; only the location-teleport half is skipped.
+     */
+    public void discardOriginalLocation(Player player) {
+        originalLocations.remove(player.getUniqueId());
+    }
+
     public void cleanup(Player player) {
         UUID uuid = player.getUniqueId();
         if (frozenPlayers.getIfPresent(uuid) != null) {

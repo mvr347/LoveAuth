@@ -245,30 +245,39 @@ public final class AuthManager {
                     registeredCache.add(player.getUniqueId());
                     syncDiscordWithLoveCore(player.getUniqueId(), null);
                     Bukkit.getScheduler().runTask(plugin, () -> {
+                        // Resolve the register-spawn world (if any) before markAuthenticated() below,
+                        // and discard limbo's own pending "teleport back to original location" when it
+                        // resolved - "original" is meaningless for a brand-new registrant (just wherever
+                        // Bukkit happened to spawn them) and restoring it first only means the player
+                        // gets bounced through two rapid cross-world teleports a tick apart, which was
+                        // observed landing them above the ground at the final destination instead of on
+                        // it. Skipping it leaves a single clean teleport straight to the register-spawn
+                        // location; restore()'s gamemode/flight unfreeze still runs as normal.
+                        World registerSpawnWorld = config.isRegisterSpawnEnabled()
+                                ? Bukkit.getWorld(config.getRegisterSpawnWorld()) : null;
+                        if (registerSpawnWorld != null) {
+                            limboManager.discardOriginalLocation(player);
+                        }
+
                         markAuthenticated(player, true);
                         lang.showTitle(player, "title.register-success-main", "title.register-success-sub");
                         log.database(player.getUniqueId(), "REGISTER_SUCCESS", player.getName(), ip);
                         SoundUtils.success(player);
                         if (config.isRegisterSpawnEnabled()) {
-                            // markAuthenticated() above calls limboManager.restore(), which - since this
-                            // player was frozen in limbo during registration - schedules its OWN
-                            // teleport-back-to-original-location one tick from now. Teleporting to the
-                            // register-spawn world right here in this same tick would just get silently
-                            // overwritten by that delayed restore, dropping the freshly registered player
-                            // back into the default world instead. Landing two ticks out guarantees this
-                            // runs strictly after restore()'s one-tick-later teleport.
-                            Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                                if (!player.isOnline()) return;
-                                String spawnWorldName = config.getRegisterSpawnWorld();
-                                World spawnWorld = Bukkit.getWorld(spawnWorldName);
-                                if (spawnWorld != null) {
-                                    player.teleport(spawnWorld.getSpawnLocation());
+                            if (registerSpawnWorld != null) {
+                                // markAuthenticated() above calls limboManager.restore(), which defers its
+                                // gamemode/flight unfreeze by a tick via the scheduler. Landing two ticks
+                                // out guarantees this runs strictly after that, so our SURVIVAL below isn't
+                                // clobbered by restore() putting the player's pre-freeze gamemode back.
+                                Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                                    if (!player.isOnline()) return;
+                                    player.teleport(registerSpawnWorld.getSpawnLocation());
                                     player.setGameMode(GameMode.SURVIVAL);
-                                } else {
-                                    log.warnKey("log.register-spawn-world-missing",
-                                            Map.of("world", spawnWorldName, "player", player.getName()));
-                                }
-                            }, 2L);
+                                }, 2L);
+                            } else {
+                                log.warnKey("log.register-spawn-world-missing",
+                                        Map.of("world", config.getRegisterSpawnWorld(), "player", player.getName()));
+                            }
                         }
                     });
                 }).thenApply(v -> true);
