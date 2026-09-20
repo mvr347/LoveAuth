@@ -250,15 +250,25 @@ public final class AuthManager {
                         log.database(player.getUniqueId(), "REGISTER_SUCCESS", player.getName(), ip);
                         SoundUtils.success(player);
                         if (config.isRegisterSpawnEnabled()) {
-                            String spawnWorldName = config.getRegisterSpawnWorld();
-                            World spawnWorld = Bukkit.getWorld(spawnWorldName);
-                            if (spawnWorld != null) {
-                                player.teleport(spawnWorld.getSpawnLocation());
-                                player.setGameMode(GameMode.SURVIVAL);
-                            } else {
-                                log.warnKey("log.register-spawn-world-missing",
-                                        Map.of("world", spawnWorldName, "player", player.getName()));
-                            }
+                            // markAuthenticated() above calls limboManager.restore(), which - since this
+                            // player was frozen in limbo during registration - schedules its OWN
+                            // teleport-back-to-original-location one tick from now. Teleporting to the
+                            // register-spawn world right here in this same tick would just get silently
+                            // overwritten by that delayed restore, dropping the freshly registered player
+                            // back into the default world instead. Landing two ticks out guarantees this
+                            // runs strictly after restore()'s one-tick-later teleport.
+                            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                                if (!player.isOnline()) return;
+                                String spawnWorldName = config.getRegisterSpawnWorld();
+                                World spawnWorld = Bukkit.getWorld(spawnWorldName);
+                                if (spawnWorld != null) {
+                                    player.teleport(spawnWorld.getSpawnLocation());
+                                    player.setGameMode(GameMode.SURVIVAL);
+                                } else {
+                                    log.warnKey("log.register-spawn-world-missing",
+                                            Map.of("world", spawnWorldName, "player", player.getName()));
+                                }
+                            }, 2L);
                         }
                     });
                 }).thenApply(v -> true);
