@@ -201,13 +201,13 @@ final class LoginInterceptHandler extends ChannelInboundHandlerAdapter {
     }
 
     private void completePremium(ChannelHandlerContext ctx, NmsHandles handles, MojangSessionClient.MojangProfile profile) throws Exception {
-        Object gameProfile = manager.buildVerifiedProfile(profile.id(), profile.name(), profile.properties());
+        Object gameProfile = manager.buildVerifiedProfile(handles, profile.id(), profile.name(), profile.properties());
         finishLogin(ctx, handles, gameProfile);
     }
 
     private void completeOffline(ChannelHandlerContext ctx, NmsHandles handles, String name) throws Exception {
         UUID offlineId = UUID.nameUUIDFromBytes(("OfflinePlayer:" + name).getBytes(StandardCharsets.UTF_8));
-        Object gameProfile = manager.buildVerifiedProfile(offlineId, name, List.of());
+        Object gameProfile = manager.buildVerifiedProfile(handles, offlineId, name, List.of());
         finishLogin(ctx, handles, gameProfile);
     }
 
