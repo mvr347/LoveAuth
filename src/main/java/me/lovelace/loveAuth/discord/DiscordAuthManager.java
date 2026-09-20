@@ -235,6 +235,7 @@ public final class DiscordAuthManager implements DiscordService {
     private void handleConfirmedAction(Player player, String action) {
         switch (action) {
             case "UNLINK" -> database.setDiscordId(player.getUniqueId(), null).thenRun(() -> {
+                uncacheLink(player.getUniqueId());
                 syncWithLoveCore(player.getUniqueId(), null);
                 lang.send(player, "discord.unlinked");
                 plugin.getLogManager().database(player.getUniqueId(), "DISCORD_UNLINK", player.getName(), auth.getIp(player));
@@ -248,6 +249,7 @@ public final class DiscordAuthManager implements DiscordService {
     private void handleConfirmedActionOffline(UUID u, String a) {
         if (a.equals("UNLINK")) {
             database.setDiscordId(u, null);
+            uncacheLink(u);
             syncWithLoveCore(u, null);
         }
         else if (a.equals("LOCK_ACCOUNT")) database.setLocked(u, true);
@@ -498,6 +500,7 @@ public final class DiscordAuthManager implements DiscordService {
                 database.findPlayerByDiscordId(dId).thenAccept(ex -> {
                     if (ex.isPresent() && !ex.get().uuid().equals(uuid)) { e.getChannel().sendMessage(lang.plain("discord.already-bound-other")).queue(); return; }
                     database.setDiscordId(uuid, dId).thenRun(() -> {
+                        cacheLink(uuid, dId);
                         syncWithLoveCore(uuid, dId);
                         e.getChannel().sendMessage(lang.plain("discord.link-success-dm")).queue();
                         Player p = Bukkit.getPlayer(uuid);
@@ -514,6 +517,7 @@ public final class DiscordAuthManager implements DiscordService {
                     if (r.isEmpty()) { e.getChannel().sendMessage(lang.plain("discord.not-bound-dm")).queue(); return; }
                     UUID unlinkingUuid = r.get().uuid();
                     database.setDiscordId(unlinkingUuid, null).thenRun(() -> {
+                        uncacheLink(unlinkingUuid);
                         syncWithLoveCore(unlinkingUuid, null);
                         e.getChannel().sendMessage(lang.plain("discord.unlinked-dm")).queue();
                     });
@@ -564,6 +568,7 @@ public final class DiscordAuthManager implements DiscordService {
         if (u != null) database.findPlayerByDiscordId(d).thenAccept(ex -> {
             if (ex.isPresent()) return;
             database.setDiscordId(u, d).thenRun(() -> {
+                cacheLink(u, d);
                 syncWithLoveCore(u, d);
                 Player p = Bukkit.getPlayer(u);
                 if (p != null) {
