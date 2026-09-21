@@ -176,7 +176,15 @@ public final class PremiumVerificationManager {
         return null;
     }
 
-    Object buildVerifiedProfile(UUID id, String name, List<MojangSessionClient.TextureProperty> properties) throws ReflectiveOperationException {
+    /**
+     * Takes {@code handles} as a parameter rather than reading the {@link #handles} field
+     * directly - the caller (LoginInterceptHandler) captured its own NmsHandles snapshot at
+     * the start of this connection and threads it through the whole handshake specifically so
+     * it stays valid even if the field gets nulled out by {@link #shutdown()} mid-handshake
+     * (e.g. a plugin disable/reload racing an in-flight Mojang session-server round trip).
+     * Reading the field here instead would reintroduce exactly that race as a NullPointerException.
+     */
+    Object buildVerifiedProfile(NmsHandles handles, UUID id, String name, List<MojangSessionClient.TextureProperty> properties) throws ReflectiveOperationException {
         if (properties.isEmpty()) {
             return handles.gameProfileCtor2.newInstance(id, name);
         }
