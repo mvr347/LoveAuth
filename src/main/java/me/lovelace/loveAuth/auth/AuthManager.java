@@ -394,8 +394,13 @@ public final class AuthManager {
     public CompletableFuture<Void> forceLogout(UUID uuid) { authenticated.remove(uuid); return sessionManager.invalidate(uuid); }
     public CompletableFuture<Boolean> forceLogin(UUID uuid) {
         Player p = Bukkit.getPlayer(uuid);
-        if (p != null) Bukkit.getScheduler().runTask(plugin, () -> markAuthenticated(p, true));
-        return CompletableFuture.completedFuture(p != null);
+        if (p == null) return CompletableFuture.completedFuture(false);
+        CompletableFuture<Boolean> future = new CompletableFuture<>();
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            markAuthenticated(p, true);
+            future.complete(true);
+        });
+        return future;
     }
     public CompletableFuture<Void> forceRegister(UUID uuid, String pass) {
         return supplyAsync(() -> SecurityUtils.hashPassword(pass, pepper, config))

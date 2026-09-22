@@ -47,13 +47,13 @@ public final class GuiClickListener implements Listener {
                     () -> auth.requestPasswordChange(player),
                     () -> accountGui.open());
             } else if (slot == 12) {
-                plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
+                plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> Bukkit.getScheduler().runTask(plugin, () -> {
                     if (record.map(r -> r.hasDiscord()).orElse(false)) {
                         plugin.getDiscordAuthManager().sendConfirmation(player, "REMOVE_PASSWORD");
                     } else {
                         plugin.getLangManager().send(player, "gui.account.delete-password-locked");
                     }
-                });
+                }));
             } else if (slot == 13) {
                 ClickType click = event.getClick();
                 if (!click.isLeftClick() && !click.isRightClick()) return;
@@ -113,14 +113,14 @@ public final class GuiClickListener implements Listener {
                     }
                 }));
             } else if (slot == 14) {
-                plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
+                plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> Bukkit.getScheduler().runTask(plugin, () -> {
                     if (record.map(r -> r.hasDiscord()).orElse(false)) {
                         boolean next = !record.get().passwordEnabled();
                         plugin.getDatabaseManager().setPasswordEnabled(player.getUniqueId(), next).thenRun(() -> Bukkit.getScheduler().runTask(plugin, discordGui::refresh));
                     } else {
                         plugin.getLangManager().send(player, "block.password-required");
                     }
-                });
+                }));
             }
             return;
         }
