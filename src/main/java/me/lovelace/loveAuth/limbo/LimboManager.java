@@ -18,21 +18,21 @@ import org.bukkit.generator.ChunkGenerator;
 import org.bukkit.generator.WorldInfo;
 import org.jetbrains.annotations.NotNull;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 
 public final class LimboManager {
+    /** Margin added on top of the configured auth timeout so the cache entry outlives the kick that's supposed to clear it. */
+    private static final long EXPIRY_MARGIN_SECONDS = 300;
     private final LoveAuth plugin;
     private final ConfigManager config;
     private final LangManager lang;
     private final LogManager log;
     private final Map<UUID, Location> originalLocations = new ConcurrentHashMap<>();
-    private final Cache<UUID, PlayerState> frozenPlayers = Caffeine.newBuilder()
-            .expireAfterWrite(1, TimeUnit.HOURS)
-            .build();
+    private final Cache<UUID, PlayerState> frozenPlayers;
     private World limboWorld;
 
     public LimboManager(LoveAuth plugin, ConfigManager config, LangManager lang, LogManager log) {
@@ -40,6 +40,9 @@ public final class LimboManager {
         this.config = config;
         this.lang = lang;
         this.log = log;
+        this.frozenPlayers = Caffeine.newBuilder()
+                .expireAfterWrite(Duration.ofSeconds(config.getAuthTimeoutSeconds() + EXPIRY_MARGIN_SECONDS))
+                .build();
     }
 
     public void initialize() {

@@ -64,9 +64,12 @@ public final class BruteForceProtection {
         long now = Instant.now().getEpochSecond();
         return database.getIpBlock(ip).thenCompose(record -> {
             boolean lockoutExpired = record.map(r -> r.blockedUntil() > 0L && r.blockedUntil() <= now).orElse(false);
-            int previous = lockoutExpired ? 0 : record.map(DatabaseManager.IpBlockRecord::attemptCount).orElseGet(() -> attempts.get(ip, unused -> 0));
-            int updated = previous + 1;
-            attempts.put(ip, updated);
+            if (lockoutExpired) {
+                attempts.put(ip, 0);
+            } else {
+                record.map(DatabaseManager.IpBlockRecord::attemptCount).ifPresent(count -> attempts.asMap().putIfAbsent(ip, count));
+            }
+            int updated = attempts.asMap().merge(ip, 1, Integer::sum);
             if (updated >= config.getMaxAttempts()) {
                 long until = now + TimeUnit.MINUTES.toSeconds(config.getLockoutDurationMinutes());
                 return database.saveIpBlock(ip, until, updated).thenApply(unused -> {
