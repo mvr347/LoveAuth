@@ -522,25 +522,6 @@ public final class DiscordAuthManager implements DiscordService {
                         e.getChannel().sendMessage(lang.plain("discord.unlinked-dm")).queue();
                     });
                 });
-            } else if (cmd.equals("/lock") || cmd.equals("/заблокировать")) { database.findPlayerByDiscordId(dId).thenAccept(r -> { if (r.isEmpty()) { e.getChannel().sendMessage(lang.plain("discord.not-bound-dm")).queue(); return; } database.setLocked(r.get().uuid(), true).thenRun(() -> { e.getChannel().sendMessage(lang.plain("discord.locked-dm")).queue(); Player p = Bukkit.getPlayer(r.get().uuid()); if (p != null) Bukkit.getScheduler().runTask(plugin, () -> p.kick(lang.component("block.account-locked"))); }); });
-            } else if (cmd.equals("/unlock") || cmd.equals("/разблокировать")) { database.findPlayerByDiscordId(dId).thenAccept(r -> { if (r.isEmpty()) { e.getChannel().sendMessage(lang.plain("discord.not-bound-dm")).queue(); return; } database.setLocked(r.get().uuid(), false).thenRun(() -> e.getChannel().sendMessage(lang.plain("discord.unlocked-dm")).queue()); });
-            } else if (cmd.equals("/password") || cmd.equals("/пароль")) {
-                if (args.length < 2) { e.getChannel().sendMessage("Usage: /password <change|delete|set> [pass]").queue(); return; }
-                database.findPlayerByDiscordId(dId).thenAccept(r -> {
-                    if (r.isEmpty()) { e.getChannel().sendMessage(lang.plain("discord.not-bound-dm")).queue(); return; }
-                    String sub = args[1].toLowerCase();
-                    if (sub.equals("change") || sub.equals("set") || sub.equals("изменить") || sub.equals("установить")) {
-                        if (args.length < 3) return;
-                        int minLength = Math.max(3, config.getMinPasswordLength());
-                        if (args[2].length() < minLength || args[2].length() > 25) { e.getChannel().sendMessage(lang.plain("register.password-length", Map.of("min", Integer.toString(minLength), "max", "25"))).queue(); return; }
-                        // Invalidate any existing session after a password change so a compromised
-                        // in-game session can't keep riding the old credentials.
-                        database.updatePassword(r.get().uuid(), SecurityUtils.hashPassword(args[2], plugin.getPepper(), config))
-                            .thenCompose(v -> auth.getSessionManager().invalidate(r.get().uuid()))
-                            .thenRun(() -> e.getChannel().sendMessage(lang.plain("discord.password-changed-dm")).queue());
-                    } else if (sub.equals("delete") || sub.equals("удалить")) database.setPasswordEnabled(r.get().uuid(), false).thenRun(() -> e.getChannel().sendMessage(lang.plain("discord.password-deleted-dm")).queue());
-                });
-            } else if (cmd.equals("/info") || cmd.equals("/инфо")) { database.findPlayerByDiscordId(dId).thenAccept(r -> { if (r.isEmpty()) { e.getChannel().sendMessage(lang.plain("discord.not-bound-dm")).queue(); return; } DatabaseManager.PlayerRecord pr = r.get(); plugin.getDatabaseManager().getAlts(pr.lastIp()).thenAccept(alts -> { EmbedBuilder eb = new EmbedBuilder().setTitle(lang.plain("discord.info-title")).addField(lang.plain("discord.info-player"), pr.username(), true).addField(lang.plain("discord.info-status"), pr.locked() ? "Locked" : "Active", true).addField("Alts", String.join(", ", alts), false).setColor(pr.locked() ? java.awt.Color.RED : java.awt.Color.GREEN); e.getChannel().sendMessageEmbeds(eb.build()).queue(); }); });
             } else if (cmd.equals("/help") || cmd.equals("/помощь")) e.getChannel().sendMessage(buildHelpMessage()).queue();
         }
 
@@ -556,31 +537,12 @@ public final class DiscordAuthManager implements DiscordService {
     }
 
     private String buildHelpMessage() {
-        StringBuilder sb = new StringBuilder().append(lang.plain("discord.help-header")).append("\n").append(lang.plain("discord.help-link")).append("\n").append(lang.plain("discord.help-unlink")).append("\n").append(lang.plain("discord.help-lock")).append("\n").append(lang.plain("discord.help-unlock")).append("\n").append(lang.plain("discord.help-password-change")).append("\n").append(lang.plain("discord.help-password-delete")).append("\n").append(lang.plain("discord.help-password-set")).append("\n").append(lang.plain("discord.help-info")).append("\n");
+        StringBuilder sb = new StringBuilder().append(lang.plain("discord.help-header")).append("\n").append(lang.plain("discord.help-link")).append("\n").append(lang.plain("discord.help-unlink")).append("\n");
         return sb.append(lang.plain("discord.help-help")).toString();
     }
 
     private String generateCode(int l) { String c = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; StringBuilder s = new StringBuilder(); for (int i = 0; i < l; i++) s.append(c.charAt(random.nextInt(c.length()))); return s.toString(); }
     private String generateNumericCode(int l) { String c = "ABCDEFGHJKLMNPQRSTUVWXYZ0123456789"; StringBuilder s = new StringBuilder(); for (int i = 0; i < l; i++) s.append(c.charAt(random.nextInt(c.length()))); return s.toString(); }
-
-    public void handleBotLinkCommand(String c, String d) {
-        UUID u = pendingLinks.remove(c);
-        if (u != null) database.findPlayerByDiscordId(d).thenAccept(ex -> {
-            if (ex.isPresent()) return;
-            database.setDiscordId(u, d).thenRun(() -> {
-                cacheLink(u, d);
-                syncWithLoveCore(u, d);
-                Player p = Bukkit.getPlayer(u);
-                if (p != null) {
-                    lang.send(p, "discord.bind-success");
-                    plugin.getLogManager().database(u, "DISCORD_LINK", p.getName(), auth.getIp(p));
-                    auth.markAuthenticated(p, true);
-                }
-            });
-        });
-    }
-
-    public void handleBotUnlockCommand(String d) { database.findPlayerByDiscordId(d).thenAccept(r -> { if (r.isPresent()) database.setLocked(r.get().uuid(), false); }); }
 
     public void syncWithLoveCore(UUID uuid, String discordId) {
         if (uuid == null) return;
