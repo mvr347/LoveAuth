@@ -310,6 +310,7 @@ commands:
   admin-help-info: "подробная информация об игроке"
   admin-help-session-reset: "сбросить сессию игрока"
   admin-help-delete: "удалить данные игрока"
+  admin-help-setfirstspawn: "установить точку первого спавна в текущей позиции"
   admin-help-amnesty: "снять все блокировки"
   admin-help-footer: "<gradient:#ff0000:#a855f7>══════════════════════════════</gradient>"
   password-changed: "{prefix}<green>Пароль успешно изменён."
@@ -338,6 +339,7 @@ commands:
   admin-delete-cancelled: "{prefix}<yellow>Удаление отменено."
   admin-delete-success: "{prefix}<green>Данные игрока <white>{player}</white> полностью удалены."
   admin-delete-kick: "{prefix}<red>Ваш аккаунт был удалён администратором."
+  admin-setfirstspawn-success: "{prefix}<green>Точка первого спавна установлена в вашей текущей позиции."
   amnesty-done: "{prefix}<green>Амнистия проведена: все блокировки сняты."
 
 # ── Title & Action Bar ────────────────────────

@@ -1,6 +1,9 @@
 package me.lovelace.loveAuth.config;
 
 import me.lovelace.loveAuth.LoveAuth;
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.configuration.file.FileConfiguration;
 
 import java.util.ArrayList;
@@ -111,6 +114,34 @@ public final class ConfigManager {
     public boolean isDiscordTicketsBridgeEnabled() { return config.getBoolean("discord.tickets-bridge.enabled", true); }
     public boolean isRegisterSpawnEnabled() { return config.getBoolean("register-spawn.enabled", false); }
     public String getRegisterSpawnWorld() { return config.getString("register-spawn.world", "spawn"); }
+
+    /**
+     * Exact first-spawn location set via {@code /loveauthadmin setfirstspawn}. Empty
+     * {@code register-spawn.location.world} means "not set" — falls back to
+     * {@link #getRegisterSpawnWorld()}'s world spawn (pre-existing behavior).
+     */
+    public Location getRegisterSpawnLocation() {
+        String worldName = config.getString("register-spawn.location.world", "");
+        if (worldName == null || worldName.isBlank()) return null;
+        World world = Bukkit.getWorld(worldName);
+        if (world == null) return null;
+        return new Location(world,
+                config.getDouble("register-spawn.location.x"),
+                config.getDouble("register-spawn.location.y"),
+                config.getDouble("register-spawn.location.z"),
+                (float) config.getDouble("register-spawn.location.yaw"),
+                (float) config.getDouble("register-spawn.location.pitch"));
+    }
+
+    public void setRegisterSpawnLocation(Location location) {
+        config.set("register-spawn.location.world", location.getWorld().getName());
+        config.set("register-spawn.location.x", location.getX());
+        config.set("register-spawn.location.y", location.getY());
+        config.set("register-spawn.location.z", location.getZ());
+        config.set("register-spawn.location.yaw", (double) location.getYaw());
+        config.set("register-spawn.location.pitch", (double) location.getPitch());
+        plugin.saveConfig();
+    }
     public boolean isAccountProfileEnabled() { return config.getBoolean("gui.account.show-profile", true); }
     public String getAccountBackCommand() { return config.getString("gui.account.back-command", ""); }
 }

@@ -253,9 +253,14 @@ public final class AuthManager {
                         // observed landing them above the ground at the final destination instead of on
                         // it. Skipping it leaves a single clean teleport straight to the register-spawn
                         // location; restore()'s gamemode/flight unfreeze still runs as normal.
-                        World registerSpawnWorld = config.isRegisterSpawnEnabled()
+                        // An exact location set via /loveauthadmin setfirstspawn takes priority over
+                        // the whole-world spawn point below - it's what an admin actually walked to
+                        // and captured, not just wherever /setworldspawn happens to point.
+                        org.bukkit.Location registerSpawnLocation = config.isRegisterSpawnEnabled()
+                                ? config.getRegisterSpawnLocation() : null;
+                        World registerSpawnWorld = (config.isRegisterSpawnEnabled() && registerSpawnLocation == null)
                                 ? Bukkit.getWorld(config.getRegisterSpawnWorld()) : null;
-                        if (registerSpawnWorld != null) {
+                        if (registerSpawnLocation != null || registerSpawnWorld != null) {
                             limboManager.discardOriginalLocation(player);
                         }
 
@@ -264,7 +269,13 @@ public final class AuthManager {
                         log.database(player.getUniqueId(), "REGISTER_SUCCESS", player.getName(), ip);
                         SoundUtils.success(player);
                         if (config.isRegisterSpawnEnabled()) {
-                            if (registerSpawnWorld != null) {
+                            if (registerSpawnLocation != null) {
+                                Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                                    if (!player.isOnline()) return;
+                                    player.teleport(registerSpawnLocation);
+                                    player.setGameMode(GameMode.SURVIVAL);
+                                }, 2L);
+                            } else if (registerSpawnWorld != null) {
                                 // markAuthenticated() above calls limboManager.restore(), which defers its
                                 // gamemode/flight unfreeze by a tick via the scheduler. Landing two ticks
                                 // out guarantees this runs strictly after that, so our SURVIVAL below isn't

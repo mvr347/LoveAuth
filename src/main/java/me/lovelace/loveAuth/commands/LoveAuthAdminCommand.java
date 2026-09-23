@@ -135,6 +135,14 @@ public final class LoveAuthAdminCommand implements CommandExecutor, TabCompleter
                 if (args.length < 2) return;
                 doDeletePlayer(sender, args[1]);
             }
+            case "setfirstspawn", "установитьпервыйспавн" -> {
+                if (!(sender instanceof Player player)) {
+                    lang.send(sender, "general.player-only");
+                    return;
+                }
+                plugin.getConfigManager().setRegisterSpawnLocation(player.getLocation());
+                lang.send(sender, "commands.admin-setfirstspawn-success");
+            }
             case "amnesty", "амнистия" -> {
                 plugin.getDatabaseManager().clearAllIpBlocks()
                     .thenCompose(unused -> plugin.getDatabaseManager().unlockAllAccounts())
@@ -179,6 +187,7 @@ public final class LoveAuthAdminCommand implements CommandExecutor, TabCompleter
         sendAdminEntry(sender, "info [игрок]", "commands.admin-help-info");
         sendAdminEntry(sender, "session reset [игрок]", "commands.admin-help-session-reset");
         sendAdminEntry(sender, "delete [игрок]", "commands.admin-help-delete");
+        sendAdminEntry(sender, "setfirstspawn", "commands.admin-help-setfirstspawn");
         sendAdminEntry(sender, "amnesty", "commands.admin-help-amnesty");
         sender.sendMessage(lang.component("commands.admin-help-footer"));
     }
@@ -192,7 +201,7 @@ public final class LoveAuthAdminCommand implements CommandExecutor, TabCompleter
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (command.getName().equalsIgnoreCase(LEGACY_COMMAND_NAME)) return List.of();
         if (!sender.hasPermission("loveauth.admin")) return List.of();
-        if (args.length == 1) return List.of("help", "reload", "unlock", "unblockip", "session", "info", "delete", "amnesty", "помощь", "перезагрузка", "разблокировать", "разблокироватьайпи", "сессия", "инфо", "удалить", "амнистия");
+        if (args.length == 1) return List.of("help", "reload", "unlock", "unblockip", "session", "info", "delete", "setfirstspawn", "amnesty", "помощь", "перезагрузка", "разблокировать", "разблокироватьайпи", "сессия", "инфо", "удалить", "установитьпервыйспавн", "амнистия");
         if (args.length == 2) {
             String sub = args[0].toLowerCase();
             if (sub.equals("unlock") || sub.equals("info") || sub.equals("delete") || sub.equals("разблокировать") || sub.equals("инфо") || sub.equals("удалить")) return null;
