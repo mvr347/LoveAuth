@@ -54,6 +54,8 @@ block:
   account-unlocked: "{prefix}<green>Аккаунт игрока <white>{player}</white> разблокирован."
   password-required: "{prefix}<red>Нельзя отключить пароль без привязанного Discord."
   password-login-disabled: "{prefix}<red>Вход по паролю недоступен: пароль не установлен."
+  discord-unlink-requires-password: "{prefix}<red>Нельзя отвязать Discord без установленного пароля - вы потеряете доступ к аккаунту."
+  premium-name-taken: "{prefix}<red>Это имя уже зарегистрировано лицензионным аккаунтом. Войдите через официальный клиент Minecraft."
 
 # ── Очередь ─────────────────────────────────
 queue:
