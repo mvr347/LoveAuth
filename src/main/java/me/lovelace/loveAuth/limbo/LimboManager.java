@@ -119,6 +119,10 @@ public final class LimboManager {
         if (!wasFrozen) return;
 
         Bukkit.getScheduler().runTask(plugin, () -> {
+            // Mirrors restoreAllFrozenSync()'s guard: if the player disconnected during this
+            // deferred tick, PlayerQuitListener's cleanup() already restored and persisted their
+            // real state - don't touch a stale Player reference on top of that.
+            if (!player.isOnline()) return;
             if (original != null && !original.getWorld().getName().equals(config.getLimboWorldName())) {
                 player.teleport(original);
             }

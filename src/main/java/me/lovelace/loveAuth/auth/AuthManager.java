@@ -205,6 +205,16 @@ public final class AuthManager {
                 .thenCompose(unused -> sessionManager.create(player.getUniqueId(), ip))
                 .thenCompose(unused -> database.updateLastLogin(player.getUniqueId(), ip))
                 .thenRun(() -> Bukkit.getScheduler().runTask(plugin, () -> {
+                    // If the player disconnected while this async chain (brute-force accounting,
+                    // session creation, last-login update) was still in flight, PlayerQuitListener
+                    // already ran AuthManager#cleanup + LimboManager#cleanup for them synchronously -
+                    // their real gamemode/flight/location is already restored and persisted. Calling
+                    // markAuthenticated() here anyway would still mutate the UUID-keyed authenticated
+                    // set for an offline player: it silently marks them pre-authenticated for their
+                    // NEXT join (suppressing PlayerAuthenticatedEvent on their real next login and
+                    // letting PlayerProtectionListener wave that new session through before they've
+                    // actually logged in again), without limbo ever having been (re-)frozen for it.
+                    if (!player.isOnline()) return;
                     markAuthenticated(player, false);
                     lang.send(player, "login.success");
                     lang.showTitle(player, "title.login-success-main", "title.login-success-sub");
@@ -215,6 +225,7 @@ public final class AuthManager {
 
     private CompletableFuture<Void> handleLoginFailure(Player player, String ip) {
         return bruteForce.recordFailure(player, player.getUniqueId(), ip).thenAccept(result -> Bukkit.getScheduler().runTask(plugin, () -> {
+            if (!player.isOnline()) return;
             if (result.type() == BruteForceProtection.FailureType.FAILED) {
                 lang.send(player, "login.fail", Map.of("attempts", Integer.toString(result.remainingAttempts())));
                 log.database(player.getUniqueId(), "LOGIN_FAIL", player.getName(), ip);
@@ -264,6 +275,11 @@ public final class AuthManager {
                             limboManager.discardOriginalLocation(player);
                         }
 
+                        // Same reasoning as handleLoginSuccess: if the player disconnected while the
+                        // register-password-hash/DB-write chain above was still running, PlayerQuitListener
+                        // already restored and persisted their real state via cleanup(). Don't mutate the
+                        // UUID-keyed authenticated set for them after the fact.
+                        if (!player.isOnline()) return;
                         markAuthenticated(player, true);
                         lang.showTitle(player, "title.register-success-main", "title.register-success-sub");
                         log.database(player.getUniqueId(), "REGISTER_SUCCESS", player.getName(), ip);
