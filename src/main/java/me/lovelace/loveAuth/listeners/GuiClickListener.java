@@ -184,10 +184,10 @@ public final class GuiClickListener implements Listener {
             int slot = event.getRawSlot();
             if (slot == 11) auth.requestRegistration(player);
             else if (slot == 13) plugin.getDiscordAuthManager().startBinding(player);
-            else if (slot == 15) auth.markAuthenticated(player, true);
+            else if (slot == 15) auth.completeNewAccountAuth(player);
             else if (slot == 26) {
                 if (!auth.isAuthenticated(player.getUniqueId())) {
-                    auth.markAuthenticated(player, true);
+                    auth.completeNewAccountAuth(player);
                     lang.send(player, "auth.premium-skip-reminder");
                 }
                 player.closeInventory();

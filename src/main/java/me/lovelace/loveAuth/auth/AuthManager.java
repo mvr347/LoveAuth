@@ -256,59 +256,79 @@ public final class AuthManager {
                     registeredCache.add(player.getUniqueId());
                     syncDiscordWithLoveCore(player.getUniqueId(), null);
                     Bukkit.getScheduler().runTask(plugin, () -> {
-                        // Resolve the register-spawn world (if any) before markAuthenticated() below,
-                        // and discard limbo's own pending "teleport back to original location" when it
-                        // resolved - "original" is meaningless for a brand-new registrant (just wherever
-                        // Bukkit happened to spawn them) and restoring it first only means the player
-                        // gets bounced through two rapid cross-world teleports a tick apart, which was
-                        // observed landing them above the ground at the final destination instead of on
-                        // it. Skipping it leaves a single clean teleport straight to the register-spawn
-                        // location; restore()'s gamemode/flight unfreeze still runs as normal.
-                        // An exact location set via /loveauthadmin setfirstspawn takes priority over
-                        // the whole-world spawn point below - it's what an admin actually walked to
-                        // and captured, not just wherever /setworldspawn happens to point.
-                        org.bukkit.Location registerSpawnLocation = config.isRegisterSpawnEnabled()
-                                ? config.getRegisterSpawnLocation() : null;
-                        World registerSpawnWorld = (config.isRegisterSpawnEnabled() && registerSpawnLocation == null)
-                                ? Bukkit.getWorld(config.getRegisterSpawnWorld()) : null;
-                        if (registerSpawnLocation != null || registerSpawnWorld != null) {
-                            limboManager.discardOriginalLocation(player);
-                        }
-
                         // Same reasoning as handleLoginSuccess: if the player disconnected while the
                         // register-password-hash/DB-write chain above was still running, PlayerQuitListener
                         // already restored and persisted their real state via cleanup(). Don't mutate the
-                        // UUID-keyed authenticated set for them after the fact.
-                        if (!player.isOnline()) return;
-                        markAuthenticated(player, true);
+                        // UUID-keyed authenticated set for them after the fact - completeNewAccountAuth()
+                        // itself guards on isOnline() first for exactly this reason.
+                        completeNewAccountAuth(player);
                         lang.showTitle(player, "title.register-success-main", "title.register-success-sub");
                         log.database(player.getUniqueId(), "REGISTER_SUCCESS", player.getName(), ip);
                         SoundUtils.success(player);
-                        if (config.isRegisterSpawnEnabled()) {
-                            if (registerSpawnLocation != null) {
-                                Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                                    if (!player.isOnline()) return;
-                                    player.teleport(registerSpawnLocation);
-                                    player.setGameMode(GameMode.SURVIVAL);
-                                }, 2L);
-                            } else if (registerSpawnWorld != null) {
-                                // markAuthenticated() above calls limboManager.restore(), which defers its
-                                // gamemode/flight unfreeze by a tick via the scheduler. Landing two ticks
-                                // out guarantees this runs strictly after that, so our SURVIVAL below isn't
-                                // clobbered by restore() putting the player's pre-freeze gamemode back.
-                                Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                                    if (!player.isOnline()) return;
-                                    player.teleport(registerSpawnWorld.getSpawnLocation());
-                                    player.setGameMode(GameMode.SURVIVAL);
-                                }, 2L);
-                            } else {
-                                log.warnKey("log.register-spawn-world-missing",
-                                        Map.of("world", config.getRegisterSpawnWorld(), "player", player.getName()));
-                            }
-                        }
                     });
                 }).thenApply(v -> true);
         }).exceptionally(e -> { registrationLock.remove(name); return false; });
+    }
+
+    /**
+     * Finishes authentication for a brand-new account - any path that just created a DB row for
+     * this player for the first time (password registration, or the premium-skip GUI's "skip"/
+     * close-without-setup completion), not just the password-registration flow. All of these are
+     * "first spawn" moments and must honor {@code register-spawn.*} the same way; before this was
+     * split out, only the password path did, so a premium-skip player landed wherever limbo's
+     * "original location" pointed - the raw un-set world spawn (0, ~64, 0) for a truly new player -
+     * instead of either configured spawn, even with both an admin setfirstspawn location and a
+     * world spawn point configured.
+     */
+    public void completeNewAccountAuth(Player player) {
+        // Mirrors handleLoginSuccess/register()'s own disconnect-race guard: a caller reaching
+        // this after an async chain (DB write, Discord link, etc.) may find the player already
+        // gone - PlayerQuitListener's cleanup() already restored/persisted their real state, so
+        // don't mutate the UUID-keyed authenticated set or teleport a stale Player reference.
+        if (!player.isOnline()) return;
+
+        // Resolve the register-spawn world (if any) before markAuthenticated() below,
+        // and discard limbo's own pending "teleport back to original location" when it
+        // resolved - "original" is meaningless for a brand-new registrant (just wherever
+        // Bukkit happened to spawn them) and restoring it first only means the player
+        // gets bounced through two rapid cross-world teleports a tick apart, which was
+        // observed landing them above the ground at the final destination instead of on
+        // it. Skipping it leaves a single clean teleport straight to the register-spawn
+        // location; restore()'s gamemode/flight unfreeze still runs as normal.
+        // An exact location set via /loveauthadmin setfirstspawn takes priority over
+        // the whole-world spawn point below - it's what an admin actually walked to
+        // and captured, not just wherever /setworldspawn happens to point.
+        org.bukkit.Location registerSpawnLocation = config.isRegisterSpawnEnabled()
+                ? config.getRegisterSpawnLocation() : null;
+        World registerSpawnWorld = (config.isRegisterSpawnEnabled() && registerSpawnLocation == null)
+                ? Bukkit.getWorld(config.getRegisterSpawnWorld()) : null;
+        if (registerSpawnLocation != null || registerSpawnWorld != null) {
+            limboManager.discardOriginalLocation(player);
+        }
+
+        markAuthenticated(player, true);
+        if (config.isRegisterSpawnEnabled()) {
+            if (registerSpawnLocation != null) {
+                Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                    if (!player.isOnline()) return;
+                    player.teleport(registerSpawnLocation);
+                    player.setGameMode(GameMode.SURVIVAL);
+                }, 2L);
+            } else if (registerSpawnWorld != null) {
+                // markAuthenticated() above calls limboManager.restore(), which defers its
+                // gamemode/flight unfreeze by a tick via the scheduler. Landing two ticks
+                // out guarantees this runs strictly after that, so our SURVIVAL below isn't
+                // clobbered by restore() putting the player's pre-freeze gamemode back.
+                Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                    if (!player.isOnline()) return;
+                    player.teleport(registerSpawnWorld.getSpawnLocation());
+                    player.setGameMode(GameMode.SURVIVAL);
+                }, 2L);
+            } else {
+                log.warnKey("log.register-spawn-world-missing",
+                        Map.of("world", config.getRegisterSpawnWorld(), "player", player.getName()));
+            }
+        }
     }
 
     public boolean validatePassword(Player player, String password) {
