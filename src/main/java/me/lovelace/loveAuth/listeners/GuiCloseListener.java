@@ -26,7 +26,7 @@ public final class GuiCloseListener implements Listener {
             InventoryCloseEvent.Reason reason = event.getReason();
             if (reason == InventoryCloseEvent.Reason.PLAYER || reason == InventoryCloseEvent.Reason.UNKNOWN) {
                 if (!plugin.getAuthManager().isAuthenticated(player.getUniqueId())) {
-                    plugin.getAuthManager().markAuthenticated(player, true);
+                    plugin.getAuthManager().completeNewAccountAuth(player);
                     plugin.getLangManager().send(player, "auth.premium-skip-reminder");
                 }
             }
