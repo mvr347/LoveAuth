@@ -33,6 +33,15 @@ public final class LimboManager {
     private final LogManager log;
     private final Map<UUID, Location> originalLocations = new ConcurrentHashMap<>();
     private final Cache<UUID, PlayerState> frozenPlayers;
+    // Plain key set mirrored alongside frozenPlayers, read-only by restoreAllFrozenSync() at
+    // shutdown. That was the ONLY call site in the whole class that ever touched
+    // frozenPlayers.asMap().keySet() - and calling it for the first time ever, on the main
+    // thread, inside onDisable() during a full server stop, crashed with NoClassDefFoundError
+    // on the shaded/relocated Caffeine's BoundedLocalCache$KeySetView (2026-09-25 production
+    // log): its class had never been loaded before and by then the plugin's classloader can no
+    // longer resolve it. A plain JDK Set needs no lazy classloading of Caffeine's internal view
+    // classes, so restoreAllFrozenSync() now reads this instead of ever calling keySet().
+    private final java.util.Set<UUID> frozenUuids = ConcurrentHashMap.newKeySet();
     private World limboWorld;
 
     public LimboManager(LoveAuth plugin, ConfigManager config, LangManager lang, LogManager log) {
@@ -92,6 +101,7 @@ public final class LimboManager {
                 player.getAllowFlight(), player.isFlying(), player.isInvulnerable(), player.isInvisible()
         );
         frozenPlayers.put(player.getUniqueId(), state);
+        frozenUuids.add(player.getUniqueId());
 
         player.setGameMode(GameMode.ADVENTURE);
         player.setAllowFlight(true);
@@ -174,7 +184,7 @@ public final class LimboManager {
      * synchronously, right now, instead of scheduling anything.
      */
     public void restoreAllFrozenSync() {
-        for (UUID uuid : new java.util.ArrayList<>(frozenPlayers.asMap().keySet())) {
+        for (UUID uuid : new java.util.ArrayList<>(frozenUuids)) {
             Player player = Bukkit.getPlayer(uuid);
             if (player == null || !player.isOnline()) continue;
             Location original = originalLocations.remove(uuid);
@@ -197,6 +207,7 @@ public final class LimboManager {
         player.setInvulnerable(state.isInvulnerable());
         player.setInvisible(state.isInvisible());
         frozenPlayers.invalidate(player.getUniqueId());
+        frozenUuids.remove(player.getUniqueId());
     }
 
     private static class VoidGenerator extends ChunkGenerator {
