@@ -37,6 +37,8 @@ public final class SessionManager {
     public void reload() {
         this.sessions = Caffeine.newBuilder()
                 .expireAfterWrite(28, TimeUnit.DAYS)
+                // Safety cap for the 28-day window; an evicted session is simply re-read from the database.
+                .maximumSize(100_000)
                 .build();
     }
 

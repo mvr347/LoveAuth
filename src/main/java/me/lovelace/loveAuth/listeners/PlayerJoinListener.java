@@ -18,6 +18,11 @@ public final class PlayerJoinListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-        Bukkit.getScheduler().runTaskLater(plugin, () -> plugin.getQueueManager().addToQueue(player), 1L);
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            // A fast reconnect or a bot scan can drop the connection within this one tick; queueing an
+            // offline player would leave a ghost slot and open the queue GUI on a stale Player.
+            if (!player.isOnline()) return;
+            plugin.getQueueManager().addToQueue(player);
+        }, 1L);
     }
 }
