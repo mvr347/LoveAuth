@@ -10,6 +10,7 @@ public final class RateLimiter {
     private static final Duration WINDOW = Duration.ofSeconds(10);
     private final Cache<String, Integer> attempts = Caffeine.newBuilder()
             .expireAfterWrite(WINDOW)
+            .maximumSize(50_000)
             .build();
 
     public boolean tryConsume(String ip) {

@@ -26,6 +26,10 @@ public final class BruteForceProtection {
     private final LogManager log;
     private final Cache<String, Integer> attempts = Caffeine.newBuilder()
             .expireAfterWrite(2, TimeUnit.HOURS)
+            // TTL alone does not bound the number of distinct keys: a flood from many IPs within the 2 h
+            // window would grow this without limit. Caffeine's eviction favours frequently hit keys, so an
+            // IP that is actually brute-forcing stays tracked.
+            .maximumSize(50_000)
             .build();
 
     public BruteForceProtection(LoveAuth plugin, ConfigManager config, DatabaseManager database, SecretKey masterKey, LogManager log) {
