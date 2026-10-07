@@ -62,6 +62,14 @@ public final class GuiManager {
     public void openAccount(Player player, String returnCommand) { if (!checkCooldown(player)) new AccountGui(player, lang, auth, config, returnCommand != null).open(); }
     public void openQueue(Player player) { if (!checkCooldown(player)) new QueueGui(player, lang, queue).open(); }
 
+    /** Reopens an auth menu closed by the client itself; bypasses the click cooldown on purpose. */
+    public void reopenAuthMenu(Player player, org.bukkit.inventory.InventoryHolder holder) {
+        if (holder instanceof RegisterGui) new RegisterGui(player, lang, auth).open();
+        else if (holder instanceof AuthMethodGui) new AuthMethodGui(player, lang, config, auth, discord).open();
+        else if (holder instanceof PasswordGui) new PasswordGui(player, lang, auth).open();
+        else if (holder instanceof DiscordGui) new DiscordGui(player, lang, config, discord, auth).open();
+    }
+
     public void openConfirm(Player player, String descriptionKey, Runnable onConfirm, Runnable onCancel) {
         if (!checkCooldown(player)) new ConfirmGui(player, lang, descriptionKey, onConfirm, onCancel).open();
     }

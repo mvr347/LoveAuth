@@ -30,6 +30,10 @@ public final class ChatInputHandler implements Listener {
         this.lang = lang;
     }
 
+    public boolean isAwaiting(Player player) {
+        return awaitingInput.containsKey(player.getUniqueId());
+    }
+
     public void awaitInput(Player player, String promptKey, Consumer<String> callback) {
         cleanup(player.getUniqueId());
         lang.sendActionBar(player, promptKey, Collections.emptyMap());

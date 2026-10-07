@@ -16,6 +16,8 @@ import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.generator.ChunkGenerator;
 import org.bukkit.generator.WorldInfo;
+import org.bukkit.NamespacedKey;
+import org.bukkit.persistence.PersistentDataType;
 import org.jetbrains.annotations.NotNull;
 
 import java.time.Duration;
@@ -43,12 +45,20 @@ public final class LimboManager {
     // classes, so restoreAllFrozenSync() now reads this instead of ever calling keySet().
     private final java.util.Set<UUID> frozenUuids = ConcurrentHashMap.newKeySet();
     private World limboWorld;
+    // Players currently being moved by this manager itself. PlayerProtectionListener.onTeleport
+    // cancels every teleport of an unauthenticated player out of limbo - including cleanup()'s
+    // teleport back on quit, which silently lost the return point and stranded players in limbo.
+    private final java.util.Set<UUID> teleportBypass = ConcurrentHashMap.newKeySet();
+    // Players whose location will be set by someone else right after restore() (register-spawn).
+    private final java.util.Set<UUID> skipLocationRestore = ConcurrentHashMap.newKeySet();
+    private final NamespacedKey returnKey;
 
     public LimboManager(LoveAuth plugin, ConfigManager config, LangManager lang, LogManager log) {
         this.plugin = plugin;
         this.config = config;
         this.lang = lang;
         this.log = log;
+        this.returnKey = new NamespacedKey("loveauth", "return_location");
         this.frozenPlayers = Caffeine.newBuilder()
                 .expireAfterWrite(Duration.ofSeconds(config.getAuthTimeoutSeconds() + EXPIRY_MARGIN_SECONDS))
                 .build();
@@ -80,17 +90,94 @@ public final class LimboManager {
         log.infoKey("log.limbo-created", Map.of("world", worldName));
     }
 
-    public void sendToLimbo(Player player) {
-        if (!config.isLimboEnabled() || limboWorld == null) return;
-        
+    /** @return true if this was a cross-world teleport (client shows a loading screen). */
+    public boolean sendToLimbo(Player player) {
+        if (!config.isLimboEnabled() || limboWorld == null) return false;
+
         Location loc = player.getLocation();
-        if (!loc.getWorld().getName().equals(config.getLimboWorldName())) {
+        boolean crossWorld = !isLimboWorld(loc.getWorld());
+        if (crossWorld) {
             originalLocations.put(player.getUniqueId(), loc);
+            saveReturnLocation(player, loc);
         }
-        
+
         freeze(player);
-        Location limboLocation = new Location(limboWorld, 0.5, 100, 0.5);
-        player.teleport(limboLocation);
+        teleport(player, new Location(limboWorld, 0.5, 100, 0.5));
+        return crossWorld;
+    }
+
+    public boolean isTeleportBypassed(UUID uuid) {
+        return teleportBypass.contains(uuid);
+    }
+
+    private boolean isLimboWorld(World world) {
+        return world != null && world.getName().equals(config.getLimboWorldName());
+    }
+
+    /** Teleport issued by this manager: exempt from PlayerProtectionListener's cancel. */
+    private boolean teleport(Player player, Location target) {
+        UUID uuid = player.getUniqueId();
+        teleportBypass.add(uuid);
+        try {
+            return player.teleport(target);
+        } finally {
+            teleportBypass.remove(uuid);
+        }
+    }
+
+    private void saveReturnLocation(Player player, Location loc) {
+        String encoded = ReturnLocationCodec.encode(new ReturnLocationCodec.Point(
+                loc.getWorld().getName(), loc.getX(), loc.getY(), loc.getZ(), loc.getYaw(), loc.getPitch()));
+        if (encoded != null) {
+            player.getPersistentDataContainer().set(returnKey, PersistentDataType.STRING, encoded);
+        }
+    }
+
+    private Location readReturnLocation(Player player) {
+        String raw = player.getPersistentDataContainer().get(returnKey, PersistentDataType.STRING);
+        ReturnLocationCodec.Point p = ReturnLocationCodec.decode(raw);
+        if (p == null) return null;
+        World world = Bukkit.getWorld(p.world());
+        if (world == null || isLimboWorld(world)) return null;
+        return new Location(world, p.x(), p.y(), p.z(), p.yaw(), p.pitch());
+    }
+
+    private void clearReturnLocation(Player player) {
+        player.getPersistentDataContainer().remove(returnKey);
+    }
+
+    /** Memory first, then the PDC copy that survives quits and restarts. */
+    private Location resolveReturnLocation(Player player, Location fromMemory) {
+        if (fromMemory != null && fromMemory.getWorld() != null && !isLimboWorld(fromMemory.getWorld())) return fromMemory;
+        return readReturnLocation(player);
+    }
+
+    /** limbo.fallback-world, else register-spawn.world, else the first non-limbo world. */
+    private Location fallbackSpawn() {
+        for (String name : new String[]{config.getLimboFallbackWorld(), config.getRegisterSpawnWorld()}) {
+            if (name == null || name.isBlank()) continue;
+            World w = Bukkit.getWorld(name);
+            if (w != null && !isLimboWorld(w)) return w.getSpawnLocation();
+        }
+        for (World w : Bukkit.getWorlds()) {
+            if (!isLimboWorld(w)) return w.getSpawnLocation();
+        }
+        return null;
+    }
+
+    /**
+     * Moves an authenticated player out of limbo: saved return point, else fallback spawn.
+     * Does nothing for a player not standing in the limbo world (beyond dropping a stale PDC entry).
+     */
+    private void leaveLimbo(Player player, Location fromMemory) {
+        if (!isLimboWorld(player.getWorld())) {
+            clearReturnLocation(player);
+            return;
+        }
+        Location target = resolveReturnLocation(player, fromMemory);
+        if (target == null) target = fallbackSpawn();
+        if (target == null) return;
+        if (teleport(player, target)) clearReturnLocation(player);
     }
 
     public void freeze(Player player) {
@@ -126,17 +213,22 @@ public final class LimboManager {
         boolean wasFrozen = frozenPlayers.getIfPresent(uuid) != null;
         Location original = originalLocations.remove(uuid);
 
-        if (!wasFrozen) return;
+        boolean skipLocation = skipLocationRestore.remove(uuid);
 
         Bukkit.getScheduler().runTask(plugin, () -> {
             // Mirrors restoreAllFrozenSync()'s guard: if the player disconnected during this
             // deferred tick, PlayerQuitListener's cleanup() already restored and persisted their
             // real state - don't touch a stale Player reference on top of that.
             if (!player.isOnline()) return;
-            if (original != null && !original.getWorld().getName().equals(config.getLimboWorldName())) {
-                player.teleport(original);
+            // Runs for every auth path, frozen or not: a player who quit while in limbo (or whose
+            // return teleport was once cancelled) can rejoin standing in limbo with a valid
+            // session, and nothing else would ever move them out.
+            if (skipLocation) {
+                clearReturnLocation(player);
+            } else {
+                leaveLimbo(player, original);
             }
-            unfreeze(player);
+            if (wasFrozen) unfreeze(player);
         });
     }
 
@@ -153,6 +245,7 @@ public final class LimboManager {
      */
     public void discardOriginalLocation(Player player) {
         originalLocations.remove(player.getUniqueId());
+        skipLocationRestore.add(player.getUniqueId());
     }
 
     public void cleanup(Player player) {
@@ -163,13 +256,15 @@ public final class LimboManager {
             // disconnect time, so without this teleport their playerdata would save the
             // limbo coordinates - permanently losing their real location, since
             // originalLocations is in-memory only and gets cleared right below.
-            Location original = originalLocations.get(uuid);
-            if (original != null && !original.getWorld().getName().equals(config.getLimboWorldName())) {
-                player.teleport(original);
+            // The PDC copy is kept on failure, so the next join's restore() still finds it.
+            Location original = resolveReturnLocation(player, originalLocations.get(uuid));
+            if (original != null && teleport(player, original)) {
+                clearReturnLocation(player);
             }
             unfreeze(player);
         }
         originalLocations.remove(uuid);
+        skipLocationRestore.remove(uuid);
     }
 
     /**
@@ -187,9 +282,9 @@ public final class LimboManager {
         for (UUID uuid : new java.util.ArrayList<>(frozenUuids)) {
             Player player = Bukkit.getPlayer(uuid);
             if (player == null || !player.isOnline()) continue;
-            Location original = originalLocations.remove(uuid);
-            if (original != null && !original.getWorld().getName().equals(config.getLimboWorldName())) {
-                player.teleport(original);
+            Location original = resolveReturnLocation(player, originalLocations.remove(uuid));
+            if (original != null && teleport(player, original)) {
+                clearReturnLocation(player);
             }
             unfreeze(player);
         }
