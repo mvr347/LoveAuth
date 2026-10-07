@@ -101,6 +101,10 @@ public final class ConfigManager {
     public int getQueueMaxPlayers() { return config.getInt("queue.max-players", 100); }
     public boolean isLimboEnabled() { return config.getBoolean("limbo.enabled", true); }
     public String getLimboWorldName() { return config.getString("limbo.world-name", "loveauth_limbo"); }
+    /** Blank means "use register-spawn.world, else the first non-limbo world". */
+    public String getLimboFallbackWorld() { return config.getString("limbo.fallback-world", ""); }
+    public int getMenuOpenDelayTicks() { return Math.max(1, config.getInt("auth.menu-open-delay-ticks", 10)); }
+    public long getCloseGraceMs() { return Math.max(0L, config.getLong("auth.close-grace-ms", 2000L)); }
     public boolean isDiscordEnabled() { return config.getBoolean("discord.enabled", false); }
     public String getDiscordBotToken() { return config.getString("discord.bot-token", ""); }
     public String getDiscordGuildId() { return config.getString("discord.guild-id", ""); }

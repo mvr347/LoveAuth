@@ -47,7 +47,9 @@ public final class PlayerProtectionListener implements Listener {
     public void onTeleport(PlayerTeleportEvent event) {
         Player player = event.getPlayer();
         if (plugin.getAuthManager().isAuthenticated(player.getUniqueId())) return;
-        
+        // LimboManager's own moves (into limbo, back out on quit/shutdown) must never be cancelled.
+        if (plugin.getLimboManager().isTeleportBypassed(player.getUniqueId())) return;
+
         Location to = event.getTo();
         if (to == null || to.getWorld() == null) {
             event.setCancelled(true);

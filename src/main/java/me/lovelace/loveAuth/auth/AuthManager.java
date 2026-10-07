@@ -109,13 +109,14 @@ public final class AuthManager {
                 log.database(player.getUniqueId(), "SESSION_RESTORE", player.getName(), ip);
                 return;
             }
-            limboManager.sendToLimbo(player);
+            boolean crossWorld = limboManager.sendToLimbo(player);
             startTimeout(player);
 
             // Opening an inventory in the same tick as the limbo teleport is unreliable -
             // the client is still processing the dimension-change/respawn packet and may
-            // silently ignore the open-screen packet. Defer by a tick so the teleport has
-            // fully landed client-side before any GUI is shown.
+            // silently ignore the open-screen packet. After a cross-world teleport even one
+            // tick is too short: the client is on the world-loading screen and closes the
+            // menu itself, which GuiCloseListener used to treat as a deliberate close.
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 if (!player.isOnline()) return;
 
@@ -148,7 +149,7 @@ public final class AuthManager {
                 } else {
                     plugin.getGuiManager().openAuthMethod(player);
                 }
-            }, 1L);
+            }, menuOpenDelay(crossWorld));
         }));
     }
 
@@ -163,7 +164,7 @@ public final class AuthManager {
     }
 
     private void handleFirstJoin(Player player) {
-        limboManager.sendToLimbo(player);
+        boolean crossWorld = limboManager.sendToLimbo(player);
         startTimeout(player);
 
         // See the comment in handleKnownPlayer: defer the GUI open by a tick so it
@@ -180,7 +181,11 @@ public final class AuthManager {
             } else {
                 plugin.getGuiManager().openRegister(player);
             }
-        }, 1L);
+        }, menuOpenDelay(crossWorld));
+    }
+
+    private long menuOpenDelay(boolean crossWorld) {
+        return crossWorld ? config.getMenuOpenDelayTicks() : 1L;
     }
 
     public boolean isPremium(Player player) {
