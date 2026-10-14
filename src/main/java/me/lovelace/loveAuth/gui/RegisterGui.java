@@ -26,19 +26,27 @@ public final class RegisterGui implements LoveAuthHolder {
         GuiManager.standardFrame27(inventory, lang);
         inventory.setItem(0, GuiManager.playerHead(player, lang));
 
+        boolean discordEnabled = auth.getPlugin().getConfigManager().isDiscordEnabled();
+        int[] slots = slots(discordEnabled);
+
         ItemStack register = HeadTextures.createSkull(HeadTextures.HEAD_PASSWORD,
                 lang.component("gui.register.register-button"), lang.lore("gui.register.register-lore"));
-        inventory.setItem(12, register);
+        inventory.setItem(slots[0], register);
 
-        if (auth.getPlugin().getConfigManager().isDiscordEnabled()) {
+        if (discordEnabled) {
             ItemStack discord = HeadTextures.createSkull(HeadTextures.HEAD_DISCORD,
                     lang.component("gui.discord.bind-button"), lang.lore("gui.discord.bind-lore"));
-            inventory.setItem(14, discord);
+            inventory.setItem(slots[1], discord);
         }
 
         GuiManager.applyFooter27(inventory, lang, false);
 
         player.openInventory(inventory);
+    }
+
+    /** Button slots: the register button first, then Discord when it is enabled - always centred. */
+    public static int[] slots(boolean discordEnabled) {
+        return GuiManager.centeredRow(9, discordEnabled ? 2 : 1);
     }
 
     @Override

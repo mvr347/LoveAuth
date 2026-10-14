@@ -18,7 +18,18 @@ import java.util.List;
 import java.util.Map;
 
 public final class AccountGui implements LoveAuthHolder {
-    private static final int SIZE = 27;
+    // 36 slots: header, two work rows of three centred buttons, footer (gui_gen v2.1).
+    //   row 1 (9-17):  password | delete password | session
+    //   row 2 (18-26): login method | Discord | log out
+    // Every button is always present (an unavailable one is a grey button with its reason), so the
+    // grid never changes shape depending on the account state.
+    private static final int SIZE = 36;
+    public static final int SLOT_CHANGE_PASSWORD = 11;
+    public static final int SLOT_DELETE_PASSWORD = 13;
+    public static final int SLOT_SESSION = 15;
+    public static final int SLOT_LOGIN_METHOD = 20;
+    public static final int SLOT_DISCORD = 22;
+    public static final int SLOT_LOGOUT = 24;
     public static final int BACK_SLOT = SIZE - 2;
     public static final int CLOSE_SLOT = SIZE - 1;
 
@@ -52,7 +63,7 @@ public final class AccountGui implements LoveAuthHolder {
     }
 
     public void refresh() {
-        GuiManager.standardFrame27(inventory, lang);
+        GuiManager.standardFrame36(inventory, lang);
         // Слот 0 (профиль) и кнопка "Назад" видны только в embedded-режиме (открыто со
         // скрытым аргументом — меню встроено кнопкой в чьё-то DeluxeMenus-меню), и только
         // если это не отключено в config.yml. Обычный "/loveauth account" остаётся
@@ -64,6 +75,9 @@ public final class AccountGui implements LoveAuthHolder {
             inventory.setItem(0, GuiManager.glassPane(lang));
         }
 
+        // Footer right away (not after the database round trip): Close must exist even if the lookup is slow.
+        GuiManager.applyFooter36(inventory, lang, embedded);
+
         auth.getPlugin().getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
             if (record.isEmpty()) return;
             DatabaseManager.PlayerRecord pr = record.get();
@@ -71,23 +85,25 @@ public final class AccountGui implements LoveAuthHolder {
             Bukkit.getScheduler().runTask(auth.getPlugin(), () -> {
                 boolean hasDiscord = pr.hasDiscord();
 
-                // Slot 11: Change Password
+                // Change / set password
                 if (!pr.hasPassword() || !pr.passwordEnabled()) {
-                    setItem(11, HeadTextures.HEAD_CHANGE_PASS, "gui.account.set-password", "gui.account.set-password-lore");
+                    setItem(SLOT_CHANGE_PASSWORD, HeadTextures.HEAD_CHANGE_PASS, "gui.account.set-password", "gui.account.set-password-lore");
                 } else {
-                    setItem(11, HeadTextures.HEAD_CHANGE_PASS, "gui.account.change-password", "gui.account.change-password-lore");
+                    setItem(SLOT_CHANGE_PASSWORD, HeadTextures.HEAD_CHANGE_PASS, "gui.account.change-password", "gui.account.change-password-lore");
                 }
 
-                // Slot 12: Delete Password (Discord only)
+                // Delete password (needs a password to delete and Discord to log in with afterwards)
                 if (pr.hasPassword() && pr.passwordEnabled()) {
                     if (hasDiscord) {
-                        setItem(12, HeadTextures.HEAD_BARRIER, "gui.account.delete-password", "gui.account.delete-password-lore");
+                        setItem(SLOT_DELETE_PASSWORD, HeadTextures.HEAD_BARRIER, "gui.account.delete-password", "gui.account.delete-password-lore");
                     } else {
-                        setItem(12, HeadTextures.HEAD_INACTIVE, "gui.account.delete-password-locked", "gui.account.delete-password-locked-lore");
+                        setItem(SLOT_DELETE_PASSWORD, HeadTextures.HEAD_INACTIVE, "gui.account.delete-password-locked", "gui.account.delete-password-locked-lore");
                     }
+                } else {
+                    setItem(SLOT_DELETE_PASSWORD, HeadTextures.HEAD_INACTIVE, "gui.account.delete-password-none", "gui.account.delete-password-none-lore");
                 }
 
-                // Slot 13: Session — длительность сессии настраивается прямо здесь
+                // Session — длительность сессии настраивается прямо здесь
                 // (ЛКМ/ПКМ в GuiClickListener), отдельного меню сессий больше нет.
                 if (pr.hasPassword() && pr.passwordEnabled()) {
                     int days = pr.sessionDuration();
@@ -96,38 +112,32 @@ public final class AccountGui implements LoveAuthHolder {
                     auth.getSessionManager().getExpiry(player.getUniqueId()).thenAccept(expiry -> {
                         String status = expiry.isPresent() ? lang.plain("gui.account.session-active") : lang.plain("gui.account.session-disabled");
                         String expires = expiry.map(e -> DF.format(Instant.ofEpochSecond(e))).orElse("---");
-                        Bukkit.getScheduler().runTask(auth.getPlugin(), () -> setItem(13, headTexture, nameKey, "gui.account.session-lore",
+                        Bukkit.getScheduler().runTask(auth.getPlugin(), () -> setItem(SLOT_SESSION, headTexture, nameKey, "gui.account.session-lore",
                                 Map.of("days", String.valueOf(days), "status", status, "expires", expires)));
                     });
                 } else {
-                    setItem(13, HeadTextures.HEAD_INACTIVE, "gui.account.session-unavailable", "gui.account.session-unavailable-lore");
+                    setItem(SLOT_SESSION, HeadTextures.HEAD_INACTIVE, "gui.account.session-unavailable", "gui.account.session-unavailable-lore");
                 }
 
-                // Slot 14: Login Method (password or Discord) - only switchable once both are set up
+                // Login method (password or Discord) - only switchable once both are set up
                 boolean canSwitchMethod = pr.hasPassword() && pr.passwordEnabled() && hasDiscord;
                 boolean preferDiscord = pr.preferredAuthMethod() == AuthMethod.DISCORD;
                 String methodStr = lang.plain(preferDiscord ? "gui.account.login-discord" : "gui.account.login-password");
                 String methodTexture = preferDiscord ? HeadTextures.HEAD_DISCORD : HeadTextures.HEAD_PASSWORD;
                 if (canSwitchMethod) {
-                    setItem(14, methodTexture, "gui.account.login-method", "gui.account.login-method-lore", Map.of("method", methodStr));
+                    setItem(SLOT_LOGIN_METHOD, methodTexture, "gui.account.login-method", "gui.account.login-method-lore", Map.of("method", methodStr));
                 } else {
-                    setItem(14, HeadTextures.HEAD_INACTIVE, "gui.account.login-method-locked", "gui.account.login-method-locked-lore", Map.of("method", methodStr));
+                    setItem(SLOT_LOGIN_METHOD, HeadTextures.HEAD_INACTIVE, "gui.account.login-method-locked", "gui.account.login-method-locked-lore", Map.of("method", methodStr));
                 }
 
-                // Slot 15: Discord Settings
-                setItem(15, HeadTextures.HEAD_DISCORD,
+                // Discord settings
+                setItem(SLOT_DISCORD, HeadTextures.HEAD_DISCORD,
                     hasDiscord ? "gui.discord.unlink-button" : "gui.discord.bind-button",
                     hasDiscord ? "gui.discord.unlink-lore" : "gui.discord.bind-lore");
 
-                // Slot 16: Logout (danger action)
-                setItem(16, HeadTextures.HEAD_EXIT_ACCOUNT, "gui.account.logout", "gui.account.logout-lore");
+                // Logout (danger action)
+                setItem(SLOT_LOGOUT, HeadTextures.HEAD_EXIT_ACCOUNT, "gui.account.logout", "gui.account.logout-lore");
 
-                if (embedded) {
-                    inventory.setItem(BACK_SLOT, HeadTextures.createSkull(HeadTextures.HEAD_BACK, lang.component("gui.back-button"), List.of()));
-                } else {
-                    inventory.setItem(BACK_SLOT, GuiManager.glassPane(lang));
-                }
-                inventory.setItem(CLOSE_SLOT, HeadTextures.createSkull(HeadTextures.HEAD_BARRIER, lang.component("gui.close-button"), List.of()));
             });
         });
     }

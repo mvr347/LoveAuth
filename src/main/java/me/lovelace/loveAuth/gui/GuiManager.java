@@ -111,6 +111,50 @@ public final class GuiManager {
     }
 
     /**
+     * Рамка стандартного 36-слотового меню gui_gen: header (1-8) и footer (27-33). Две рабочие
+     * строки 9-26 не трогаются — боковые стенки остаются пустыми.
+     */
+    public static void standardFrame36(Inventory inventory, LangManager lang) {
+        ItemStack filler = glassFiller(lang);
+        for (int i = 1; i <= 8; i++) inventory.setItem(i, filler);
+        for (int i = 27; i <= 33; i++) inventory.setItem(i, filler);
+    }
+
+    /**
+     * Slots for {@code count} buttons centred in one 9-slot work row that starts at {@code rowStart}
+     * (side walls stay empty): 1 -> centre, 2 -> {3, 5}, 3 -> {2, 4, 6} offsets from the row start.
+     * A menu whose button count changes (a disabled integration, a missing option) must place its
+     * buttons through this instead of fixed slot numbers, otherwise the row drifts off-centre.
+     */
+    public static int[] centeredRow(int rowStart, int count) {
+        int[] offsets = switch (count) {
+            case 0 -> new int[0];
+            case 1 -> new int[]{4};
+            case 2 -> new int[]{3, 5};
+            case 3 -> new int[]{2, 4, 6};
+            case 4 -> new int[]{1, 3, 5, 7};
+            case 5 -> new int[]{1, 2, 4, 6, 7};
+            case 6 -> new int[]{1, 2, 3, 5, 6, 7};
+            default -> new int[]{1, 2, 3, 4, 5, 6, 7};
+        };
+        int[] slots = new int[offsets.length];
+        for (int i = 0; i < offsets.length; i++) slots[i] = rowStart + offsets[i];
+        return slots;
+    }
+
+    /** Footer of a 36-slot menu: Close in the last slot, Back (or glass) just before it. */
+    public static void applyFooter36(Inventory inventory, LangManager lang, boolean withBack) {
+        if (withBack) {
+            inventory.setItem(34, HeadTextures.createSkull(HeadTextures.HEAD_BACK,
+                    lang.component("gui.back-button"), java.util.Collections.emptyList()));
+        } else {
+            inventory.setItem(34, glassFiller(lang));
+        }
+        inventory.setItem(35, HeadTextures.createSkull(HeadTextures.HEAD_BARRIER,
+                lang.component("gui.close-button"), java.util.Collections.emptyList()));
+    }
+
+    /**
      * Рамка стандартного 54-слотового меню gui_gen: стекло только в 1-8, 9-17 и
      * футере 45-52. Слот 0 (голова), рабочая зона 18-44 (включая стенки
      * 18,26,27,35,36,44) и слот 53 (Close) НЕ трогаются — стандарт прямо запрещает

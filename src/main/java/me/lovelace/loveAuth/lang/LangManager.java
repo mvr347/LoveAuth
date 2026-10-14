@@ -44,7 +44,36 @@ public final class LangManager {
             }
         }
         lang = YamlConfiguration.loadConfiguration(file);
+        refreshGuiSection(file);
         mergeMissingKeys(file);
+    }
+
+    /**
+     * The look of the menus lives in the {@code gui} section. An install that kept an older lang file
+     * would otherwise never see a restyle (merging only adds missing keys), so when the bundled
+     * {@code lang-version} is newer the whole section is replaced from the bundled file. The previous
+     * file is kept next to it as {@code lang.yml.bak-vN}, so custom wording is not lost.
+     */
+    private void refreshGuiSection(File file) {
+        try (InputStream defaultStream = plugin.getResource("lang/lang.yml")) {
+            if (defaultStream == null) return;
+            YamlConfiguration defaults = YamlConfiguration.loadConfiguration(new InputStreamReader(defaultStream, StandardCharsets.UTF_8));
+            int bundled = defaults.getInt("lang-version", 1);
+            int current = lang.getInt("lang-version", 1);
+            if (current >= bundled) return;
+            java.nio.file.Files.copy(file.toPath(), new File(file.getParentFile(), file.getName() + ".bak-v" + current).toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            lang.set("gui", null);
+            for (String key : defaults.getKeys(true)) {
+                if (key.startsWith("gui.") && !defaults.isConfigurationSection(key)) {
+                    lang.set(key, defaults.get(key));
+                }
+            }
+            lang.set("lang-version", bundled);
+            lang.save(file);
+        } catch (IOException e) {
+            plugin.getLogger().warning("Failed to refresh the gui lang section: " + e.getMessage());
+        }
     }
 
     /**
