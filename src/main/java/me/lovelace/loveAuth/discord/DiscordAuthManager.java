@@ -508,7 +508,7 @@ public final class DiscordAuthManager implements DiscordService {
                             lang.send(p, "discord.bind-success");
                             plugin.getLogManager().database(uuid, "DISCORD_LINK", p.getName(), auth.getIp(p));
                             auth.markAuthenticated(p, true);
-                            lang.sendActionBar(p, "actionbar.discord-bound", Map.of());
+                            lang.notifyEvent(p, "actionbar.discord-bound", Map.of());
                         }
                     });
                 });

@@ -23,6 +23,8 @@ import java.util.UUID;
 import java.util.function.Consumer;
 
 public final class GuiManager {
+    public static final int MAX_ROW_BUTTONS = 7;
+
     private final LoveAuth plugin;
     private final LangManager lang;
     private final ConfigManager config;
@@ -55,7 +57,7 @@ public final class GuiManager {
 
     public void openAuthMethod(Player player) { if (!checkCooldown(player)) new AuthMethodGui(player, lang, config, auth, discord).open(); }
     public void openPassword(Player player) { if (!checkCooldown(player)) new PasswordGui(player, lang, auth).open(); }
-    public void openDiscord(Player player) { if (!checkCooldown(player)) new DiscordGui(player, lang, config, discord, auth).open(); }
+    public void openDiscord(Player player) { if (config.isDiscordEnabled() && !checkCooldown(player)) new DiscordGui(player, lang, config, discord, auth).open(); }
     public void openRegister(Player player) { if (!checkCooldown(player)) new RegisterGui(player, lang, auth).open(); }
     public void openPremiumWelcome(Player player) { if (!checkCooldown(player)) new PremiumWelcomeGui(player, lang, config, discord, auth).open(); }
     public void openAccount(Player player) { if (!checkCooldown(player)) new AccountGui(player, lang, auth, config).open(); }
@@ -67,7 +69,7 @@ public final class GuiManager {
         if (holder instanceof RegisterGui) new RegisterGui(player, lang, auth).open();
         else if (holder instanceof AuthMethodGui) new AuthMethodGui(player, lang, config, auth, discord).open();
         else if (holder instanceof PasswordGui) new PasswordGui(player, lang, auth).open();
-        else if (holder instanceof DiscordGui) new DiscordGui(player, lang, config, discord, auth).open();
+        else if (holder instanceof DiscordGui && config.isDiscordEnabled()) new DiscordGui(player, lang, config, discord, auth).open();
     }
 
     public void openConfirm(Player player, String descriptionKey, Runnable onConfirm, Runnable onCancel) {
@@ -127,6 +129,11 @@ public final class GuiManager {
      * buttons through this instead of fixed slot numbers, otherwise the row drifts off-centre.
      */
     public static int[] centeredRow(int rowStart, int count) {
+        // A row holds seven buttons at most (side walls stay empty). Silently dropping or
+        // overflowing buttons would hide an action from the player, so fail loudly instead.
+        if (count < 0 || count > MAX_ROW_BUTTONS) {
+            throw new IllegalArgumentException("A work row fits 0.." + MAX_ROW_BUTTONS + " buttons, got " + count);
+        }
         int[] offsets = switch (count) {
             case 0 -> new int[0];
             case 1 -> new int[]{4};
@@ -140,6 +147,46 @@ public final class GuiManager {
         int[] slots = new int[offsets.length];
         for (int i = 0; i < offsets.length; i++) slots[i] = rowStart + offsets[i];
         return slots;
+    }
+
+    /** Inventory size plus the button slots in reading order (top row first). */
+    public record Layout(int size, int[] slots) {}
+
+    /**
+     * Layout of the account menu for {@code count} visible buttons (0..6). Up to three buttons sit in
+     * one centred row of a 27-slot menu; four to six are split over two rows of a 36-slot menu, the
+     * upper row taking the larger half, so every row is symmetric around column 4:
+     * 4 -> 2+2, 5 -> 3+2, 6 -> 3+3.
+     */
+    public static Layout accountLayout(int count) {
+        if (count < 0 || count > 6) {
+            throw new IllegalArgumentException("The account menu fits 0..6 buttons, got " + count);
+        }
+        if (count <= 3) return new Layout(27, centeredRow(9, count));
+        int top = (count + 1) / 2;
+        int[] upper = centeredRow(9, top);
+        int[] lower = centeredRow(18, count - top);
+        int[] all = new int[count];
+        System.arraycopy(upper, 0, all, 0, upper.length);
+        System.arraycopy(lower, 0, all, upper.length, lower.length);
+        return new Layout(36, all);
+    }
+
+    /**
+     * Empties the work zone (everything between the header row and the one-row footer) so a redraw
+     * cannot leave a button behind that is no longer available.
+     */
+    public static void clearWorkZone(Inventory inventory) {
+        for (int i = 9; i < inventory.getSize() - 9; i++) inventory.setItem(i, null);
+    }
+
+    /** Header and footer glass plus the Back/Close pair for a 27- or 36-slot menu (slot 0 is left to the caller). */
+    public static void applyFrame(Inventory inventory, LangManager lang, boolean withBack) {
+        switch (inventory.getSize()) {
+            case 27 -> { standardFrame27(inventory, lang); applyFooter27(inventory, lang, withBack); }
+            case 36 -> { standardFrame36(inventory, lang); applyFooter36(inventory, lang, withBack); }
+            default -> throw new IllegalArgumentException("Unsupported menu size " + inventory.getSize());
+        }
     }
 
     /** Footer of a 36-slot menu: Close in the last slot, Back (or glass) just before it. */

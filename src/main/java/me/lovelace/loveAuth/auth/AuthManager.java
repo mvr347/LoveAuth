@@ -104,7 +104,7 @@ public final class AuthManager {
                 sessionManager.getExpiry(player.getUniqueId()).thenAccept(expiry -> Bukkit.getScheduler().runTask(plugin, () -> {
                     if (!player.isOnline()) return;
                     String expires = expiry.map(e -> SESSION_EXPIRY_FORMAT.format(Instant.ofEpochSecond(e))).orElse("---");
-                    lang.sendActionBar(player, "actionbar.session-active", Map.of("expires", expires));
+                    lang.notifyEvent(player, "actionbar.session-active", Map.of("expires", expires));
                 }));
                 log.database(player.getUniqueId(), "SESSION_RESTORE", player.getName(), ip);
                 return;
@@ -126,7 +126,7 @@ public final class AuthManager {
                     if (!hasPassword && !hasDiscord) {
                         markAuthenticated(player, true);
                         lang.send(player, "auth.premium-skip");
-                        lang.sendActionBar(player, "actionbar.premium-skip", Map.of());
+                        lang.notifyEvent(player, "actionbar.premium-skip", Map.of());
                         log.database(player.getUniqueId(), "PREMIUM_SKIP", player.getName(), ip);
                         return;
                     }
@@ -222,7 +222,7 @@ public final class AuthManager {
                     if (!player.isOnline()) return;
                     markAuthenticated(player, false);
                     lang.send(player, "login.success");
-                    lang.showTitle(player, "title.login-success-main", "title.login-success-sub");
+                    lang.notifyTitle(player, "title.login-success-main", "title.login-success-sub");
                     log.database(player.getUniqueId(), "LOGIN_SUCCESS", player.getName(), ip);
                     SoundUtils.success(player);
                 }));
@@ -267,7 +267,7 @@ public final class AuthManager {
                         // UUID-keyed authenticated set for them after the fact - completeNewAccountAuth()
                         // itself guards on isOnline() first for exactly this reason.
                         completeNewAccountAuth(player);
-                        lang.showTitle(player, "title.register-success-main", "title.register-success-sub");
+                        lang.notifyTitle(player, "title.register-success-main", "title.register-success-sub");
                         log.database(player.getUniqueId(), "REGISTER_SUCCESS", player.getName(), ip);
                         SoundUtils.success(player);
                     });
@@ -493,7 +493,7 @@ public final class AuthManager {
             .thenApply(v -> {
                 log.database(player.getUniqueId(), "PASSWORD_CHANGE", player.getName(), getIp(player));
                 Bukkit.getScheduler().runTask(plugin, () -> {
-                    lang.sendActionBar(player, "commands.password-changed", Map.of());
+                    lang.notifyImportant(player, "commands.password-changed", Map.of());
                     SoundUtils.success(player);
                 });
                 return true;
@@ -517,7 +517,7 @@ public final class AuthManager {
 
                 if (player != null && player.isOnline()) {
                     Bukkit.getScheduler().runTask(plugin, () -> {
-                        lang.sendActionBar(player, "commands.password-changed", Map.of());
+                        lang.notifyImportant(player, "commands.password-changed", Map.of());
                         SoundUtils.success(player);
                     });
                 }

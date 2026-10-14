@@ -11,13 +11,29 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+/**
+ * Login method choice (27 slots, gui_gen v2.1). The account state is read first and the buttons are
+ * laid out once, so the player never sees a button flip into another one a moment later. A method
+ * that cannot be used is hidden and the rest are centred.
+ */
 public final class AuthMethodGui implements LoveAuthHolder {
+    public enum Action { PASSWORD, DISCORD, CLOSE }
+
+    private static final int SIZE = 27;
+
     private final Player player;
     private final LangManager lang;
     private final ConfigManager config;
     private final AuthManager auth;
     private final DiscordAuthManager discord;
-    private Inventory inventory;
+    private final SlotActions<Action> actions = new SlotActions<>();
+    private volatile Inventory inventory;
 
     public AuthMethodGui(Player player, LangManager lang, ConfigManager config, AuthManager auth, DiscordAuthManager discord) {
         this.player = player;
@@ -27,48 +43,71 @@ public final class AuthMethodGui implements LoveAuthHolder {
         this.discord = discord;
     }
 
+    public Optional<Action> actionAt(int slot) {
+        return actions.at(slot);
+    }
+
     public void open() {
-        this.inventory = Bukkit.createInventory(this, 27, lang.component("gui.auth-method.title"));
-        GuiManager.standardFrame27(inventory, lang);
-        inventory.setItem(0, GuiManager.playerHead(player, lang));
-
-        boolean registered = auth.isRegisteredCached(player.getUniqueId());
-
-        ItemStack pass = HeadTextures.createSkull(HeadTextures.HEAD_PASSWORD,
-                lang.component(registered ? "gui.auth-method.password-button" : "gui.register.register-button"),
-                lang.lore(registered ? "gui.auth-method.password-lore" : "gui.register.register-lore"));
-        inventory.setItem(12, pass);
-
-        ItemStack disc = HeadTextures.createSkull(HeadTextures.HEAD_DISCORD,
-                lang.component("gui.auth-method.discord-button"),
-                lang.lore(config.isDiscordEnabled() ? "gui.auth-method.discord-lore" : "gui.auth-method.discord-disabled-lore"));
-        inventory.setItem(14, disc);
-
-        GuiManager.applyFooter27(inventory, lang, false);
-
-        player.openInventory(inventory);
-
-        if (registered) {
-            auth.getPlugin().getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
-                boolean hasDiscord = record.map(r -> r.hasDiscord()).orElse(false);
-                boolean hasPassword = record.map(r -> r.hasPassword() && r.passwordEnabled()).orElse(false);
-                Bukkit.getScheduler().runTask(auth.getPlugin(), () -> {
-                    if (!player.isOnline()) return;
-                    if (!hasPassword) {
-                        ItemStack locked = HeadTextures.createSkull(HeadTextures.HEAD_INACTIVE,
-                                lang.component("gui.auth-method.password-locked"),
-                                lang.lore("gui.auth-method.password-locked-lore"));
-                        inventory.setItem(12, locked);
-                    }
-                    if (config.isDiscordEnabled() && !hasDiscord) {
-                        ItemStack bindDisc = HeadTextures.createSkull(HeadTextures.HEAD_DISCORD,
-                                lang.component("gui.auth-method.discord-bind-button"),
-                                lang.lore("gui.auth-method.discord-bind-lore"));
-                        inventory.setItem(14, bindDisc);
-                    }
-                });
-            });
+        if (!auth.isRegisteredCached(player.getUniqueId())) {
+            render(false, false, false);
+            return;
         }
+        auth.getPlugin().getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
+            boolean hasDiscord = record.map(r -> r.hasDiscord()).orElse(false);
+            boolean hasPassword = record.map(r -> r.hasPassword() && r.passwordEnabled()).orElse(false);
+            Bukkit.getScheduler().runTask(auth.getPlugin(), () -> {
+                // The login menu is only for players who are not through yet.
+                if (!player.isOnline() || auth.isAuthenticated(player.getUniqueId())) return;
+                render(true, hasPassword, hasDiscord);
+            });
+        }).exceptionally(ex -> {
+            auth.getPlugin().getLogger().warning("Login method menu failed to load for " + player.getName() + ": " + ex);
+            return null;
+        });
+    }
+
+    /** Main thread only. */
+    private void render(boolean registered, boolean hasPassword, boolean hasDiscord) {
+        Inventory inv = Bukkit.createInventory(this, SIZE, lang.component("gui.auth-method.title"));
+        inventory = inv;
+        GuiManager.applyFrame(inv, lang, false);
+        inv.setItem(0, GuiManager.playerHead(player, lang));
+
+        boolean discordEnabled = config.isDiscordEnabled();
+        List<Action> visible = new ArrayList<>(2);
+        List<ItemStack> items = new ArrayList<>(2);
+
+        if (!registered || hasPassword) {
+            visible.add(Action.PASSWORD);
+            items.add(HeadTextures.createSkull(HeadTextures.HEAD_PASSWORD,
+                    lang.component(registered ? "gui.auth-method.password-button" : "gui.register.register-button"),
+                    lang.lore(registered ? "gui.auth-method.password-lore" : "gui.register.register-lore")));
+        }
+        if (discordEnabled) {
+            visible.add(Action.DISCORD);
+            boolean bind = registered && !hasDiscord;
+            items.add(HeadTextures.createSkull(HeadTextures.HEAD_DISCORD,
+                    lang.component(bind ? "gui.auth-method.discord-bind-button" : "gui.auth-method.discord-button"),
+                    lang.lore(bind ? "gui.auth-method.discord-bind-lore" : "gui.auth-method.discord-lore")));
+        }
+        if (visible.isEmpty()) {
+            // A registered account with neither a working password nor Discord: keep the explanatory
+            // button rather than an empty menu - its click tells the player why the password is off.
+            visible.add(Action.PASSWORD);
+            items.add(HeadTextures.createSkull(HeadTextures.HEAD_INACTIVE,
+                    lang.component("gui.auth-method.password-locked"), lang.lore("gui.auth-method.password-locked-lore")));
+        }
+
+        Map<Integer, Action> map = new HashMap<>();
+        int[] slots = GuiManager.centeredRow(9, visible.size());
+        for (int i = 0; i < slots.length; i++) {
+            inv.setItem(slots[i], items.get(i));
+            map.put(slots[i], visible.get(i));
+        }
+        map.put(SIZE - 1, Action.CLOSE);
+        actions.replace(map);
+
+        player.openInventory(inv);
     }
 
     @Override

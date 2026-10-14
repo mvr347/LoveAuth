@@ -5,6 +5,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import net.kyori.adventure.title.Title;
+import me.lovelace.loveAuth.util.Notify;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
@@ -155,6 +156,7 @@ public final class LangManager {
         sender.sendMessage(component(key, placeholders));
     }
     
+    /** Direct title, bypassing player notification settings. */
     public void showTitle(Player player, String mainKey, String subKey) {
         Title title = Title.title(
             component(mainKey),
@@ -164,7 +166,23 @@ public final class LangManager {
         player.showTitle(title);
     }
 
+    /** Direct action bar, bypassing player notification settings: prompts, input errors, queue position. */
     public void sendActionBar(Player player, String key, Map<String, String> placeholders) {
         player.sendActionBar(component(key, placeholders));
+    }
+
+    /** Event-style notice through LoveNotify (action bar by default, chat when too long or switched off). */
+    public void notifyEvent(Player player, String key, Map<String, String> placeholders) {
+        Notify.event(player, component(key, placeholders));
+    }
+
+    /** Like {@link #notifyEvent} but always also in chat. */
+    public void notifyImportant(Player player, String key, Map<String, String> placeholders) {
+        Notify.important(player, component(key, placeholders));
+    }
+
+    /** Title-style notice through LoveNotify; a real title with subtitle when LoveCore is absent. */
+    public void notifyTitle(Player player, String mainKey, String subKey) {
+        Notify.title(player, component(mainKey), component(subKey));
     }
 }

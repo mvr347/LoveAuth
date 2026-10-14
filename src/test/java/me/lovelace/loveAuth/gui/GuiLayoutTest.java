@@ -12,6 +12,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class GuiLayoutTest {
@@ -41,13 +42,79 @@ class GuiLayoutTest {
     }
 
     @Test
-    void accountGridIsThreeByTwoAndCentred() {
-        int[] top = {AccountGui.SLOT_CHANGE_PASSWORD, AccountGui.SLOT_DELETE_PASSWORD, AccountGui.SLOT_SESSION};
-        int[] bottom = {AccountGui.SLOT_LOGIN_METHOD, AccountGui.SLOT_DISCORD, AccountGui.SLOT_LOGOUT};
-        assertArrayEquals(GuiManager.centeredRow(9, 3), top);
-        assertArrayEquals(GuiManager.centeredRow(18, 3), bottom);
-        assertEquals(34, AccountGui.BACK_SLOT);
-        assertEquals(35, AccountGui.CLOSE_SLOT);
+    void centeredRowRejectsCountsThatDoNotFit() {
+        assertThrows(IllegalArgumentException.class, () -> GuiManager.centeredRow(9, 8));
+        assertThrows(IllegalArgumentException.class, () -> GuiManager.centeredRow(9, -1));
+        assertEquals(0, GuiManager.centeredRow(9, 0).length);
+        assertEquals(7, GuiManager.centeredRow(9, 7).length);
+    }
+
+    @Test
+    void accountLayoutIsSymmetricForOneToSixButtons() {
+        for (int count = 1; count <= 6; count++) {
+            GuiManager.Layout layout = GuiManager.accountLayout(count);
+            assertEquals(count <= 3 ? 27 : 36, layout.size(), "size for " + count);
+            assertEquals(count, layout.slots().length);
+            Set<Integer> all = new HashSet<>();
+            java.util.Map<Integer, Set<Integer>> columnsByRow = new java.util.TreeMap<>();
+            for (int slot : layout.slots()) {
+                assertTrue(all.add(slot), "no slot used twice");
+                assertTrue(slot >= 9 && slot < layout.size() - 9, "buttons stay in the work zone: " + slot);
+                assertTrue(slot % 9 >= 1 && slot % 9 <= 7, "side walls stay empty: " + slot);
+                columnsByRow.computeIfAbsent(slot / 9, r -> new HashSet<>()).add(slot % 9);
+            }
+            for (var row : columnsByRow.entrySet()) {
+                for (int col : row.getValue()) {
+                    assertTrue(row.getValue().contains(8 - col),
+                            "row " + row.getKey() + " is not symmetric around column 4 for " + count + " buttons");
+                }
+            }
+        }
+    }
+
+    @Test
+    void accountLayoutMatchesThePlanTable() {
+        assertArrayEquals(new int[]{13}, GuiManager.accountLayout(1).slots());
+        assertArrayEquals(new int[]{12, 14}, GuiManager.accountLayout(2).slots());
+        assertArrayEquals(new int[]{11, 13, 15}, GuiManager.accountLayout(3).slots());
+        assertArrayEquals(new int[]{12, 14, 21, 23}, GuiManager.accountLayout(4).slots());
+        assertArrayEquals(new int[]{11, 13, 15, 21, 23}, GuiManager.accountLayout(5).slots());
+        assertArrayEquals(new int[]{11, 13, 15, 20, 22, 24}, GuiManager.accountLayout(6).slots());
+    }
+
+    @Test
+    void accountLayoutRejectsMoreThanSixButtons() {
+        assertThrows(IllegalArgumentException.class, () -> GuiManager.accountLayout(7));
+        assertThrows(IllegalArgumentException.class, () -> GuiManager.accountLayout(8));
+        assertThrows(IllegalArgumentException.class, () -> GuiManager.accountLayout(-1));
+    }
+
+    @Test
+    void accountMenuHidesWhatIsUnavailable() {
+        // no password, no Discord, Discord integration on
+        assertEquals(List.of(AccountGui.Action.CHANGE_PASSWORD, AccountGui.Action.DISCORD, AccountGui.Action.LOGOUT),
+                AccountGui.visibleActions(false, false, true));
+        // Discord integration off: nothing Discord-related, whatever the account has
+        assertEquals(List.of(AccountGui.Action.CHANGE_PASSWORD, AccountGui.Action.SESSION, AccountGui.Action.LOGOUT),
+                AccountGui.visibleActions(true, true, false));
+        // everything available
+        assertEquals(6, AccountGui.visibleActions(true, true, true).size());
+        // password but no Discord: no delete-password, no method switch
+        assertEquals(List.of(AccountGui.Action.CHANGE_PASSWORD, AccountGui.Action.SESSION,
+                AccountGui.Action.DISCORD, AccountGui.Action.LOGOUT), AccountGui.visibleActions(true, false, true));
+        for (boolean p : new boolean[]{false, true}) for (boolean d : new boolean[]{false, true}) for (boolean e : new boolean[]{false, true}) {
+            assertTrue(AccountGui.visibleActions(p, d, e).size() <= 6);
+        }
+    }
+
+    @Test
+    void slotActionsAreReplacedAtOnce() {
+        SlotActions<String> actions = new SlotActions<>();
+        assertTrue(actions.at(13).isEmpty());
+        actions.replace(java.util.Map.of(13, "a"));
+        assertEquals("a", actions.at(13).orElseThrow());
+        actions.replace(java.util.Map.of(12, "b"));
+        assertTrue(actions.at(13).isEmpty(), "a redraw must forget the old layout");
     }
 
     private static YamlConfiguration lang() {
