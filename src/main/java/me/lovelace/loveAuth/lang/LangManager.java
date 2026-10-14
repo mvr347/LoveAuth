@@ -5,6 +5,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import net.kyori.adventure.title.Title;
+import me.lovelace.loveAuth.util.Notify;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
@@ -44,7 +45,36 @@ public final class LangManager {
             }
         }
         lang = YamlConfiguration.loadConfiguration(file);
+        refreshGuiSection(file);
         mergeMissingKeys(file);
+    }
+
+    /**
+     * The look of the menus lives in the {@code gui} section. An install that kept an older lang file
+     * would otherwise never see a restyle (merging only adds missing keys), so when the bundled
+     * {@code lang-version} is newer the whole section is replaced from the bundled file. The previous
+     * file is kept next to it as {@code lang.yml.bak-vN}, so custom wording is not lost.
+     */
+    private void refreshGuiSection(File file) {
+        try (InputStream defaultStream = plugin.getResource("lang/lang.yml")) {
+            if (defaultStream == null) return;
+            YamlConfiguration defaults = YamlConfiguration.loadConfiguration(new InputStreamReader(defaultStream, StandardCharsets.UTF_8));
+            int bundled = defaults.getInt("lang-version", 1);
+            int current = lang.getInt("lang-version", 1);
+            if (current >= bundled) return;
+            java.nio.file.Files.copy(file.toPath(), new File(file.getParentFile(), file.getName() + ".bak-v" + current).toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            lang.set("gui", null);
+            for (String key : defaults.getKeys(true)) {
+                if (key.startsWith("gui.") && !defaults.isConfigurationSection(key)) {
+                    lang.set(key, defaults.get(key));
+                }
+            }
+            lang.set("lang-version", bundled);
+            lang.save(file);
+        } catch (IOException e) {
+            plugin.getLogger().warning("Failed to refresh the gui lang section: " + e.getMessage());
+        }
     }
 
     /**
@@ -126,6 +156,7 @@ public final class LangManager {
         sender.sendMessage(component(key, placeholders));
     }
     
+    /** Direct title, bypassing player notification settings. */
     public void showTitle(Player player, String mainKey, String subKey) {
         Title title = Title.title(
             component(mainKey),
@@ -135,7 +166,23 @@ public final class LangManager {
         player.showTitle(title);
     }
 
+    /** Direct action bar, bypassing player notification settings: prompts, input errors, queue position. */
     public void sendActionBar(Player player, String key, Map<String, String> placeholders) {
         player.sendActionBar(component(key, placeholders));
+    }
+
+    /** Event-style notice through LoveNotify (action bar by default, chat when too long or switched off). */
+    public void notifyEvent(Player player, String key, Map<String, String> placeholders) {
+        Notify.event(player, component(key, placeholders));
+    }
+
+    /** Like {@link #notifyEvent} but always also in chat. */
+    public void notifyImportant(Player player, String key, Map<String, String> placeholders) {
+        Notify.important(player, component(key, placeholders));
+    }
+
+    /** Title-style notice through LoveNotify; a real title with subtitle when LoveCore is absent. */
+    public void notifyTitle(Player player, String mainKey, String subKey) {
+        Notify.title(player, component(mainKey), component(subKey));
     }
 }

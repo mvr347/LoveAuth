@@ -40,21 +40,24 @@ public final class GuiClickListener implements Listener {
             event.setCancelled(true);
             SoundUtils.click(player);
             AuthManager auth = plugin.getAuthManager();
-            int slot = event.getRawSlot();
+            AccountGui.Action action = accountGui.actionAt(event.getRawSlot()).orElse(null);
+            if (action == null) return;
 
-            if (slot == 11) {
+            if (action == AccountGui.Action.CHANGE_PASSWORD) {
                 plugin.getGuiManager().openConfirm(player, "gui.confirm.change-password",
                     () -> auth.requestPasswordChange(player),
                     () -> accountGui.open());
-            } else if (slot == 12) {
+            } else if (action == AccountGui.Action.DELETE_PASSWORD) {
                 plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> Bukkit.getScheduler().runTask(plugin, () -> {
-                    if (record.map(r -> r.hasDiscord()).orElse(false)) {
+                    if (!record.map(r -> r.hasPassword() && r.passwordEnabled()).orElse(false)) {
+                        plugin.getLangManager().send(player, "block.no-password-to-delete");
+                    } else if (record.map(r -> r.hasDiscord()).orElse(false)) {
                         plugin.getDiscordAuthManager().sendConfirmation(player, "REMOVE_PASSWORD");
                     } else {
-                        plugin.getLangManager().send(player, "gui.account.delete-password-locked");
+                        plugin.getLangManager().send(player, "block.password-required");
                     }
                 }));
-            } else if (slot == 13) {
+            } else if (action == AccountGui.Action.SESSION) {
                 ClickType click = event.getClick();
                 if (!click.isLeftClick() && !click.isRightClick()) return;
                 plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
@@ -78,17 +81,18 @@ public final class GuiClickListener implements Listener {
                         });
                     });
                 });
-            } else if (slot == 14) {
+            } else if (action == AccountGui.Action.LOGIN_METHOD) {
                 auth.switchAuthMethod(player).thenRun(() -> Bukkit.getScheduler().runTask(plugin, accountGui::refresh));
-            } else if (slot == 15) {
+            } else if (action == AccountGui.Action.DISCORD) {
+                if (!plugin.getConfigManager().isDiscordEnabled()) return;
                 new DiscordGui(player, plugin.getLangManager(), plugin.getConfigManager(), plugin.getDiscordAuthManager(), auth).open();
-            } else if (slot == 16) {
+            } else if (action == AccountGui.Action.LOGOUT) {
                 plugin.getGuiManager().openConfirm(player, "gui.confirm.logout",
                     () -> auth.forceLogout(player.getUniqueId()).thenRun(() -> Bukkit.getScheduler().runTask(plugin, () -> player.kick(plugin.getLangManager().component("commands.session-reset")))),
                     () -> accountGui.open());
-            } else if (slot == AccountGui.CLOSE_SLOT) {
+            } else if (action == AccountGui.Action.CLOSE) {
                 player.closeInventory();
-            } else if (slot == AccountGui.BACK_SLOT) {
+            } else if (action == AccountGui.Action.BACK) {
                 player.closeInventory();
                 accountGui.goBack();
             }
@@ -98,10 +102,11 @@ public final class GuiClickListener implements Listener {
         if (holder instanceof DiscordGui discordGui) {
             event.setCancelled(true);
             SoundUtils.click(player);
-            int slot = event.getRawSlot();
-            if (slot == 26) player.closeInventory();
-            else if (slot == 25) new AccountGui(player, plugin.getLangManager(), plugin.getAuthManager(), plugin.getConfigManager()).open();
-            else if (slot == 12) {
+            DiscordGui.Action action = discordGui.actionAt(event.getRawSlot()).orElse(null);
+            if (action == null) return;
+            if (action == DiscordGui.Action.CLOSE) player.closeInventory();
+            else if (action == DiscordGui.Action.BACK) new AccountGui(player, plugin.getLangManager(), plugin.getAuthManager(), plugin.getConfigManager()).open();
+            else if (action == DiscordGui.Action.BIND_OR_UNLINK) {
                 plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> Bukkit.getScheduler().runTask(plugin, () -> {
                     boolean hasDiscord = record.map(r -> r.hasDiscord()).orElse(false);
                     if (!hasDiscord) {
@@ -112,7 +117,7 @@ public final class GuiClickListener implements Listener {
                         plugin.getDiscordAuthManager().sendConfirmation(player, "UNLINK");
                     }
                 }));
-            } else if (slot == 14) {
+            } else if (action == DiscordGui.Action.TOGGLE_PASSWORD) {
                 plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> Bukkit.getScheduler().runTask(plugin, () -> {
                     if (record.map(r -> r.hasDiscord()).orElse(false)) {
                         boolean next = !record.get().passwordEnabled();
@@ -140,10 +145,11 @@ public final class GuiClickListener implements Listener {
         LangManager lang = plugin.getLangManager();
         AuthManager auth = plugin.getAuthManager();
 
-        if (isGui(title, "gui.auth-method.title")) {
+        if (holder instanceof AuthMethodGui methodGui) {
             event.setCancelled(true);
             SoundUtils.click(player);
-            if (event.getRawSlot() == 12) {
+            AuthMethodGui.Action action = methodGui.actionAt(event.getRawSlot()).orElse(null);
+            if (action == AuthMethodGui.Action.PASSWORD) {
                 if (!auth.isRegisteredCached(player.getUniqueId())) {
                     auth.requestRegistration(player);
                 } else {
@@ -156,7 +162,7 @@ public final class GuiClickListener implements Listener {
                     });
                 }
             }
-            else if (event.getRawSlot() == 14) {
+            else if (action == AuthMethodGui.Action.DISCORD) {
                 if (!plugin.getConfigManager().isDiscordEnabled()) return;
                 plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> Bukkit.getScheduler().runTask(plugin, () -> {
                     boolean hasDiscord = record.map(r -> r.hasDiscord()).orElse(false);
@@ -170,21 +176,28 @@ public final class GuiClickListener implements Listener {
                     }
                 }));
             }
-            else if (event.getRawSlot() == 26) closeAuthGate(player);
-        } else if (isGui(title, "gui.register.title")) {
+            else if (action == AuthMethodGui.Action.CLOSE) closeAuthGate(player);
+            return;
+        }
+
+        if (isGui(title, "gui.register.title")) {
             event.setCancelled(true);
             SoundUtils.click(player);
             int slot = event.getRawSlot();
-            if (slot == 12) auth.requestRegistration(player);
-            else if (slot == 14 && plugin.getConfigManager().isDiscordEnabled()) plugin.getDiscordAuthManager().startBinding(player);
+            boolean discordEnabled = plugin.getConfigManager().isDiscordEnabled();
+            int[] slots = RegisterGui.slots(discordEnabled);
+            if (slot == slots[0]) auth.requestRegistration(player);
+            else if (discordEnabled && slot == slots[1]) plugin.getDiscordAuthManager().startBinding(player);
             else if (slot == 26) closeAuthGate(player);
         } else if (isGui(title, "gui.premium-welcome.title")) {
             event.setCancelled(true);
             SoundUtils.click(player);
             int slot = event.getRawSlot();
-            if (slot == 11) auth.requestRegistration(player);
-            else if (slot == 13) plugin.getDiscordAuthManager().startBinding(player);
-            else if (slot == 15) auth.completeNewAccountAuth(player);
+            boolean discordEnabled = plugin.getConfigManager().isDiscordEnabled();
+            int[] slots = PremiumWelcomeGui.slots(discordEnabled);
+            if (slot == slots[0]) auth.requestRegistration(player);
+            else if (discordEnabled && slot == slots[1]) plugin.getDiscordAuthManager().startBinding(player);
+            else if (slot == slots[slots.length - 1]) auth.completeNewAccountAuth(player);
             else if (slot == 26) {
                 if (!auth.isAuthenticated(player.getUniqueId())) {
                     auth.completeNewAccountAuth(player);
@@ -192,12 +205,12 @@ public final class GuiClickListener implements Listener {
                 }
                 player.closeInventory();
             }
-        } else if (isGui(title, "gui.queue.title")) {
+        } else if (holder instanceof QueueGui queueGui) {
             event.setCancelled(true);
             SoundUtils.click(player);
-            int slot = event.getRawSlot();
-            if (slot == 14) plugin.getGuiManager().openQueue(player);
-            else if (slot == 26) player.closeInventory();
+            QueueGui.Action action = queueGui.actionAt(event.getRawSlot()).orElse(null);
+            if (action == QueueGui.Action.REFRESH) plugin.getGuiManager().openQueue(player);
+            else if (action == QueueGui.Action.CLOSE) player.closeInventory();
         }
     }
 

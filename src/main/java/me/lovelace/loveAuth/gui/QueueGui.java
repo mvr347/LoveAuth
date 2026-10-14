@@ -16,6 +16,9 @@ public final class QueueGui implements LoveAuthHolder {
     private final Player player;
     private final LangManager lang;
     private final QueueManager queue;
+    public enum Action { REFRESH, CLOSE }
+
+    private final SlotActions<Action> actions = new SlotActions<>();
     private Inventory inventory;
 
     public QueueGui(Player player, LangManager lang, QueueManager queue) {
@@ -24,6 +27,8 @@ public final class QueueGui implements LoveAuthHolder {
         this.queue = queue;
     }
 
+    public java.util.Optional<Action> actionAt(int slot) { return actions.at(slot); }
+
     public void open() {
         this.inventory = Bukkit.createInventory(this, 27, lang.component("gui.queue.title"));
         refresh();
@@ -31,7 +36,8 @@ public final class QueueGui implements LoveAuthHolder {
     }
 
     public void refresh() {
-        GuiManager.standardFrame27(inventory, lang);
+        GuiManager.clearWorkZone(inventory);
+        GuiManager.applyFrame(inventory, lang, false);
         inventory.setItem(0, GuiManager.playerHead(player, lang));
 
         int pos = queue.getPosition(player.getUniqueId());
@@ -45,13 +51,13 @@ public final class QueueGui implements LoveAuthHolder {
                         "total", Integer.toString(total),
                         "time", time
                 )));
-        inventory.setItem(12, info);
+        int[] slots = GuiManager.centeredRow(9, 2);
+        inventory.setItem(slots[0], info);
 
         ItemStack refresh = HeadTextures.createSkull(HeadTextures.HEAD_BACK,
                 lang.component("gui.queue.refresh-button"), Collections.emptyList());
-        inventory.setItem(14, refresh);
-
-        GuiManager.applyFooter27(inventory, lang, false);
+        inventory.setItem(slots[1], refresh);
+        actions.replace(Map.of(slots[1], Action.REFRESH, inventory.getSize() - 1, Action.CLOSE));
     }
 
     @Override
