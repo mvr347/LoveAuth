@@ -59,7 +59,7 @@ public final class DiscordAuthManager implements DiscordService {
     private final AuthManager auth;
 
     private final Map<String, UUID> pendingLinks = new ConcurrentHashMap<>();
-    private final Map<UUID, Long> pendingLogins = new ConcurrentHashMap<>();
+    private final Map<UUID, PendingLogin> pendingLogins = new ConcurrentHashMap<>();
     // Хеш нового пароля ждёт подтверждения в Discord: в базу он попадает только
     // после нажатия «Подтвердить», иначе смену можно было бы навязать чужими руками.
     private final Map<UUID, String> pendingPasswordHashes = new ConcurrentHashMap<>();
@@ -160,6 +160,11 @@ public final class DiscordAuthManager implements DiscordService {
         if (prev != null) linkedPlayerCache.remove(prev);
     }
 
+    /** Drops a pending login request (player quit); a late button click then finds nothing to approve. */
+    public void clearPendingLogin(UUID uuid) {
+        pendingLogins.remove(uuid);
+    }
+
     public CompletableFuture<Boolean> requestDiscordLogin(Player player) {
         if (!isEnabled()) return CompletableFuture.completedFuture(false);
         return database.findPlayer(player.getUniqueId()).thenCompose(record -> {
@@ -175,10 +180,12 @@ public final class DiscordAuthManager implements DiscordService {
             jda.retrieveUserById(discordId).queue(discordUser -> {
                 discordUser.openPrivateChannel().queue(channel -> {
                     MessageEmbed embed = new EmbedBuilder().setTitle(lang.plain("discord.login-embed-title")).setDescription(lang.plain("discord.login-embed-desc", Map.of("player", player.getName()))).setColor(java.awt.Color.decode("#a855f7")).build();
-                    Button confirmBtn = Button.success("login_confirm:" + player.getUniqueId(), lang.plain("discord.login-btn-confirm"));
-                    Button denyBtn = Button.danger("login_deny:" + player.getUniqueId(), lang.plain("discord.login-btn-deny"));
+                    String nonce = generateCode(16);
+                    String requestIp = auth.getIp(player);
+                    Button confirmBtn = Button.success("login_confirm:" + player.getUniqueId() + ":" + nonce, lang.plain("discord.login-btn-confirm"));
+                    Button denyBtn = Button.danger("login_deny:" + player.getUniqueId() + ":" + nonce, lang.plain("discord.login-btn-deny"));
                     channel.sendMessageEmbeds(embed).setComponents(ActionRow.of(confirmBtn, denyBtn)).queue(msg -> {
-                        pendingLogins.put(player.getUniqueId(), msg.getIdLong());
+                        pendingLogins.put(player.getUniqueId(), new PendingLogin(msg.getIdLong(), requestIp, nonce));
                         lang.send(player, "discord.login-dm-sent");
                         result.complete(true);
                         plugin.getServer().getAsyncScheduler().runDelayed(plugin, t -> {
@@ -547,8 +554,45 @@ public final class DiscordAuthManager implements DiscordService {
         @Override
         public void onButtonInteraction(ButtonInteractionEvent e) {
             String id = e.getComponentId();
-            if (id.startsWith("login_confirm:")) { UUID u = UUID.fromString(id.split(":")[1]); if (pendingLogins.remove(u) != null) { e.getMessage().delete().queue(); Bukkit.getScheduler().runTask(plugin, () -> { Player p = Bukkit.getPlayer(u); if (p != null) { auth.markAuthenticated(p, true); lang.send(p, "discord.login-approved"); } }); e.reply("Confirmed.").setEphemeral(true).queue(); } }
-            else if (id.startsWith("login_deny:")) { UUID u = UUID.fromString(id.split(":")[1]); pendingLogins.remove(u); e.getMessage().delete().queue(); Bukkit.getScheduler().runTask(plugin, () -> { Player p = Bukkit.getPlayer(u); if (p != null) p.kick(lang.component("discord.login-denied-kick")); }); e.reply("Denied.").setEphemeral(true).queue(); }
+            if (id.startsWith("login_confirm:")) {
+                String[] parts = id.split(":");
+                UUID u;
+                try { u = UUID.fromString(parts[1]); } catch (IllegalArgumentException ex) { return; }
+                String nonce = parts.length > 2 ? parts[2] : null;
+                PendingLogin pending = pendingLogins.get(u);
+                // Message id and nonce must match the request we issued; the entry is consumed atomically.
+                if (pending == null || !pending.matchesRequest(e.getMessageIdLong(), nonce) || !pendingLogins.remove(u, pending)) {
+                    e.reply("Expired.").setEphemeral(true).queue();
+                    return;
+                }
+                e.getMessage().delete().queue();
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    Player p = Bukkit.getPlayer(u);
+                    if (p == null) return;
+                    // The player may have reconnected from another address since the request was sent.
+                    if (!pending.matchesIp(auth.getIp(p))) {
+                        p.kick(lang.component("discord.login-denied-kick"));
+                        return;
+                    }
+                    auth.markAuthenticated(p, true);
+                    lang.send(p, "discord.login-approved");
+                });
+                e.reply("Confirmed.").setEphemeral(true).queue();
+            }
+            else if (id.startsWith("login_deny:")) {
+                String[] parts = id.split(":");
+                UUID u;
+                try { u = UUID.fromString(parts[1]); } catch (IllegalArgumentException ex) { return; }
+                String nonce = parts.length > 2 ? parts[2] : null;
+                PendingLogin pending = pendingLogins.get(u);
+                if (pending == null || !pending.matchesRequest(e.getMessageIdLong(), nonce) || !pendingLogins.remove(u, pending)) {
+                    e.reply("Expired.").setEphemeral(true).queue();
+                    return;
+                }
+                e.getMessage().delete().queue();
+                Bukkit.getScheduler().runTask(plugin, () -> { Player p = Bukkit.getPlayer(u); if (p != null) p.kick(lang.component("discord.login-denied-kick")); });
+                e.reply("Denied.").setEphemeral(true).queue();
+            }
             else if (id.startsWith("action_lock:")) { UUID u = UUID.fromString(id.split(":")[1]); database.setLocked(u, true).thenRun(() -> { e.getMessage().delete().queue(); Player p = Bukkit.getPlayer(u); if (p != null) Bukkit.getScheduler().runTask(plugin, () -> p.kick(lang.component("block.account-locked"))); }); e.reply("Locked.").setEphemeral(true).queue(); }
             else if (id.startsWith("confirm_action:")) { String[] p = id.split(":"); UUID u = UUID.fromString(p[1]); e.getMessage().delete().queue(); Bukkit.getScheduler().runTask(plugin, () -> { Player pl = Bukkit.getPlayer(u); if (pl != null) handleConfirmedAction(pl, p[2]); else handleConfirmedActionOffline(u, p[2]); }); e.reply("Confirmed.").setEphemeral(true).queue(); }
             else if (id.startsWith("deny_action:")) { String[] p = id.split(":"); if (p.length > 1) { try { pendingPasswordHashes.remove(UUID.fromString(p[1])); } catch (IllegalArgumentException ex) { plugin.getLogManager().warnKey("log.listener-error", Map.of("message", "Invalid UUID in deny_action button id: " + ex.getMessage())); } } e.getMessage().delete().queue(); e.reply("Cancelled.").setEphemeral(true).queue(); }

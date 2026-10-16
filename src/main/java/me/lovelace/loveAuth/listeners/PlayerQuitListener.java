@@ -18,6 +18,7 @@ public final class PlayerQuitListener implements Listener {
     public void onQuit(PlayerQuitEvent event) {
         UUID uuid = event.getPlayer().getUniqueId();
         plugin.getAuthManager().cleanup(uuid);
+        if (plugin.getDiscordAuthManager() != null) plugin.getDiscordAuthManager().clearPendingLogin(uuid);
         plugin.getQueueManager().removeFromQueue(uuid);
         plugin.getChatInputHandler().cleanup(uuid);
         plugin.getLimboManager().cleanup(event.getPlayer());
