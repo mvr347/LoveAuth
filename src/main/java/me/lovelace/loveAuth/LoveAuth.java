@@ -139,6 +139,7 @@ public final class LoveAuth extends JavaPlugin {
         if (limboManager != null) limboManager.restoreAllFrozenSync();
         if (sessionManager != null) sessionManager.saveActiveSessionsSync();
         if (queueManager != null) queueManager.stop();
+        if (authManager != null) authManager.shutdownHashing();
         if (premiumVerificationManager != null) premiumVerificationManager.shutdown();
         if (discordAuthManager != null) discordAuthManager.shutdown();
         if (databaseManager != null) databaseManager.close();

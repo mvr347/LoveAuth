@@ -27,6 +27,15 @@ public final class PlayerProtectionListener implements Listener {
         this.plugin = plugin;
     }
 
+    // LOW (not LOWEST): ChatInputHandler listens at LOWEST and must consume password/login input first;
+    // it is skipped for cancelled events, so cancelling earlier would break the login prompt.
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+    public void onChat(io.papermc.paper.event.player.AsyncChatEvent event) {
+        if (!plugin.getAuthManager().isAuthenticated(event.getPlayer().getUniqueId())) {
+            event.setCancelled(true);
+        }
+    }
+
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onMove(PlayerMoveEvent event) {
         Player player = event.getPlayer();

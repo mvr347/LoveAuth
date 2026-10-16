@@ -64,7 +64,9 @@ public final class AuthManager {
         try {
             String ip = getIp(player);
             if (!plugin.getRateLimiter().tryConsume(ip)) {
+                // Returning here used to leave the player unauthenticated inside the world.
                 lang.send(player, "auth.rate-limited");
+                player.kick(lang.component("auth.rate-limited"));
                 return;
             }
             database.findPlayer(player.getUniqueId()).thenAccept(record -> Bukkit.getScheduler().runTask(plugin, () -> {
@@ -392,10 +394,15 @@ public final class AuthManager {
         if (address == null || address.getAddress() == null) return "unknown";
         return address.getAddress().getHostAddress();
     }
+    // All supplyAsync callers are Argon2 hashes: bound their concurrency (memory) to 3 threads.
+    private final me.lovelace.loveAuth.security.HashingPool hashingPool = new me.lovelace.loveAuth.security.HashingPool(3);
+
     private <T> CompletableFuture<T> supplyAsync(java.util.concurrent.Callable<T> s) {
-        CompletableFuture<T> f = new CompletableFuture<>();
-        plugin.getServer().getAsyncScheduler().runNow(plugin, t -> { try { f.complete(s.call()); } catch (Exception e) { f.completeExceptionally(e); } });
-        return f;
+        return hashingPool.submit(s);
+    }
+
+    public void shutdownHashing() {
+        hashingPool.shutdown();
     }
 
     public void requestPasswordLogin(Player player) {
