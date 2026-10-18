@@ -9,10 +9,10 @@ import me.lovelace.loveAuth.auth.AuthManager;
 import me.lovelace.loveAuth.config.ConfigManager;
 import me.lovelace.loveAuth.database.DatabaseManager;
 import me.lovelace.loveAuth.lang.LangManager;
-import me.lovelace.loveAuth.security.SecurityUtils;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
+import net.dv8tion.jda.api.entities.Activity;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.entities.User;
@@ -21,18 +21,32 @@ import net.dv8tion.jda.api.entities.channel.concrete.Category;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
 import net.dv8tion.jda.api.entities.emoji.Emoji;
+import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
+import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import net.dv8tion.jda.api.interactions.InteractionHook;
+import net.dv8tion.jda.api.interactions.commands.OptionMapping;
+import net.dv8tion.jda.api.interactions.commands.OptionType;
+import net.dv8tion.jda.api.interactions.commands.build.Commands;
+import net.dv8tion.jda.api.interactions.commands.build.SubcommandData;
 import net.dv8tion.jda.api.interactions.components.ActionRow;
 import net.dv8tion.jda.api.interactions.components.buttons.Button;
+import net.dv8tion.jda.api.interactions.components.text.TextInput;
+import net.dv8tion.jda.api.interactions.components.text.TextInputStyle;
+import net.dv8tion.jda.api.interactions.modals.Modal;
+import net.dv8tion.jda.api.interactions.modals.ModalMapping;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -42,6 +56,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * Помимо своего изначального назначения (вход/привязка аккаунта через Discord), этот класс
@@ -63,6 +79,10 @@ public final class DiscordAuthManager implements DiscordService {
     // Хеш нового пароля ждёт подтверждения в Discord: в базу он попадает только
     // после нажатия «Подтвердить», иначе смену можно было бы навязать чужими руками.
     private final Map<UUID, String> pendingPasswordHashes = new ConcurrentHashMap<>();
+    // Карточки подтверждения: одноразовый код -> сообщение, к которому он привязан.
+    private final Map<String, PendingAction> pendingActions = new ConcurrentHashMap<>();
+    private volatile BukkitTask presenceTask;
+    private volatile String lastPresence;
     private final SecureRandom random = new SecureRandom();
 
     // --- DiscordService (мост тикетов LoveCore) ---
@@ -104,6 +124,9 @@ public final class DiscordAuthManager implements DiscordService {
             jda.awaitReady();
             plugin.getLogManager().infoKey("log.discord-ready",
                 Map.of("tag", jda.getSelfUser().getAsTag()));
+            registerCommands();
+            lastPresence = null;
+            startPresence();
         } catch (Exception e) {
             plugin.getLogManager().errorKey("log.discord-start-error",
                 Map.of("message", e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()), e);
@@ -114,6 +137,11 @@ public final class DiscordAuthManager implements DiscordService {
     public boolean isEnabled() { return jda != null; }
 
     public void shutdown() {
+        BukkitTask task = presenceTask;
+        presenceTask = null;
+        if (task != null) task.cancel();
+        lastPresence = null;
+        pendingActions.clear();
         if (jda == null) return;
         JDA toClose = jda;
         jda = null;
@@ -185,11 +213,13 @@ public final class DiscordAuthManager implements DiscordService {
                     Button confirmBtn = Button.success("login_confirm:" + player.getUniqueId() + ":" + nonce, lang.plain("discord.login-btn-confirm"));
                     Button denyBtn = Button.danger("login_deny:" + player.getUniqueId() + ":" + nonce, lang.plain("discord.login-btn-deny"));
                     channel.sendMessageEmbeds(embed).setComponents(ActionRow.of(confirmBtn, denyBtn)).queue(msg -> {
-                        pendingLogins.put(player.getUniqueId(), new PendingLogin(msg.getIdLong(), requestIp, nonce));
+                        PendingLogin pendingLogin = new PendingLogin(msg.getIdLong(), requestIp, nonce);
+                        pendingLogins.put(player.getUniqueId(), pendingLogin);
                         lang.send(player, "discord.login-dm-sent");
                         result.complete(true);
                         plugin.getServer().getAsyncScheduler().runDelayed(plugin, t -> {
-                            if (pendingLogins.remove(player.getUniqueId()) != null) {
+                            // Only clear this very request: a newer one (new message, new nonce) must survive.
+                            if (pendingLogins.remove(player.getUniqueId(), pendingLogin)) {
                                 Bukkit.getScheduler().runTask(plugin, () -> {
                                     if (player.isOnline() && !auth.isAuthenticated(player.getUniqueId())) player.kick(lang.component("discord.login-timeout"));
                                 });
@@ -209,16 +239,15 @@ public final class DiscordAuthManager implements DiscordService {
 
     public void sendConfirmation(Player player, String action) {
         if (!isEnabled()) { lang.send(player, "discord.not-enabled"); return; }
-        database.findPlayer(player.getUniqueId()).thenAccept(record -> {
+        UUID owner = player.getUniqueId();
+        database.findPlayer(owner).thenAccept(record -> {
             if (record.isEmpty() || !record.get().hasDiscord()) { lang.send(player, "discord.not-bound"); return; }
             jda.retrieveUserById(record.get().discordId()).queue(user -> user.openPrivateChannel().queue(channel -> {
-                MessageEmbed embed = new EmbedBuilder().setTitle(lang.plain("discord.confirm-action-title")).setDescription(lang.plain("discord.action-" + action.toLowerCase())).setColor(java.awt.Color.decode("#a855f7")).setFooter(lang.plain("discord.confirm-action-footer")).build();
-                Button confirm = Button.success("confirm_action:" + player.getUniqueId() + ":" + action, lang.plain("discord.action-btn-confirm"));
-                Button deny = Button.danger("deny_action:" + player.getUniqueId() + ":" + action, lang.plain("discord.action-btn-deny"));
-                Button lockBtn = Button.danger("action_lock:" + player.getUniqueId(), lang.plain("discord.lock-btn-alert"));
-                channel.sendMessageEmbeds(embed).setComponents(ActionRow.of(confirm, deny), ActionRow.of(lockBtn)).queue(msg -> {
+                String nonce = generateCode(12);
+                channel.sendMessageEmbeds(confirmEmbed(action)).setComponents(confirmRows(owner, action, nonce)).queue(msg -> {
+                    registerPendingAction(msg.getIdLong(), owner, action, nonce);
                     lang.send(player, "discord.confirmation-sent-buttons");
-                    msg.delete().queueAfter(2, TimeUnit.MINUTES, null, err -> {});
+                    msg.delete().queueAfter(CARD_LIFETIME_MINUTES, TimeUnit.MINUTES, null, err -> {});
                 });
             }));
         });
@@ -239,54 +268,14 @@ public final class DiscordAuthManager implements DiscordService {
         sendConfirmation(player, "PASSWORD_CHANGE");
     }
 
-    private void handleConfirmedAction(Player player, String action) {
-        switch (action) {
-            case "UNLINK" -> database.setDiscordId(player.getUniqueId(), null).thenRun(() -> {
-                uncacheLink(player.getUniqueId());
-                syncWithLoveCore(player.getUniqueId(), null);
-                lang.send(player, "discord.unlinked");
-                plugin.getLogManager().database(player.getUniqueId(), "DISCORD_UNLINK", player.getName(), auth.getIp(player));
-            });
-            case "REMOVE_PASSWORD" -> database.setPasswordEnabled(player.getUniqueId(), false).thenRun(() -> { lang.send(player, "commands.password-removed"); plugin.getLogManager().database(player.getUniqueId(), "PASSWORD_DELETE", player.getName(), auth.getIp(player)); });
-            case "PASSWORD_CHANGE" -> applyPendingPasswordChange(player.getUniqueId());
-            case "LOCK_ACCOUNT" -> database.setLocked(player.getUniqueId(), true).thenRun(() -> { lang.send(player, "discord.account-locked-self"); plugin.getLogManager().database(player.getUniqueId(), "MANUAL_LOCK", player.getName(), auth.getIp(player)); Bukkit.getScheduler().runTask(plugin, () -> player.kick(lang.component("block.account-locked"))); });
-        }
-    }
-
-    private void handleConfirmedActionOffline(UUID u, String a) {
-        if (a.equals("UNLINK")) {
-            database.setDiscordId(u, null);
-            uncacheLink(u);
-            syncWithLoveCore(u, null);
-        }
-        else if (a.equals("LOCK_ACCOUNT")) database.setLocked(u, true);
-        else if (a.equals("PASSWORD_CHANGE")) applyPendingPasswordChange(u);
-    }
-
     /**
-     * Записывает отложенный хеш пароля. Возвращает молча, если подтверждение
+     * Записывает отложенный хеш пароля. Возвращает false, если подтверждение
      * пришло позже срока и хеш уже убран из памяти.
      */
-    private void applyPendingPasswordChange(UUID uuid) {
+    private CompletableFuture<Boolean> applyPendingPasswordChange(UUID uuid) {
         String hash = pendingPasswordHashes.remove(uuid);
-        if (hash == null) return;
-
-        auth.applyPasswordHash(uuid, hash).thenRun(() -> {
-            Player player = Bukkit.getPlayer(uuid);
-            if (player != null && player.isOnline()) lang.send(player, "commands.password-changed");
-            notifyDiscord(uuid, lang.plain("discord.password-changed-dm"));
-        });
-    }
-
-    /** Отправляет игроку сообщение в личку бота, если Discord к аккаунту привязан. */
-    private void notifyDiscord(UUID uuid, String text) {
-        if (!isEnabled()) return;
-        database.findPlayer(uuid).thenAccept(record -> {
-            if (record.isEmpty() || !record.get().hasDiscord()) return;
-            jda.retrieveUserById(record.get().discordId()).queue(
-                user -> user.openPrivateChannel().queue(channel -> channel.sendMessage(text).queue(null, err -> {})),
-                err -> {});
-        });
+        if (hash == null) return CompletableFuture.completedFuture(false);
+        return auth.applyPasswordHash(uuid, hash).thenApply(ok -> true);
     }
 
     // =========================================================================================
@@ -477,6 +466,519 @@ public final class DiscordAuthManager implements DiscordService {
         if (listener != null) ticketMessageListeners.add(listener);
     }
 
+    // =========================================================================================
+    // Slash commands, control panel, buttons and modals
+    // =========================================================================================
+
+    private static final String CMD_MENU = "меню";
+    private static final String CMD_LINK = "привязать";
+    private static final String CMD_UNLINK = "отвязать";
+    private static final String CMD_LOCK = "заблокировать";
+    private static final String CMD_UNLOCK = "разблокировать";
+    private static final String CMD_PASSWORD = "пароль";
+    private static final String CMD_PASSWORD_CHANGE = "сменить";
+    private static final String CMD_PASSWORD_DELETE = "удалить";
+    private static final String CMD_SESSIONS = "сессии";
+    private static final String CMD_INFO = "инфо";
+    private static final String CMD_ONLINE = "онлайн";
+    private static final String CMD_HELP = "помощь";
+    private static final String OPTION_CODE = "код";
+
+    // Component id kinds.
+    private static final String KIND_PANEL = "panel";
+    private static final String KIND_CONFIRM = "confirm_action";
+    private static final String KIND_DENY = "deny_action";
+    private static final String KIND_LOCK = "action_lock";
+    private static final String KIND_MODAL = "modal";
+
+    // Panel actions. The same names are used by the slash commands that map onto them.
+    private static final String ACT_MENU = "MENU";
+    private static final String ACT_REFRESH = "REFRESH";
+    private static final String ACT_INFO = "INFO";
+    private static final String ACT_ONLINE = "ONLINE";
+    private static final String ACT_HELP = "HELP";
+    private static final String ACT_LOCK = "LOCK";
+    private static final String ACT_UNLOCK = "UNLOCK";
+    private static final String ACT_PWD_CHANGE = "PWD_CHANGE";
+    private static final String ACT_PWD_DELETE = "PWD_DELETE";
+    private static final String ACT_UNLINK = "UNLINK";
+    private static final String ACT_SESSIONS = "SESSIONS";
+    private static final String ACT_BIND_CODE = "BIND_CODE";
+    private static final String ACT_BIND_HELP = "BIND_HELP";
+
+    private static final String MODAL_PASSWORD = "PASSWORD";
+    private static final String MODAL_LINK = "LINK";
+
+    /** Registers the Russian slash commands. They are global, so Discord may take up to an hour to show them. */
+    private void registerCommands() {
+        try {
+            jda.updateCommands().addCommands(
+                Commands.slash(CMD_MENU, lang.plain("discord.cmd-menu")),
+                Commands.slash(CMD_LINK, lang.plain("discord.cmd-link"))
+                    .addOption(OptionType.STRING, OPTION_CODE, lang.plain("discord.cmd-link-option"), true),
+                Commands.slash(CMD_UNLINK, lang.plain("discord.cmd-unlink")),
+                Commands.slash(CMD_LOCK, lang.plain("discord.cmd-lock")),
+                Commands.slash(CMD_UNLOCK, lang.plain("discord.cmd-unlock")),
+                Commands.slash(CMD_PASSWORD, lang.plain("discord.cmd-password")).addSubcommands(
+                    new SubcommandData(CMD_PASSWORD_CHANGE, lang.plain("discord.cmd-password-change")),
+                    new SubcommandData(CMD_PASSWORD_DELETE, lang.plain("discord.cmd-password-delete"))),
+                Commands.slash(CMD_SESSIONS, lang.plain("discord.cmd-sessions")),
+                Commands.slash(CMD_INFO, lang.plain("discord.cmd-info")),
+                Commands.slash(CMD_ONLINE, lang.plain("discord.cmd-online")),
+                Commands.slash(CMD_HELP, lang.plain("discord.cmd-help"))
+            ).queue(ok -> {}, err -> plugin.getLogManager().warnKey("log.discord-commands-error",
+                Map.of("message", String.valueOf(err.getMessage()))));
+        } catch (Exception e) {
+            plugin.getLogManager().warnKey("log.discord-commands-error",
+                Map.of("message", e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()));
+        }
+    }
+
+    // --- presence ---
+
+    private void startPresence() {
+        if (!config.isDiscordPresenceEnabled()) return;
+        long periodTicks = config.getDiscordPresenceIntervalSeconds() * 20L;
+        presenceTask = Bukkit.getScheduler().runTaskTimer(plugin, this::updatePresence, 20L, periodTicks);
+    }
+
+    /** Runs on the main thread (reads Bukkit state) and only talks to Discord when the text changed. */
+    private void updatePresence() {
+        JDA current = jda;
+        if (current == null) return;
+        String text = DiscordFormat.presenceText(config.getDiscordPresenceFormat(),
+            Bukkit.getOnlinePlayers().size(), Bukkit.getMaxPlayers());
+        if (text.equals(lastPresence)) return;
+        lastPresence = text;
+        current.getPresence().setActivity(Activity.playing(text));
+    }
+
+    // --- threading helpers ---
+
+    /** Runs the supplier on the Bukkit main thread and completes the future with its result. */
+    private <T> CompletableFuture<T> onMain(Supplier<T> task) {
+        CompletableFuture<T> future = new CompletableFuture<>();
+        try {
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                try {
+                    future.complete(task.get());
+                } catch (Throwable t) {
+                    future.completeExceptionally(t);
+                }
+            });
+        } catch (Exception e) {
+            future.completeExceptionally(e);
+        }
+        return future;
+    }
+
+    private void runMain(Runnable task) {
+        try {
+            Bukkit.getScheduler().runTask(plugin, task);
+        } catch (Exception ignored) {
+            // Plugin is being disabled; nothing left to do on the main thread.
+        }
+    }
+
+    private Void logAndReport(Throwable ex, InteractionHook hook) {
+        Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+        plugin.getLogManager().warnKey("log.listener-error", Map.of("message", String.valueOf(cause.getMessage())));
+        if (hook != null) say(hook, lang.plain("discord.general-error"));
+        return null;
+    }
+
+    private void say(InteractionHook hook, String text) {
+        hook.sendMessage(text).setEphemeral(true).queue(null, err -> {});
+    }
+
+    /** Looks up the player linked to this Discord user; answers "not linked" itself when there is none. */
+    private void withLinked(String discordId, InteractionHook hook, Consumer<DatabaseManager.PlayerRecord> action) {
+        database.findPlayerByDiscordId(discordId).thenAccept(r -> {
+            if (r.isEmpty()) {
+                say(hook, lang.plain("discord.not-bound-dm"));
+                return;
+            }
+            action.accept(r.get());
+        }).exceptionally(ex -> logAndReport(ex, hook));
+    }
+
+    // --- component ids ---
+
+    private String panelId(UUID owner, String action) {
+        return new ActionToken(KIND_PANEL, owner, action, ActionToken.STATIC_NONCE).toId();
+    }
+
+    private String modalId(String action) {
+        return new ActionToken(KIND_MODAL, null, action, ActionToken.STATIC_NONCE).toId();
+    }
+
+    // --- panel ---
+
+    private record Panel(MessageEmbed embed, List<ActionRow> rows) {}
+
+    private Panel buildPanel(DatabaseManager.PlayerRecord rec, int online, int max) {
+        if (rec == null) {
+            MessageEmbed embed = new EmbedBuilder()
+                .setTitle(lang.plain("discord.panel-unlinked-title"))
+                .setDescription(lang.plain("discord.panel-unlinked-desc"))
+                .setColor(java.awt.Color.decode("#a855f7")).build();
+            return new Panel(embed, List.of(ActionRow.of(
+                Button.primary(panelId(null, ACT_BIND_CODE), lang.plain("discord.btn-bind-code")),
+                Button.secondary(panelId(null, ACT_BIND_HELP), lang.plain("discord.btn-bind-help")),
+                Button.secondary(panelId(null, ACT_ONLINE), lang.plain("discord.btn-online")))));
+        }
+        UUID id = rec.uuid();
+        boolean hasPassword = rec.hasPassword() && rec.passwordEnabled();
+        MessageEmbed embed = new EmbedBuilder()
+            .setTitle(lang.plain("discord.panel-title", Map.of("player", rec.username())))
+            .addField(lang.plain("discord.panel-field-status"), lang.plain(rec.locked() ? "discord.status-locked" : "discord.status-active"), true)
+            .addField(lang.plain("discord.panel-field-password"), lang.plain(hasPassword ? "discord.password-set" : "discord.password-unset"), true)
+            .addField(lang.plain("discord.panel-field-online"), online + "/" + max, true)
+            .addField(lang.plain("discord.panel-field-last-login"),
+                DiscordFormat.lastLogin(rec.lastLogin(), lang.plain("discord.last-login-never")), true)
+            .setColor(rec.locked() ? java.awt.Color.RED : java.awt.Color.decode("#a855f7")).build();
+
+        List<Button> second = new ArrayList<>();
+        second.add(rec.locked()
+            ? Button.success(panelId(id, ACT_UNLOCK), lang.plain("discord.btn-unlock"))
+            : Button.danger(panelId(id, ACT_LOCK), lang.plain("discord.btn-lock")));
+        second.add(Button.primary(panelId(id, ACT_PWD_CHANGE), lang.plain("discord.btn-password-change")));
+        if (hasPassword) second.add(Button.danger(panelId(id, ACT_PWD_DELETE), lang.plain("discord.btn-password-delete")));
+
+        return new Panel(embed, List.of(
+            ActionRow.of(
+                Button.secondary(panelId(id, ACT_INFO), lang.plain("discord.btn-info")),
+                Button.secondary(panelId(id, ACT_ONLINE), lang.plain("discord.btn-online")),
+                Button.secondary(panelId(id, ACT_REFRESH), lang.plain("discord.btn-refresh"))),
+            ActionRow.of(second),
+            ActionRow.of(
+                Button.danger(panelId(id, ACT_UNLINK), lang.plain("discord.btn-unlink")),
+                Button.secondary(panelId(id, ACT_SESSIONS), lang.plain("discord.btn-sessions")))));
+    }
+
+    /**
+     * Sends (or, for the refresh button, edits) the control panel. {@code tokenOwner} is the account
+     * the clicked button was issued for, or null for entry points that are not account-bound.
+     */
+    private void sendPanel(InteractionHook hook, String discordId, UUID tokenOwner, boolean edit) {
+        database.findPlayerByDiscordId(discordId).thenCompose(r -> {
+            DatabaseManager.PlayerRecord rec = r.orElse(null);
+            if (tokenOwner != null && !OwnerCheck.isOwner(rec != null ? rec.uuid() : null, tokenOwner)) {
+                say(hook, lang.plain("discord.not-owner"));
+                return CompletableFuture.<Void>completedFuture(null);
+            }
+            return onMain(() -> new int[]{Bukkit.getOnlinePlayers().size(), Bukkit.getMaxPlayers()}).thenAccept(counts -> {
+                Panel panel = buildPanel(rec, counts[0], counts[1]);
+                if (edit) hook.editOriginalEmbeds(panel.embed()).setComponents(panel.rows()).queue(null, err -> {});
+                else hook.sendMessageEmbeds(panel.embed()).setComponents(panel.rows()).setEphemeral(true).queue(null, err -> {});
+            });
+        }).exceptionally(ex -> logAndReport(ex, hook));
+    }
+
+    private void sendOnline(InteractionHook hook) {
+        onMain(() -> {
+            List<String> names = new ArrayList<>();
+            for (Player p : Bukkit.getOnlinePlayers()) names.add(p.getName());
+            return new Object[]{names, Bukkit.getMaxPlayers()};
+        }).thenAccept(data -> {
+            @SuppressWarnings("unchecked") List<String> names = (List<String>) data[0];
+            int max = (Integer) data[1];
+            StringBuilder sb = new StringBuilder(lang.plain("discord.online-header",
+                Map.of("online", Integer.toString(names.size()), "max", Integer.toString(max))));
+            if (names.isEmpty()) {
+                sb.append("\n").append(lang.plain("discord.online-empty"));
+            } else {
+                int extra = names.size() - DiscordFormat.ONLINE_LIST_LIMIT;
+                String more = extra > 0 ? lang.plain("discord.online-more", Map.of("count", Integer.toString(extra))) : null;
+                sb.append("\n").append(DiscordFormat.onlineNames(names, DiscordFormat.ONLINE_LIST_LIMIT, more));
+            }
+            say(hook, DiscordFormat.truncate(sb.toString(), 2000));
+        }).exceptionally(ex -> logAndReport(ex, hook));
+    }
+
+    private void sendInfo(InteractionHook hook, DatabaseManager.PlayerRecord rec) {
+        CompletableFuture<List<String>> alts = rec.lastIp() == null
+            ? CompletableFuture.completedFuture(List.<String>of())
+            : database.getAlts(rec.lastIp());
+        alts.thenAccept(list -> {
+            EmbedBuilder eb = new EmbedBuilder()
+                .setTitle(lang.plain("discord.info-title"))
+                .addField(lang.plain("discord.info-player"), rec.username(), true)
+                .addField(lang.plain("discord.info-status"), lang.plain(rec.locked() ? "discord.status-locked" : "discord.status-active"), true)
+                .addField(lang.plain("discord.info-alts"), DiscordFormat.fieldValue(list, lang.plain("discord.info-none")), false)
+                .setColor(rec.locked() ? java.awt.Color.RED : java.awt.Color.GREEN);
+            hook.sendMessageEmbeds(eb.build()).setEphemeral(true).queue(null, err -> {});
+        }).exceptionally(ex -> logAndReport(ex, hook));
+    }
+
+    private String buildHelpMessage() {
+        return String.join("\n",
+            lang.plain("discord.help-header"),
+            lang.plain("discord.help-menu"),
+            lang.plain("discord.help-link"),
+            lang.plain("discord.help-unlink"),
+            lang.plain("discord.help-lock"),
+            lang.plain("discord.help-unlock"),
+            lang.plain("discord.help-password-change"),
+            lang.plain("discord.help-password-delete"),
+            lang.plain("discord.help-sessions"),
+            lang.plain("discord.help-info"),
+            lang.plain("discord.help-online"),
+            lang.plain("discord.help-help"));
+    }
+
+    // --- actions shared by slash commands and panel buttons ---
+
+    /**
+     * Routes an action that needs no modal. {@code tokenOwner} is non-null for panel buttons: the
+     * clicking Discord user must then be linked to exactly that account.
+     */
+    private void dispatch(String action, String discordId, UUID tokenOwner, InteractionHook hook, boolean edit) {
+        switch (action) {
+            case ACT_ONLINE -> sendOnline(hook);
+            case ACT_HELP -> say(hook, buildHelpMessage());
+            case ACT_BIND_HELP -> say(hook, lang.plain("discord.bind-help"));
+            case ACT_MENU, ACT_REFRESH -> sendPanel(hook, discordId, tokenOwner, edit);
+            default -> withLinked(discordId, hook, rec -> {
+                if (tokenOwner != null && !OwnerCheck.isOwner(rec.uuid(), tokenOwner)) {
+                    say(hook, lang.plain("discord.not-owner"));
+                    return;
+                }
+                runOwned(action, rec, hook);
+            });
+        }
+    }
+
+    private void runOwned(String action, DatabaseManager.PlayerRecord rec, InteractionHook hook) {
+        switch (action) {
+            case ACT_INFO -> sendInfo(hook, rec);
+            case ACT_LOCK -> sendConfirmCard(hook, rec.uuid(), "LOCK_ACCOUNT");
+            case ACT_UNLOCK -> database.setLocked(rec.uuid(), false)
+                .thenRun(() -> say(hook, lang.plain("discord.unlocked-dm")))
+                .exceptionally(ex -> logAndReport(ex, hook));
+            case ACT_PWD_DELETE -> {
+                if (!(rec.hasPassword() && rec.passwordEnabled())) say(hook, lang.plain("discord.no-password-to-delete"));
+                else sendConfirmCard(hook, rec.uuid(), "REMOVE_PASSWORD");
+            }
+            case ACT_UNLINK -> {
+                // Same guard as the in-game menu: without a password the account would become unreachable.
+                if (!(rec.hasPassword() && rec.passwordEnabled())) say(hook, lang.plain("discord.unlink-requires-password"));
+                else sendConfirmCard(hook, rec.uuid(), "UNLINK");
+            }
+            case ACT_SESSIONS -> auth.getSessionManager().invalidate(rec.uuid())
+                .thenRun(() -> say(hook, lang.plain("discord.sessions-done")))
+                .exceptionally(ex -> logAndReport(ex, hook));
+            default -> say(hook, lang.plain("discord.login-expired"));
+        }
+    }
+
+    // --- confirmation cards ---
+
+    private static final long CARD_LIFETIME_MINUTES = 2;
+
+    private MessageEmbed confirmEmbed(String action) {
+        return new EmbedBuilder().setTitle(lang.plain("discord.confirm-action-title"))
+            .setDescription(lang.plain("discord.action-" + action.toLowerCase(Locale.ROOT)))
+            .setColor(java.awt.Color.decode("#a855f7"))
+            .setFooter(lang.plain("discord.confirm-action-footer")).build();
+    }
+
+    private List<ActionRow> confirmRows(UUID owner, String action, String nonce) {
+        Button confirm = Button.success(new ActionToken(KIND_CONFIRM, owner, action, nonce).toId(), lang.plain("discord.action-btn-confirm"));
+        Button deny = Button.danger(new ActionToken(KIND_DENY, owner, action, nonce).toId(), lang.plain("discord.action-btn-deny"));
+        Button lockBtn = Button.danger(new ActionToken(KIND_LOCK, owner, action, nonce).toId(), lang.plain("discord.lock-btn-alert"));
+        return List.of(ActionRow.of(confirm, deny), ActionRow.of(lockBtn));
+    }
+
+    /** Remembers the card and forgets it after its lifetime, so a late click finds nothing to confirm. */
+    private PendingAction registerPendingAction(long messageId, UUID owner, String action, String nonce) {
+        PendingAction pending = new PendingAction(messageId, owner, action, nonce);
+        pendingActions.put(nonce, pending);
+        plugin.getServer().getAsyncScheduler().runDelayed(plugin,
+            t -> pendingActions.remove(nonce, pending), CARD_LIFETIME_MINUTES, TimeUnit.MINUTES);
+        return pending;
+    }
+
+    private void sendConfirmCard(InteractionHook hook, UUID owner, String action) {
+        String nonce = generateCode(12);
+        hook.sendMessageEmbeds(confirmEmbed(action)).setComponents(confirmRows(owner, action, nonce)).setEphemeral(true)
+            .queue(msg -> registerPendingAction(msg.getIdLong(), owner, action, nonce), err -> {});
+    }
+
+    private void finishCard(InteractionHook hook, String text) {
+        hook.editOriginal(text).setEmbeds(Collections.emptyList()).setComponents(Collections.emptyList()).queue(null, err -> {});
+    }
+
+    private void handleCardButton(ButtonInteractionEvent e, ActionToken token) {
+        PendingAction pending = pendingActions.get(token.nonce());
+        if (pending == null || !pending.matches(e.getMessageIdLong(), token)) {
+            e.reply(lang.plain("discord.login-expired")).setEphemeral(true).queue();
+            return;
+        }
+        e.deferEdit().queue();
+        InteractionHook hook = e.getHook();
+        database.findPlayerByDiscordId(e.getUser().getId()).thenAccept(r -> {
+            DatabaseManager.PlayerRecord rec = r.orElse(null);
+            // A stranger's click must not burn the owner's card: verify first, consume second.
+            if (!OwnerCheck.isOwner(rec != null ? rec.uuid() : null, token.owner())) {
+                say(hook, lang.plain("discord.not-owner"));
+                return;
+            }
+            if (!pendingActions.remove(token.nonce(), pending)) {
+                say(hook, lang.plain("discord.login-expired"));
+                return;
+            }
+            switch (token.kind()) {
+                case KIND_CONFIRM -> runConfirmed(rec, token.action())
+                    .thenAccept(text -> finishCard(hook, text)).exceptionally(ex -> logAndReport(ex, hook));
+                case KIND_LOCK -> {
+                    // "It was not me": drop any password change that was waiting on this card as well.
+                    pendingPasswordHashes.remove(token.owner());
+                    runConfirmed(rec, "LOCK_ACCOUNT")
+                        .thenAccept(text -> finishCard(hook, text)).exceptionally(ex -> logAndReport(ex, hook));
+                }
+                default -> {
+                    if ("PASSWORD_CHANGE".equals(token.action())) pendingPasswordHashes.remove(token.owner());
+                    finishCard(hook, lang.plain("discord.action-cancelled"));
+                }
+            }
+        }).exceptionally(ex -> logAndReport(ex, hook));
+    }
+
+    /** Applies a confirmed action and resolves with the text to show on the card. */
+    private CompletableFuture<String> runConfirmed(DatabaseManager.PlayerRecord rec, String action) {
+        UUID uuid = rec.uuid();
+        String name = rec.username();
+        switch (action) {
+            case "UNLINK":
+                return database.setDiscordId(uuid, null).thenApply(v -> {
+                    uncacheLink(uuid);
+                    syncWithLoveCore(uuid, null);
+                    plugin.getLogManager().database(uuid, "DISCORD_UNLINK", name, "discord");
+                    notifyPlayer(uuid, "discord.unlinked");
+                    return lang.plain("discord.unlinked-dm");
+                });
+            case "REMOVE_PASSWORD":
+                return database.setPasswordEnabled(uuid, false).thenApply(v -> {
+                    plugin.getLogManager().database(uuid, "PASSWORD_DELETE", name, "discord");
+                    notifyPlayer(uuid, "commands.password-removed");
+                    return lang.plain("discord.password-deleted-dm");
+                });
+            case "PASSWORD_CHANGE":
+                return applyPendingPasswordChange(uuid)
+                    .thenApply(applied -> lang.plain(applied ? "discord.password-changed-dm" : "discord.login-expired"));
+            case "LOCK_ACCOUNT":
+                return database.setLocked(uuid, true).thenApply(v -> {
+                    plugin.getLogManager().database(uuid, "MANUAL_LOCK", name, "discord");
+                    runMain(() -> {
+                        Player p = Bukkit.getPlayer(uuid);
+                        if (p != null) {
+                            lang.send(p, "discord.account-locked-self");
+                            p.kick(lang.component("block.account-locked"));
+                        }
+                    });
+                    return lang.plain("discord.locked-dm");
+                });
+            default:
+                return CompletableFuture.completedFuture(lang.plain("discord.login-expired"));
+        }
+    }
+
+    /** Sends an in-game message to the player if they are online (main thread). */
+    private void notifyPlayer(UUID uuid, String key) {
+        runMain(() -> {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null) lang.send(p, key);
+        });
+    }
+
+    // --- linking ---
+
+    /** Consumes a link code for this Discord user and answers on the hook. */
+    private void linkByCode(String discordId, String rawCode, InteractionHook hook) {
+        String code = rawCode == null ? "" : rawCode.trim().toUpperCase(Locale.ROOT);
+        if (code.isEmpty()) {
+            say(hook, lang.plain("discord.link-code-empty"));
+            return;
+        }
+        UUID uuid = pendingLinks.remove(code);
+        if (uuid == null) {
+            say(hook, lang.plain("discord.link-invalid-code"));
+            return;
+        }
+        database.findPlayerByDiscordId(discordId).thenCompose(existing -> {
+            if (existing.isPresent() && !existing.get().uuid().equals(uuid)) {
+                say(hook, lang.plain("discord.already-bound-other"));
+                return CompletableFuture.<Void>completedFuture(null);
+            }
+            return database.setDiscordId(uuid, discordId).thenRun(() -> {
+                cacheLink(uuid, discordId);
+                syncWithLoveCore(uuid, discordId);
+                say(hook, lang.plain("discord.link-success-dm"));
+                runMain(() -> {
+                    Player p = Bukkit.getPlayer(uuid);
+                    if (p == null) return;
+                    lang.send(p, "discord.bind-success");
+                    plugin.getLogManager().database(uuid, "DISCORD_LINK", p.getName(), auth.getIp(p));
+                    auth.markAuthenticated(p, true);
+                    lang.notifyEvent(p, "actionbar.discord-bound", Map.of());
+                });
+            });
+        }).exceptionally(ex -> logAndReport(ex, hook));
+    }
+
+    // --- modals ---
+
+    private Modal passwordModal() {
+        TextInput password = TextInput.create("password", lang.plain("discord.modal-password-field"), TextInputStyle.SHORT)
+            .setRequired(true).setMaxLength(PasswordInput.MAX_LENGTH).build();
+        TextInput repeat = TextInput.create("repeat", lang.plain("discord.modal-password-repeat"), TextInputStyle.SHORT)
+            .setRequired(true).setMaxLength(PasswordInput.MAX_LENGTH).build();
+        return Modal.create(modalId(MODAL_PASSWORD), lang.plain("discord.modal-password-title"))
+            .addComponents(ActionRow.of(password), ActionRow.of(repeat)).build();
+    }
+
+    private Modal linkModal() {
+        TextInput code = TextInput.create("code", lang.plain("discord.modal-link-field"), TextInputStyle.SHORT)
+            .setRequired(true).setMaxLength(32).build();
+        return Modal.create(modalId(MODAL_LINK), lang.plain("discord.modal-link-title"))
+            .addComponents(ActionRow.of(code)).build();
+    }
+
+    private String modalValue(ModalInteractionEvent e, String id) {
+        ModalMapping mapping = e.getValue(id);
+        return mapping == null ? "" : mapping.getAsString();
+    }
+
+    private void handlePasswordModal(ModalInteractionEvent e, InteractionHook hook) {
+        String password = modalValue(e, "password");
+        String repeat = modalValue(e, "repeat");
+        int minLength = Math.max(3, config.getMinPasswordLength());
+        switch (PasswordInput.validate(password, repeat, minLength, PasswordInput.MAX_LENGTH)) {
+            case LENGTH -> {
+                say(hook, lang.plain("register.password-length",
+                    Map.of("min", Integer.toString(minLength), "max", Integer.toString(PasswordInput.MAX_LENGTH))));
+                return;
+            }
+            case CHARSET_INVALID -> {
+                say(hook, lang.plain("register.password-invalid-chars"));
+                return;
+            }
+            case MISMATCH -> {
+                say(hook, lang.plain("discord.password-mismatch"));
+                return;
+            }
+            case OK -> { }
+        }
+        // The account comes from the clicking Discord user, so the modal cannot be aimed at someone else.
+        withLinked(e.getUser().getId(), hook, rec ->
+            // applyPasswordHash also drops the stored sessions: a changed password must not leave old ones alive.
+            auth.hashPasswordAsync(password)
+                .thenCompose(hash -> auth.applyPasswordHash(rec.uuid(), hash))
+                .thenRun(() -> say(hook, lang.plain("discord.password-changed-dm")))
+                .exceptionally(ex -> logAndReport(ex, hook)));
+    }
+
     private class DiscordEventListener extends ListenerAdapter {
         @Override
         public void onMessageReceived(MessageReceivedEvent e) {
@@ -497,58 +999,56 @@ public final class DiscordAuthManager implements DiscordService {
                 }
                 return;
             }
-            String[] args = e.getMessage().getContentRaw().trim().split("\\s+");
-            String dId = e.getAuthor().getId();
-            String cmd = args[0].toLowerCase();
-            if (cmd.equals("/link") || cmd.equals("/привязать")) {
-                if (args.length < 2) { e.getChannel().sendMessage(lang.plain("discord.link-usage")).queue(); return; }
-                UUID uuid = pendingLinks.remove(args[1].toUpperCase());
-                if (uuid == null) { e.getChannel().sendMessage(lang.plain("discord.link-invalid-code")).queue(); return; }
-                database.findPlayerByDiscordId(dId).thenAccept(ex -> {
-                    if (ex.isPresent() && !ex.get().uuid().equals(uuid)) { e.getChannel().sendMessage(lang.plain("discord.already-bound-other")).queue(); return; }
-                    database.setDiscordId(uuid, dId).thenRun(() -> {
-                        cacheLink(uuid, dId);
-                        syncWithLoveCore(uuid, dId);
-                        e.getChannel().sendMessage(lang.plain("discord.link-success-dm")).queue();
-                        Player p = Bukkit.getPlayer(uuid);
-                        if (p != null) {
-                            lang.send(p, "discord.bind-success");
-                            plugin.getLogManager().database(uuid, "DISCORD_LINK", p.getName(), auth.getIp(p));
-                            auth.markAuthenticated(p, true);
-                            lang.notifyEvent(p, "actionbar.discord-bound", Map.of());
-                        }
-                    });
-                });
-            } else if (cmd.equals("/unlink") || cmd.equals("/отвязать")) {
-                database.findPlayerByDiscordId(dId).thenAccept(r -> {
-                    if (r.isEmpty()) { e.getChannel().sendMessage(lang.plain("discord.not-bound-dm")).queue(); return; }
-                    UUID unlinkingUuid = r.get().uuid();
-                    database.setDiscordId(unlinkingUuid, null).thenRun(() -> {
-                        uncacheLink(unlinkingUuid);
-                        syncWithLoveCore(unlinkingUuid, null);
-                        e.getChannel().sendMessage(lang.plain("discord.unlinked-dm")).queue();
-                    });
-                });
-            } else if (cmd.equals("/lock") || cmd.equals("/заблокировать")) { database.findPlayerByDiscordId(dId).thenAccept(r -> { if (r.isEmpty()) { e.getChannel().sendMessage(lang.plain("discord.not-bound-dm")).queue(); return; } database.setLocked(r.get().uuid(), true).thenRun(() -> { e.getChannel().sendMessage(lang.plain("discord.locked-dm")).queue(); Player p = Bukkit.getPlayer(r.get().uuid()); if (p != null) Bukkit.getScheduler().runTask(plugin, () -> p.kick(lang.component("block.account-locked"))); }); });
-            } else if (cmd.equals("/unlock") || cmd.equals("/разблокировать")) { database.findPlayerByDiscordId(dId).thenAccept(r -> { if (r.isEmpty()) { e.getChannel().sendMessage(lang.plain("discord.not-bound-dm")).queue(); return; } database.setLocked(r.get().uuid(), false).thenRun(() -> e.getChannel().sendMessage(lang.plain("discord.unlocked-dm")).queue()); });
-            } else if (cmd.equals("/password") || cmd.equals("/пароль")) {
-                if (args.length < 2) { e.getChannel().sendMessage("Usage: /password <change|delete|set> [pass]").queue(); return; }
-                database.findPlayerByDiscordId(dId).thenAccept(r -> {
-                    if (r.isEmpty()) { e.getChannel().sendMessage(lang.plain("discord.not-bound-dm")).queue(); return; }
-                    String sub = args[1].toLowerCase();
-                    if (sub.equals("change") || sub.equals("set") || sub.equals("изменить") || sub.equals("установить")) {
-                        if (args.length < 3) return;
-                        int minLength = Math.max(3, config.getMinPasswordLength());
-                        if (args[2].length() < minLength || args[2].length() > 25) { e.getChannel().sendMessage(lang.plain("register.password-length", Map.of("min", Integer.toString(minLength), "max", "25"))).queue(); return; }
-                        // Invalidate any existing session after a password change so a compromised
-                        // in-game session can't keep riding the old credentials.
-                        database.updatePassword(r.get().uuid(), SecurityUtils.hashPassword(args[2], plugin.getPepper(), config))
-                            .thenCompose(v -> auth.getSessionManager().invalidate(r.get().uuid()))
-                            .thenRun(() -> e.getChannel().sendMessage(lang.plain("discord.password-changed-dm")).queue());
-                    } else if (sub.equals("delete") || sub.equals("удалить")) database.setPasswordEnabled(r.get().uuid(), false).thenRun(() -> e.getChannel().sendMessage(lang.plain("discord.password-deleted-dm")).queue());
-                });
-            } else if (cmd.equals("/info") || cmd.equals("/инфо")) { database.findPlayerByDiscordId(dId).thenAccept(r -> { if (r.isEmpty()) { e.getChannel().sendMessage(lang.plain("discord.not-bound-dm")).queue(); return; } DatabaseManager.PlayerRecord pr = r.get(); plugin.getDatabaseManager().getAlts(pr.lastIp()).thenAccept(alts -> { EmbedBuilder eb = new EmbedBuilder().setTitle(lang.plain("discord.info-title")).addField(lang.plain("discord.info-player"), pr.username(), true).addField(lang.plain("discord.info-status"), pr.locked() ? "Locked" : "Active", true).addField("Alts", String.join(", ", alts), false).setColor(pr.locked() ? java.awt.Color.RED : java.awt.Color.GREEN); e.getChannel().sendMessageEmbeds(eb.build()).queue(); }); });
-            } else if (cmd.equals("/help") || cmd.equals("/помощь")) e.getChannel().sendMessage(buildHelpMessage()).queue();
+            // Text commands in DMs are gone: point the user at the slash commands instead.
+            e.getChannel().sendMessage(lang.plain("discord.dm-hint"))
+                .setComponents(ActionRow.of(Button.primary(panelId(null, ACT_MENU), lang.plain("discord.dm-hint-btn"))))
+                .queue(null, err -> {});
+        }
+
+        @Override
+        public void onSlashCommandInteraction(SlashCommandInteractionEvent e) {
+            String name = e.getName();
+            String sub = e.getSubcommandName();
+            // A modal has to be the very first response to the interaction, so it cannot wait for the database.
+            if (CMD_PASSWORD.equals(name) && CMD_PASSWORD_CHANGE.equals(sub)) {
+                e.replyModal(passwordModal()).queue();
+                return;
+            }
+            e.deferReply(true).queue();
+            InteractionHook hook = e.getHook();
+            String discordId = e.getUser().getId();
+            switch (name) {
+                case CMD_MENU -> dispatch(ACT_MENU, discordId, null, hook, false);
+                case CMD_LINK -> {
+                    OptionMapping code = e.getOption(OPTION_CODE);
+                    linkByCode(discordId, code == null ? null : code.getAsString(), hook);
+                }
+                case CMD_UNLINK -> dispatch(ACT_UNLINK, discordId, null, hook, false);
+                case CMD_LOCK -> dispatch(ACT_LOCK, discordId, null, hook, false);
+                case CMD_UNLOCK -> dispatch(ACT_UNLOCK, discordId, null, hook, false);
+                case CMD_PASSWORD -> {
+                    if (CMD_PASSWORD_DELETE.equals(sub)) dispatch(ACT_PWD_DELETE, discordId, null, hook, false);
+                    else say(hook, lang.plain("discord.login-expired"));
+                }
+                case CMD_SESSIONS -> dispatch(ACT_SESSIONS, discordId, null, hook, false);
+                case CMD_INFO -> dispatch(ACT_INFO, discordId, null, hook, false);
+                case CMD_ONLINE -> dispatch(ACT_ONLINE, discordId, null, hook, false);
+                case CMD_HELP -> dispatch(ACT_HELP, discordId, null, hook, false);
+                default -> say(hook, lang.plain("discord.login-expired"));
+            }
+        }
+
+        @Override
+        public void onModalInteraction(ModalInteractionEvent e) {
+            ActionToken token = ActionToken.parse(e.getModalId()).orElse(null);
+            if (token == null || !KIND_MODAL.equals(token.kind())) return;
+            e.deferReply(true).queue();
+            InteractionHook hook = e.getHook();
+            switch (token.action()) {
+                case MODAL_PASSWORD -> handlePasswordModal(e, hook);
+                case MODAL_LINK -> linkByCode(e.getUser().getId(), modalValue(e, "code"), hook);
+                default -> say(hook, lang.plain("discord.login-expired"));
+            }
         }
 
         @Override
@@ -557,12 +1057,12 @@ public final class DiscordAuthManager implements DiscordService {
             if (id.startsWith("login_confirm:")) {
                 String[] parts = id.split(":");
                 UUID u;
-                try { u = UUID.fromString(parts[1]); } catch (IllegalArgumentException ex) { return; }
+                try { u = UUID.fromString(parts[1]); } catch (IllegalArgumentException | ArrayIndexOutOfBoundsException ex) { return; }
                 String nonce = parts.length > 2 ? parts[2] : null;
                 PendingLogin pending = pendingLogins.get(u);
                 // Message id and nonce must match the request we issued; the entry is consumed atomically.
                 if (pending == null || !pending.matchesRequest(e.getMessageIdLong(), nonce) || !pendingLogins.remove(u, pending)) {
-                    e.reply("Expired.").setEphemeral(true).queue();
+                    e.reply(lang.plain("discord.login-expired")).setEphemeral(true).queue();
                     return;
                 }
                 e.getMessage().delete().queue();
@@ -577,31 +1077,46 @@ public final class DiscordAuthManager implements DiscordService {
                     auth.markAuthenticated(p, true);
                     lang.send(p, "discord.login-approved");
                 });
-                e.reply("Confirmed.").setEphemeral(true).queue();
+                e.reply(lang.plain("discord.login-confirmed-dm")).setEphemeral(true).queue();
+                return;
             }
-            else if (id.startsWith("login_deny:")) {
+            if (id.startsWith("login_deny:")) {
                 String[] parts = id.split(":");
                 UUID u;
-                try { u = UUID.fromString(parts[1]); } catch (IllegalArgumentException ex) { return; }
+                try { u = UUID.fromString(parts[1]); } catch (IllegalArgumentException | ArrayIndexOutOfBoundsException ex) { return; }
                 String nonce = parts.length > 2 ? parts[2] : null;
                 PendingLogin pending = pendingLogins.get(u);
                 if (pending == null || !pending.matchesRequest(e.getMessageIdLong(), nonce) || !pendingLogins.remove(u, pending)) {
-                    e.reply("Expired.").setEphemeral(true).queue();
+                    e.reply(lang.plain("discord.login-expired")).setEphemeral(true).queue();
                     return;
                 }
                 e.getMessage().delete().queue();
                 Bukkit.getScheduler().runTask(plugin, () -> { Player p = Bukkit.getPlayer(u); if (p != null) p.kick(lang.component("discord.login-denied-kick")); });
-                e.reply("Denied.").setEphemeral(true).queue();
+                e.reply(lang.plain("discord.login-denied-dm")).setEphemeral(true).queue();
+                return;
             }
-            else if (id.startsWith("action_lock:")) { UUID u = UUID.fromString(id.split(":")[1]); database.setLocked(u, true).thenRun(() -> { e.getMessage().delete().queue(); Player p = Bukkit.getPlayer(u); if (p != null) Bukkit.getScheduler().runTask(plugin, () -> p.kick(lang.component("block.account-locked"))); }); e.reply("Locked.").setEphemeral(true).queue(); }
-            else if (id.startsWith("confirm_action:")) { String[] p = id.split(":"); UUID u = UUID.fromString(p[1]); e.getMessage().delete().queue(); Bukkit.getScheduler().runTask(plugin, () -> { Player pl = Bukkit.getPlayer(u); if (pl != null) handleConfirmedAction(pl, p[2]); else handleConfirmedActionOffline(u, p[2]); }); e.reply("Confirmed.").setEphemeral(true).queue(); }
-            else if (id.startsWith("deny_action:")) { String[] p = id.split(":"); if (p.length > 1) { try { pendingPasswordHashes.remove(UUID.fromString(p[1])); } catch (IllegalArgumentException ex) { plugin.getLogManager().warnKey("log.listener-error", Map.of("message", "Invalid UUID in deny_action button id: " + ex.getMessage())); } } e.getMessage().delete().queue(); e.reply("Cancelled.").setEphemeral(true).queue(); }
-        }
-    }
 
-    private String buildHelpMessage() {
-        StringBuilder sb = new StringBuilder().append(lang.plain("discord.help-header")).append("\n").append(lang.plain("discord.help-link")).append("\n").append(lang.plain("discord.help-unlink")).append("\n").append(lang.plain("discord.help-lock")).append("\n").append(lang.plain("discord.help-unlock")).append("\n").append(lang.plain("discord.help-password-change")).append("\n").append(lang.plain("discord.help-password-delete")).append("\n").append(lang.plain("discord.help-password-set")).append("\n").append(lang.plain("discord.help-info")).append("\n");
-        return sb.append(lang.plain("discord.help-help")).toString();
+            ActionToken token = ActionToken.parse(id).orElse(null);
+            if (token == null) {
+                e.reply(lang.plain("discord.login-expired")).setEphemeral(true).queue();
+                return;
+            }
+            switch (token.kind()) {
+                case KIND_CONFIRM, KIND_DENY, KIND_LOCK -> handleCardButton(e, token);
+                case KIND_PANEL -> handlePanelButton(e, token);
+                default -> e.reply(lang.plain("discord.login-expired")).setEphemeral(true).queue();
+            }
+        }
+
+        private void handlePanelButton(ButtonInteractionEvent e, ActionToken token) {
+            // Modals must be the first response, so ownership is resolved on submit from the clicking user.
+            if (ACT_PWD_CHANGE.equals(token.action())) { e.replyModal(passwordModal()).queue(); return; }
+            if (ACT_BIND_CODE.equals(token.action())) { e.replyModal(linkModal()).queue(); return; }
+            boolean refresh = ACT_REFRESH.equals(token.action());
+            if (refresh) e.deferEdit().queue();
+            else e.deferReply(true).queue();
+            dispatch(token.action(), e.getUser().getId(), token.owner(), e.getHook(), refresh);
+        }
     }
 
     private String generateCode(int l) { String c = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; StringBuilder s = new StringBuilder(); for (int i = 0; i < l; i++) s.append(c.charAt(random.nextInt(c.length()))); return s.toString(); }

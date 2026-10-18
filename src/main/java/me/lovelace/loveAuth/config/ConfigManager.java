@@ -116,6 +116,9 @@ public final class ConfigManager {
     public String getDiscordAppealsCategoryId() { return config.getString("discord.appeals-category-id", "").trim(); }
     public String getDiscordSupportCategoryId() { return config.getString("discord.support-category-id", "").trim(); }
     public boolean isDiscordTicketsBridgeEnabled() { return config.getBoolean("discord.tickets-bridge.enabled", true); }
+    public boolean isDiscordPresenceEnabled() { return config.getBoolean("discord.presence.enabled", true); }
+    public String getDiscordPresenceFormat() { return config.getString("discord.presence.format", "Играет: {online}/{max}"); }
+    public int getDiscordPresenceIntervalSeconds() { return Math.max(10, config.getInt("discord.presence.interval-seconds", 60)); }
     public boolean isRegisterSpawnEnabled() { return config.getBoolean("register-spawn.enabled", false); }
     public String getRegisterSpawnWorld() { return config.getString("register-spawn.world", "spawn"); }
 
