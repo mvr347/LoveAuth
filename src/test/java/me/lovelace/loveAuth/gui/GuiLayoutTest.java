@@ -166,7 +166,7 @@ class GuiLayoutTest {
         java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\"(gui\\.[a-z0-9.-]*[a-z0-9])\"");
         try (var files = java.nio.file.Files.walk(java.nio.file.Path.of("src/main/java"))) {
             // config.yml keys such as gui.account.show-profile share the prefix but are not lang keys
-            for (java.nio.file.Path file : files.filter(f -> f.toString().endsWith(".java") && !f.toString().contains("/config/")).toList()) {
+            for (java.nio.file.Path file : files.filter(f -> f.toString().endsWith(".java") && !f.toString().replace('\\', '/').contains("/config/")).toList()) {
                 var matcher = pattern.matcher(java.nio.file.Files.readString(file));
                 while (matcher.find()) {
                     assertTrue(lang.isSet(matcher.group(1)), "missing lang key " + matcher.group(1) + " used in " + file);
