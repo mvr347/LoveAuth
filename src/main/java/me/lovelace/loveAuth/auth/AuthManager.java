@@ -47,8 +47,8 @@ public final class AuthManager {
     private final Set<String> registrationLock = ConcurrentHashMap.newKeySet();
     private final Map<UUID, BukkitTask> timeoutTasks = new ConcurrentHashMap<>();
     
-    private static final int PASSWORD_MAX_LENGTH = 25;
-    private static final Pattern PASSWORD_CHARSET_PATTERN = Pattern.compile("^[a-zA-Z0-9._\\-!@#$%^&*()]+$");
+    private static final int PASSWORD_MAX_LENGTH = me.lovelace.loveAuth.discord.PasswordInput.MAX_LENGTH;
+    private static final Pattern PASSWORD_CHARSET_PATTERN = me.lovelace.loveAuth.discord.PasswordInput.CHARSET;
     // Даём игроку время прочитать причину отказа (actionbar) прежде чем её тут же
     // перезатрёт повторный проброс подсказки "Придумайте пароль" — иначе ошибка "мигает"
     // на долю секунды и выглядит как баг, а не как объяснение, почему пароль отклонён.
@@ -399,6 +399,11 @@ public final class AuthManager {
 
     private <T> CompletableFuture<T> supplyAsync(java.util.concurrent.Callable<T> s) {
         return hashingPool.submit(s);
+    }
+
+    /** Hashes a password on the bounded hashing pool (used by the Discord password modal). */
+    public CompletableFuture<String> hashPasswordAsync(String password) {
+        return supplyAsync(() -> SecurityUtils.hashPassword(password, pepper, config));
     }
 
     public void shutdownHashing() {
