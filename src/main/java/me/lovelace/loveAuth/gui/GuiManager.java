@@ -226,7 +226,7 @@ public final class GuiManager {
         ItemStack filler = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
         ItemMeta meta = filler.getItemMeta();
         if (meta != null) {
-            meta.displayName(lang.component("gui.filler-name"));
+            meta.displayName(HeadTextures.upright(lang.component("gui.filler-name")));
             filler.setItemMeta(meta);
         }
         return filler;
@@ -238,7 +238,7 @@ public final class GuiManager {
         SkullMeta meta = (SkullMeta) head.getItemMeta();
         if (meta != null) {
             meta.setOwningPlayer(player);
-            meta.displayName(lang.component("gui.player-head", Map.of("player", player.getName())));
+            meta.displayName(HeadTextures.upright(lang.component("gui.player-head", Map.of("player", player.getName()))));
             head.setItemMeta(meta);
         }
         return head;

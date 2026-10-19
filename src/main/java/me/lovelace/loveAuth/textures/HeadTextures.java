@@ -2,6 +2,7 @@ package me.lovelace.loveAuth.textures;
 
 import me.lovelace.loveAuth.config.HeadsConfig;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.inventory.ItemStack;
@@ -48,10 +49,21 @@ public final class HeadTextures {
         ItemStack item = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) item.getItemMeta();
         meta.setOwnerProfile(buildProfile(base64Texture));
-        meta.displayName(name);
-        if (lore != null && !lore.isEmpty()) meta.lore(lore);
+        meta.displayName(upright(name));
+        if (lore != null && !lore.isEmpty()) meta.lore(lore.stream().map(HeadTextures::upright).toList());
         item.setItemMeta(meta);
         return item;
+    }
+
+    /**
+     * The client draws custom names and lore in italics unless told otherwise. Every GUI item is built through
+     * {@link #createSkull} or through {@code GuiManager}, so the style is removed here, once. An italic tag written
+     * explicitly in a text is kept: only a text that says nothing about italics gets the non-italic default.
+     */
+    public static Component upright(Component text) {
+        return text.decoration(TextDecoration.ITALIC) == TextDecoration.State.NOT_SET
+                ? text.decoration(TextDecoration.ITALIC, false)
+                : text;
     }
 
     private static PlayerProfile buildProfile(String base64Texture) {
