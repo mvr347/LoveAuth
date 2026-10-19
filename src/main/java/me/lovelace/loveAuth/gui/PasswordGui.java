@@ -6,7 +6,6 @@ import me.lovelace.loveAuth.textures.HeadTextures;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
 public final class PasswordGui implements LoveAuthHolder {
@@ -26,9 +25,9 @@ public final class PasswordGui implements LoveAuthHolder {
         GuiManager.standardFrame27(inventory, lang);
         inventory.setItem(0, GuiManager.playerHead(player, lang));
 
-        ItemStack enter = HeadTextures.createSkull(HeadTextures.HEAD_PASSWORD,
-                lang.component("gui.password.enter-button"), lang.lore("gui.password.enter-lore"));
-        inventory.setItem(13, enter);
+        LoreBlocks blocks = new LoreBlocks(lang);
+        inventory.setItem(13, GuiManager.button(lang, HeadTextures.HEAD_PASSWORD, "gui.password.enter-button",
+                "gui.password.enter-lore", blocks.clicks(blocks.left("gui.password.enter-action"))));
 
         GuiManager.applyFooter27(inventory, lang, true);
 

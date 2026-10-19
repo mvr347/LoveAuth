@@ -6,10 +6,9 @@ import me.lovelace.loveAuth.textures.HeadTextures;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 public final class QueueGui implements LoveAuthHolder {
@@ -44,19 +43,13 @@ public final class QueueGui implements LoveAuthHolder {
         int total = queue.getTotal();
         String time = (pos * 5) + "s";
 
-        ItemStack info = HeadTextures.createSkull(HeadTextures.HEAD_INFO,
-                lang.component("gui.queue.position-item"),
-                lang.lore("gui.queue.position-lore", Map.of(
-                        "position", Integer.toString(pos),
-                        "total", Integer.toString(total),
-                        "time", time
-                )));
+        LoreBlocks blocks = new LoreBlocks(lang);
         int[] slots = GuiManager.centeredRow(9, 2);
-        inventory.setItem(slots[0], info);
-
-        ItemStack refresh = HeadTextures.createSkull(HeadTextures.HEAD_BACK,
-                lang.component("gui.queue.refresh-button"), Collections.emptyList());
-        inventory.setItem(slots[1], refresh);
+        // The position is information, not an action: no click line, the description carries the sections.
+        inventory.setItem(slots[0], GuiManager.button(lang, HeadTextures.HEAD_INFO, "gui.queue.position-item", "gui.queue.position-lore",
+                Map.of("position", Integer.toString(pos), "total", Integer.toString(total), "time", time), List.of()));
+        inventory.setItem(slots[1], GuiManager.button(lang, HeadTextures.HEAD_BACK, "gui.queue.refresh-button", "gui.queue.refresh-lore",
+                blocks.clicks(blocks.left("gui.queue.refresh-action"))));
         actions.replace(Map.of(slots[1], Action.REFRESH, inventory.getSize() - 1, Action.CLOSE));
     }
 

@@ -10,6 +10,7 @@ import me.lovelace.loveAuth.input.ChatInputHandler;
 import me.lovelace.loveAuth.lang.LangManager;
 import me.lovelace.loveAuth.queue.QueueManager;
 import me.lovelace.loveAuth.textures.HeadTextures;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
@@ -18,6 +19,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -226,7 +228,7 @@ public final class GuiManager {
         ItemStack filler = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
         ItemMeta meta = filler.getItemMeta();
         if (meta != null) {
-            meta.displayName(lang.component("gui.filler-name"));
+            meta.displayName(HeadTextures.upright(lang.component("gui.filler-name")));
             filler.setItemMeta(meta);
         }
         return filler;
@@ -238,10 +240,24 @@ public final class GuiManager {
         SkullMeta meta = (SkullMeta) head.getItemMeta();
         if (meta != null) {
             meta.setOwningPlayer(player);
-            meta.displayName(lang.component("gui.player-head", Map.of("player", player.getName())));
+            meta.displayName(HeadTextures.upright(lang.component("gui.player-head", Map.of("player", player.getName()))));
             head.setItemMeta(meta);
         }
         return head;
+    }
+
+    /**
+     * A menu button, built the same way in every menu: the name, the description lore, then the block that
+     * closes the lore (click lines from {@link LoreBlocks#clicks}, or a disabled block from {@link LoreBlocks#blocked}).
+     */
+    public static ItemStack button(LangManager lang, String head, String nameKey, String loreKey,
+                                   Map<String, String> placeholders, List<Component> block) {
+        return HeadTextures.createSkull(head, lang.component(nameKey, placeholders),
+                LoreBlocks.join(lang.lore(loreKey, placeholders), block));
+    }
+
+    public static ItemStack button(LangManager lang, String head, String nameKey, String loreKey, List<Component> block) {
+        return button(lang, head, nameKey, loreKey, Map.of(), block);
     }
 
     /**

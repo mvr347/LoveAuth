@@ -8,7 +8,6 @@ import me.lovelace.loveAuth.textures.HeadTextures;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
 public final class PremiumWelcomeGui implements LoveAuthHolder {
@@ -35,19 +34,17 @@ public final class PremiumWelcomeGui implements LoveAuthHolder {
         boolean discordEnabled = config.isDiscordEnabled();
         int[] slots = slots(discordEnabled);
 
-        ItemStack password = HeadTextures.createSkull(HeadTextures.HEAD_PASSWORD,
-                lang.component("gui.premium-welcome.add-password-button"), lang.lore("gui.premium-welcome.add-password-lore"));
-        inventory.setItem(slots[0], password);
+        LoreBlocks blocks = new LoreBlocks(lang);
+        inventory.setItem(slots[0], GuiManager.button(lang, HeadTextures.HEAD_PASSWORD, "gui.premium-welcome.add-password-button",
+                "gui.premium-welcome.add-password-lore", blocks.clicks(blocks.left("gui.premium-welcome.add-password-action"))));
 
         if (discordEnabled) {
-            ItemStack discordItem = HeadTextures.createSkull(HeadTextures.HEAD_DISCORD,
-                    lang.component("gui.premium-welcome.bind-discord-button"), lang.lore("gui.premium-welcome.bind-discord-lore"));
-            inventory.setItem(slots[1], discordItem);
+            inventory.setItem(slots[1], GuiManager.button(lang, HeadTextures.HEAD_DISCORD, "gui.premium-welcome.bind-discord-button",
+                    "gui.premium-welcome.bind-discord-lore", blocks.clicks(blocks.left("gui.premium-welcome.bind-discord-action"))));
         }
 
-        ItemStack skip = HeadTextures.createSkull(HeadTextures.HEAD_BACK,
-                lang.component("gui.premium-welcome.skip-button"), lang.lore("gui.premium-welcome.skip-lore"));
-        inventory.setItem(slots[slots.length - 1], skip);
+        inventory.setItem(slots[slots.length - 1], GuiManager.button(lang, HeadTextures.HEAD_BACK, "gui.premium-welcome.skip-button",
+                "gui.premium-welcome.skip-lore", blocks.clicks(blocks.left("gui.premium-welcome.skip-action"))));
 
         GuiManager.applyFooter27(inventory, lang, false);
 
