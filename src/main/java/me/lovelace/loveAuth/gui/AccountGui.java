@@ -6,6 +6,7 @@ import me.lovelace.loveAuth.config.ConfigManager;
 import me.lovelace.loveAuth.database.DatabaseManager;
 import me.lovelace.loveAuth.lang.LangManager;
 import me.lovelace.loveAuth.textures.HeadTextures;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
@@ -29,6 +30,9 @@ import java.util.concurrent.CompletableFuture;
  */
 public final class AccountGui implements LoveAuthHolder {
     public enum Action { CHANGE_PASSWORD, DELETE_PASSWORD, SESSION, LOGIN_METHOD, DISCORD, LOGOUT, BACK, CLOSE }
+
+    /** The longest session the stepper offers; 0 means the session is off. Shown as the bar's 100 % mark. */
+    public static final int MAX_SESSION_DAYS = 28;
 
     private static final DateTimeFormatter DF = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm").withZone(ZoneId.systemDefault());
 
@@ -146,35 +150,52 @@ public final class AccountGui implements LoveAuthHolder {
     private org.bukkit.inventory.ItemStack buttonFor(Action action, DatabaseManager.PlayerRecord pr, Optional<Long> sessionExpiry) {
         boolean hasPassword = pr != null && pr.hasPassword() && pr.passwordEnabled();
         boolean hasDiscord = pr != null && pr.hasDiscord();
+        LoreBlocks blocks = new LoreBlocks(lang);
         return switch (action) {
-            case CHANGE_PASSWORD -> item(HeadTextures.HEAD_CHANGE_PASS,
-                    hasPassword ? "gui.account.change-password" : "gui.account.set-password",
-                    hasPassword ? "gui.account.change-password-lore" : "gui.account.set-password-lore", Map.of());
-            case DELETE_PASSWORD -> item(HeadTextures.HEAD_BARRIER, "gui.account.delete-password", "gui.account.delete-password-lore", Map.of());
+            case CHANGE_PASSWORD -> hasPassword
+                    ? item(HeadTextures.HEAD_CHANGE_PASS, "gui.account.change-password", "gui.account.change-password-lore", Map.of(),
+                            blocks.clicks(blocks.left("gui.account.change-password-action")))
+                    : item(HeadTextures.HEAD_CHANGE_PASS, "gui.account.set-password", "gui.account.set-password-lore", Map.of(),
+                            blocks.clicks(blocks.left("gui.account.set-password-action")));
+            case DELETE_PASSWORD -> item(HeadTextures.HEAD_BARRIER, "gui.account.delete-password", "gui.account.delete-password-lore", Map.of(),
+                    blocks.clicks(blocks.left("gui.account.delete-password-action")));
             case SESSION -> {
                 int days = pr.sessionDuration();
                 String status = lang.plain(sessionExpiry.isPresent() ? "gui.account.session-active" : "gui.account.session-disabled");
                 String expires = sessionExpiry.map(e -> DF.format(Instant.ofEpochSecond(e))).orElse("---");
                 yield item(days == 0 ? HeadTextures.HEAD_INACTIVE : HeadTextures.HEAD_SESSION,
                         days == 0 ? "gui.session.disable" : "gui.session.days", "gui.account.session-lore",
-                        Map.of("days", String.valueOf(days), "status", status, "expires", expires));
+                        Map.of("days", String.valueOf(days), "status", status, "expires", expires,
+                                "max", String.valueOf(MAX_SESSION_DAYS), "bar", LoreBlocks.bar(days, MAX_SESSION_DAYS)),
+                        blocks.clicks(blocks.left("gui.account.session-add-action"), blocks.right("gui.account.session-remove-action")));
             }
             case LOGIN_METHOD -> {
                 boolean preferDiscord = pr.preferredAuthMethod() == AuthMethod.DISCORD;
                 yield item(preferDiscord ? HeadTextures.HEAD_DISCORD : HeadTextures.HEAD_PASSWORD,
                         "gui.account.login-method", "gui.account.login-method-lore",
-                        Map.of("method", lang.plain(preferDiscord ? "gui.account.login-discord" : "gui.account.login-password")));
+                        Map.of("method", lang.plain(preferDiscord ? "gui.account.login-discord" : "gui.account.login-password"),
+                                "password-option", option(!preferDiscord, "gui.account.login-password"),
+                                "discord-option", option(preferDiscord, "gui.account.login-discord")),
+                        blocks.clicks(blocks.left("gui.account.login-method-action")));
             }
             case DISCORD -> item(HeadTextures.HEAD_DISCORD,
                     hasDiscord ? "gui.discord.unlink-button" : "gui.discord.bind-button",
-                    hasDiscord ? "gui.discord.unlink-lore" : "gui.discord.bind-lore", Map.of());
-            case LOGOUT -> item(HeadTextures.HEAD_EXIT_ACCOUNT, "gui.account.logout", "gui.account.logout-lore", Map.of());
+                    hasDiscord ? "gui.discord.unlink-lore" : "gui.discord.bind-lore", Map.of(),
+                    blocks.clicks(blocks.left(hasDiscord ? "gui.discord.unlink-action" : "gui.discord.bind-action")));
+            case LOGOUT -> item(HeadTextures.HEAD_EXIT_ACCOUNT, "gui.account.logout", "gui.account.logout-lore", Map.of(),
+                    blocks.clicks(blocks.left("gui.account.logout-action")));
             default -> throw new IllegalStateException("Not a content button: " + action);
         };
     }
 
-    private org.bukkit.inventory.ItemStack item(String headTexture, String nameKey, String loreKey, Map<String, String> p) {
-        return HeadTextures.createSkull(headTexture, lang.component(nameKey, p), lang.lore(loreKey, p));
+    private org.bukkit.inventory.ItemStack item(String headTexture, String nameKey, String loreKey, Map<String, String> p,
+                                                List<Component> block) {
+        return GuiManager.button(lang, headTexture, nameKey, loreKey, p, block);
+    }
+
+    /** One login-method option line: the current method is marked with ▶, the other one is indented. */
+    private String option(boolean current, String nameKey) {
+        return lang.get(current ? "gui.account.option-current" : "gui.account.option-other", Map.of("name", lang.plain(nameKey)));
     }
 
     /** Выполняет команду возврата (gui.account.back-command из config.yml) в embedded-режиме. */

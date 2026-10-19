@@ -66,10 +66,10 @@ public final class GuiClickListener implements Listener {
                     int next;
                     if (click.isLeftClick()) {
                         next = current + 1;
-                        if (next > 28) next = 0;
+                        if (next > AccountGui.MAX_SESSION_DAYS) next = 0;
                     } else {
                         next = current - 1;
-                        if (next < 0) next = 28;
+                        if (next < 0) next = AccountGui.MAX_SESSION_DAYS;
                     }
                     final int finalNext = next;
                     plugin.getDatabaseManager().setSessionDuration(player.getUniqueId(), finalNext).thenRun(() -> {

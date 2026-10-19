@@ -125,8 +125,8 @@ class GuiLayoutTest {
     private static boolean isEmojiLike(int cp) {
         if (cp >= 0x1F000) return true;
         if (cp >= 0x2300 && cp <= 0x23FF) return true;                 // clocks, hourglass
-        // dingbats; the state marks ✓ ✕ are the standard, ✘ is the old cross and goes away with the restyle
-        return cp >= 0x2600 && cp <= 0x27BF && cp != 0x2713 && cp != 0x2715 && cp != 0x2718;
+        // dingbats; only the state marks ✓ and ✕ are part of the GUI standard (gui_gen v2.1)
+        return cp >= 0x2600 && cp <= 0x27BF && cp != 0x2713 && cp != 0x2715;
     }
 
     @Test

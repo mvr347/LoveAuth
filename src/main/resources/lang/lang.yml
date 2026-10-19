@@ -1,7 +1,7 @@
 # Версия оформления меню (gui.*). При повышении плагин перезаписывает секцию gui из поставки,
 # а прежний файл сохраняет рядом как lang.yml.bak-vN — иначе серверы со старым файлом оставались бы
 # со старым оформлением.
-lang-version: 2
+lang-version: 3
 
 # Префикс — используется в каждом сообщении через {prefix}
 prefix: "<gradient:#ff6eb4:#a855f7><bold>LoveAuth</bold></gradient><dark_gray> » </dark_gray>"
@@ -347,70 +347,82 @@ gui.account:
   title: "<gold>Мой аккаунт</gold>"
   set-password: "<green>Установить пароль"
   set-password-lore:
+    - "<dark_gray>Пароль"
+    - ""
     - "<gray>Пароль защитит ваш аккаунт."
-    - "<dark_gray><st>─────────────────────</st></dark_gray>"
-    - "<green>ЛКМ <dark_gray>— <gray>установить"
+  set-password-action: "установить"
   change-password: "<yellow>Сменить пароль"
   change-password-lore:
+    - "<dark_gray>Пароль"
+    - ""
     - "<gray>Изменить текущий пароль."
-    - "<dark_gray><st>─────────────────────</st></dark_gray>"
-    - "<green>ЛКМ <dark_gray>— <gray>сменить"
+  change-password-action: "сменить"
   delete-password: "<red>Удалить пароль"
   delete-password-lore:
+    - "<dark_gray>Пароль"
+    - ""
     - "<gray>Вход останется только через Discord."
-    - "<dark_gray><st>─────────────────────</st></dark_gray>"
-    - "<red>ЛКМ <dark_gray>— <gray>удалить"
-  delete-password-locked: "<dark_gray>Удалить пароль"
-  delete-password-locked-lore:
-    - "<red>✘ Discord не привязан"
-    - "<gray>Без него вы потеряете доступ к аккаунту."
-  delete-password-none: "<dark_gray>Удалить пароль"
-  delete-password-none-lore:
-    - "<red>✘ Пароль не установлен"
+  delete-password-action: "удалить"
+  # Сессия входа: срок и шкала из {days} / {max}, клики — ЛКМ +1 день, ПКМ −1 день (LoreBlocks).
   session-lore:
-    - "<gray>Сессия: <white>{status}</white>"
-    - "<gray>Истекает: <white>{expires}</white>"
-    - "<dark_gray><st>─────────────────────</st></dark_gray>"
-    - "<green>ЛКМ <dark_gray>— <gray>+1 день"
-    - "<gold>ПКМ <dark_gray>— <gray>-1 день"
-    - "<dark_gray>Максимум: 28 дней"
-  session-unavailable: "<dark_gray>Сессия"
-  session-unavailable-lore:
-    - "<red>✘ Пароль не установлен"
-    - "<gray>Сессией можно управлять только с паролем."
-  login-method: "<light_purple>Способ входа"
+    - "<dark_gray>Сессия входа"
+    - ""
+    - "<dark_gray>▪ <gray>Сейчас:"
+    - "  <gray>Срок: <white>{days} дн."
+    - "  {bar}"
+    - "  <gray>Сессия: <white>{status}"
+    - "  <gray>Истекает: <white>{expires}"
+    - ""
+    - "<dark_gray>▪ <gray>Пределы:"
+    - "  <gray>Максимум: <white>{max} дней"
+  session-add-action: "добавить день"
+  session-remove-action: "убрать день"
+  # Имя несёт текущий способ; в лоре оба варианта, текущий отмечен ▶.
+  login-method: "<gold>Способ входа <dark_gray>| <yellow>{method}"
   login-method-lore:
-    - "<gray>Сейчас: <white>{method}</white>"
-    - "<dark_gray><st>─────────────────────</st></dark_gray>"
-    - "<green>ЛКМ <dark_gray>— <gray>сменить"
-  login-method-locked: "<dark_gray>Способ входа"
-  login-method-locked-lore:
-    - "<red>✘ Доступен только: <white>{method}</white>"
-    - "<gray>Настройте пароль и Discord, чтобы выбирать."
+    - "<dark_gray>Способ входа"
+    - ""
+    - "<dark_gray>▪ <gray>Варианты:"
+    - "{password-option}"
+    - "{discord-option}"
+  login-method-action: "сменить способ входа"
+  option-current: "  <green>▶ {name}"
+  option-other: "    <gray>{name}"
   logout: "<red>Выйти из аккаунта"
   logout-lore:
+    - "<dark_gray>Выход"
+    - ""
     - "<gray>Завершить текущую сессию."
-    - "<dark_gray><st>─────────────────────</st></dark_gray>"
-    - "<red>ЛКМ <dark_gray>— <gray>выйти"
+  logout-action: "выйти"
   session-active: "активна"
   session-disabled: "отключена"
-  login-password: "пароль"
-  login-discord: "discord"
+  login-password: "Пароль"
+  login-discord: "Discord"
 
 # ── GUI: сессии (кнопка встроена прямо в /loveauth account) ──
 gui.session:
-  disable: "<red>Сессия отключена"
-  days: "<aqua>Сессия: <white>{days} дн."
+  disable: "<gray>Сессия <dark_gray>| <red>Выкл"
+  days: "<gold>Сессия <dark_gray>| <yellow>{days} дн."
 
 # ── GUI: очередь ────────────────────────────
 gui.queue:
   title: "<gold>Очередь</gold>"
-  position-item: "<white>Позиция в очереди"
+  position-item: "<gold>Позиция в очереди <dark_gray>| <yellow>{position}"
   position-lore:
-    - "<gray>Ваша позиция: <white>{position}</white>"
-    - "<gray>Всего в очереди: <white>{total}</white>"
-    - "<gray>Ожидание: <white>~{time}</white>"
+    - "<dark_gray>Ожидание входа"
+    - ""
+    - "<dark_gray>▪ <gray>Место в очереди:"
+    - "  <gray>Ваша позиция: <white>{position}"
+    - "  <gray>Всего в очереди: <white>{total}"
+    - ""
+    - "<dark_gray>▪ <gray>Ожидание:"
+    - "  <gray>Примерно: <white>~{time}"
   refresh-button: "<green>Обновить"
+  refresh-lore:
+    - "<dark_gray>Обновление"
+    - ""
+    - "<gray>Обновляет вашу позицию в очереди."
+  refresh-action: "обновить"
 
 # ── GUI: подтверждение ───────────────────────
 # Ключи ниже используются как заголовок хоппер-меню (ConfirmGui) — конкретный вопрос
