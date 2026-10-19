@@ -81,22 +81,28 @@ public final class DiscordGui implements LoveAuthHolder {
 
         // Unlinking needs a working password to fall back on; the password switch needs a linked
         // Discord. Whatever is not possible is simply not shown.
+        LoreBlocks blocks = new LoreBlocks(lang);
         java.util.List<Action> visible = new java.util.ArrayList<>(2);
         java.util.List<ItemStack> items = new java.util.ArrayList<>(2);
         if (!hasDiscord) {
             visible.add(Action.BIND_OR_UNLINK);
-            items.add(HeadTextures.createSkull(HeadTextures.HEAD_DISCORD,
-                    lang.component("gui.discord.bind-button"), lang.lore("gui.discord.bind-lore")));
+            items.add(GuiManager.button(lang, HeadTextures.HEAD_DISCORD, "gui.discord.bind-button", "gui.discord.bind-lore",
+                    blocks.clicks(blocks.left("gui.discord.bind-action"))));
         } else {
             if (hasWorkingPassword) {
                 visible.add(Action.BIND_OR_UNLINK);
-                items.add(HeadTextures.createSkull(HeadTextures.HEAD_DISCORD,
-                        lang.component("gui.discord.unlink-button"), lang.lore("gui.discord.unlink-lore")));
+                items.add(GuiManager.button(lang, HeadTextures.HEAD_DISCORD, "gui.discord.unlink-button", "gui.discord.unlink-lore",
+                        blocks.clicks(blocks.left("gui.discord.unlink-action"))));
             }
+            // The name shows the current state; the lore shows what the click changes it to.
             visible.add(Action.TOGGLE_PASSWORD);
-            items.add(HeadTextures.createSkull(HeadTextures.HEAD_CHANGE_PASS,
-                    lang.component(passEnabled ? "gui.discord.toggle-password-off" : "gui.discord.toggle-password-on"),
-                    lang.lore("gui.discord.toggle-lore")));
+            Map<String, String> change = Map.of(
+                    "now", lang.get(passEnabled ? "gui.discord.state-on" : "gui.discord.state-off"),
+                    "next", lang.get(passEnabled ? "gui.discord.state-off" : "gui.discord.state-on"));
+            items.add(GuiManager.button(lang, HeadTextures.HEAD_CHANGE_PASS,
+                    passEnabled ? "gui.discord.toggle-password-on" : "gui.discord.toggle-password-off",
+                    "gui.discord.toggle-lore", change,
+                    blocks.clicks(blocks.left(passEnabled ? "gui.discord.toggle-disable-action" : "gui.discord.toggle-enable-action"))));
         }
 
         Map<Integer, Action> map = new HashMap<>();

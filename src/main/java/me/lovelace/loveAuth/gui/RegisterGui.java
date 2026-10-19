@@ -6,7 +6,6 @@ import me.lovelace.loveAuth.textures.HeadTextures;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
 public final class RegisterGui implements LoveAuthHolder {
@@ -29,14 +28,13 @@ public final class RegisterGui implements LoveAuthHolder {
         boolean discordEnabled = auth.getPlugin().getConfigManager().isDiscordEnabled();
         int[] slots = slots(discordEnabled);
 
-        ItemStack register = HeadTextures.createSkull(HeadTextures.HEAD_PASSWORD,
-                lang.component("gui.register.register-button"), lang.lore("gui.register.register-lore"));
-        inventory.setItem(slots[0], register);
+        LoreBlocks blocks = new LoreBlocks(lang);
+        inventory.setItem(slots[0], GuiManager.button(lang, HeadTextures.HEAD_PASSWORD, "gui.register.register-button",
+                "gui.register.register-lore", blocks.clicks(blocks.left("gui.register.register-action"))));
 
         if (discordEnabled) {
-            ItemStack discord = HeadTextures.createSkull(HeadTextures.HEAD_DISCORD,
-                    lang.component("gui.discord.bind-button"), lang.lore("gui.discord.bind-lore"));
-            inventory.setItem(slots[1], discord);
+            inventory.setItem(slots[1], GuiManager.button(lang, HeadTextures.HEAD_DISCORD, "gui.discord.bind-button",
+                    "gui.discord.bind-lore", blocks.clicks(blocks.left("gui.discord.bind-action"))));
         }
 
         GuiManager.applyFooter27(inventory, lang, false);

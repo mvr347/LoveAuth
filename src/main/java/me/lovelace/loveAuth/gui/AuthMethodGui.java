@@ -73,29 +73,36 @@ public final class AuthMethodGui implements LoveAuthHolder {
         GuiManager.applyFrame(inv, lang, false);
         inv.setItem(0, GuiManager.playerHead(player, lang));
 
+        LoreBlocks blocks = new LoreBlocks(lang);
         boolean discordEnabled = config.isDiscordEnabled();
         List<Action> visible = new ArrayList<>(2);
         List<ItemStack> items = new ArrayList<>(2);
 
         if (!registered || hasPassword) {
             visible.add(Action.PASSWORD);
-            items.add(HeadTextures.createSkull(HeadTextures.HEAD_PASSWORD,
-                    lang.component(registered ? "gui.auth-method.password-button" : "gui.register.register-button"),
-                    lang.lore(registered ? "gui.auth-method.password-lore" : "gui.register.register-lore")));
+            items.add(registered
+                    ? GuiManager.button(lang, HeadTextures.HEAD_PASSWORD, "gui.auth-method.password-button",
+                            "gui.auth-method.password-lore", blocks.clicks(blocks.left("gui.auth-method.password-action")))
+                    : GuiManager.button(lang, HeadTextures.HEAD_PASSWORD, "gui.register.register-button",
+                            "gui.register.register-lore", blocks.clicks(blocks.left("gui.register.register-action"))));
         }
         if (discordEnabled) {
             visible.add(Action.DISCORD);
             boolean bind = registered && !hasDiscord;
-            items.add(HeadTextures.createSkull(HeadTextures.HEAD_DISCORD,
-                    lang.component(bind ? "gui.auth-method.discord-bind-button" : "gui.auth-method.discord-button"),
-                    lang.lore(bind ? "gui.auth-method.discord-bind-lore" : "gui.auth-method.discord-lore")));
+            items.add(bind
+                    ? GuiManager.button(lang, HeadTextures.HEAD_DISCORD, "gui.auth-method.discord-bind-button",
+                            "gui.auth-method.discord-bind-lore", blocks.clicks(blocks.left("gui.auth-method.discord-bind-action")))
+                    : GuiManager.button(lang, HeadTextures.HEAD_DISCORD, "gui.auth-method.discord-button",
+                            "gui.auth-method.discord-lore", blocks.clicks(blocks.left("gui.auth-method.discord-action"))));
         }
         if (visible.isEmpty()) {
             // A registered account with neither a working password nor Discord: keep the explanatory
             // button rather than an empty menu - its click tells the player why the password is off.
             visible.add(Action.PASSWORD);
-            items.add(HeadTextures.createSkull(HeadTextures.HEAD_INACTIVE,
-                    lang.component("gui.auth-method.password-locked"), lang.lore("gui.auth-method.password-locked-lore")));
+            items.add(GuiManager.button(lang, HeadTextures.HEAD_INACTIVE, "gui.auth-method.password-locked",
+                    "gui.auth-method.password-locked-lore",
+                    blocks.blocked("gui.auth-method.password-locked-reason",
+                            blocks.left("gui.auth-method.password-locked-action"))));
         }
 
         Map<Integer, Action> map = new HashMap<>();

@@ -208,9 +208,10 @@ discord:
   password-deleted-dm: "✅ Пароль удалён. Теперь вход только через Discord."
 
 # ── GUI: общие ──────────────────────────────
-# 2026-10-14: единый стиль меню (как в LoveClans): без эмодзи и жирного в названиях, заголовки
-# серым, одна красная строка с причиной у недоступной кнопки и серая подсказка под ней, действие
-# в конце лора. Эмодзи в разных шрифтах клиента имеют разную ширину и ломали выравнивание строк.
+# Оформление по gui_gen v2.1 (как в LoveClans и LoveShop): названия без значков и жирного, первая строка
+# лора — подзаголовок категории, секции «▪ …» с отступом в два пробела. Клики и блок недоступной кнопки
+# собирает LoreBlocks из gui.style.* — здесь их не пишем. Курсив снимает HeadTextures.upright.
+# Эмодзи не используем: разные шрифты клиента рисуют их разной ширины.
 gui:
   # Общие строки лора (gui_gen v2.1): разделитель, клики, блок недоступной кнопки. Собирает LoreBlocks.
   style:
@@ -226,6 +227,16 @@ gui:
   back-button: "<gray>Назад"
   confirm-button: "<green>Подтвердить"
   cancel-button: "<red>Отмена"
+  confirm-action: "подтвердить"
+  cancel-action: "отменить"
+  confirm-lore:
+    - "<dark_gray>Подтверждение"
+    - ""
+    - "<gray>Действие будет выполнено сразу."
+  cancel-lore:
+    - "<dark_gray>Отмена"
+    - ""
+    - "<gray>Ничего не изменится."
   filler-name: " "
   unavailable: "<red>Недоступно"
   player-head: "<gold>Профиль <dark_gray>| <white>{player}</white>"
@@ -235,91 +246,101 @@ gui.auth-method:
   title: "<gold>Авторизация</gold>"
   password-button: "<green>Войти по паролю"
   password-lore:
+    - "<dark_gray>Вход по паролю"
+    - ""
     - "<gray>Пароль вводится в чат."
-    - "<dark_gray><st>─────────────────────</st></dark_gray>"
-    - "<green>ЛКМ <dark_gray>— <gray>ввести пароль"
+  password-action: "ввести пароль"
   discord-button: "<#7289da>Войти через Discord"
   discord-lore:
+    - "<dark_gray>Вход через Discord"
+    - ""
     - "<gray>Вход подтверждается в Discord-боте."
-    - "<dark_gray><st>─────────────────────</st></dark_gray>"
-    - "<green>ЛКМ <dark_gray>— <gray>войти"
-  discord-disabled-lore:
-    - "<red>✘ Discord отключён на сервере"
-  password-locked: "<dark_gray>Вход по паролю"
+  discord-action: "войти"
+  password-locked: "<gray>Вход по паролю <dark_gray>| <red>Недоступно"
   password-locked-lore:
-    - "<red>✘ Пароль не установлен"
+    - "<dark_gray>Вход по паролю"
+    - ""
     - "<gray>Используйте другой способ входа."
+  password-locked-reason: "Пароль не установлен"
+  password-locked-action: "войти по паролю"
   discord-bind-button: "<#7289da>Привязать Discord"
   discord-bind-lore:
+    - "<dark_gray>Привязка Discord"
+    - ""
     - "<gray>Привяжите Discord-аккаунт,"
     - "<gray>чтобы входить через него."
-    - "<dark_gray><st>─────────────────────</st></dark_gray>"
-    - "<green>ЛКМ <dark_gray>— <gray>привязать"
+  discord-bind-action: "привязать"
 
 # ── GUI: подменю пароля ──────────────────────
 gui.password:
   title: "<gold>Вход по паролю</gold>"
   enter-button: "<green>Ввести пароль"
   enter-lore:
+    - "<dark_gray>Ввод пароля"
+    - ""
     - "<gray>Пароль вводится в чат."
-    - "<dark_gray><st>─────────────────────</st></dark_gray>"
-    - "<green>ЛКМ <dark_gray>— <gray>ввести"
+  enter-action: "ввести"
 
 # ── GUI: подменю Discord ─────────────────────
 gui.discord:
   title: "<gold>Discord</gold>"
   bind-button: "<#7289da>Привязать Discord"
   bind-lore:
+    - "<dark_gray>Привязка Discord"
+    - ""
     - "<gray>Привяжите ваш Discord-аккаунт."
-    - "<dark_gray><st>─────────────────────</st></dark_gray>"
-    - "<green>ЛКМ <dark_gray>— <gray>получить код"
+  bind-action: "получить код"
   unlink-button: "<red>Отвязать Discord"
   unlink-lore:
+    - "<dark_gray>Отвязка Discord"
+    - ""
     - "<gray>Разорвать связь с Discord-аккаунтом."
-    - "<dark_gray><st>─────────────────────</st></dark_gray>"
-    - "<red>ЛКМ <dark_gray>— <gray>отвязать"
-  toggle-password-on: "<yellow>Включить пароль"
-  toggle-password-off: "<yellow>Выключить пароль"
+  unlink-action: "отвязать"
+  # Имя несёт состояние (Пароль | Вкл), а не глагол: клик меняет его, лора показывает «было → станет».
+  toggle-password-on: "<gold>Пароль <dark_gray>| <green>Вкл"
+  toggle-password-off: "<gold>Пароль <dark_gray>| <red>Выкл"
   toggle-lore:
-    - "<gray>Вход по паролю включается"
-    - "<gray>и выключается здесь."
-    - "<dark_gray><st>─────────────────────</st></dark_gray>"
-    - "<green>ЛКМ <dark_gray>— <gray>переключить"
-  toggle-locked: "<dark_gray>Вход по паролю"
-  toggle-locked-lore:
-    - "<red>✘ Discord не привязан"
-    - "<gray>Привяжите Discord, чтобы управлять паролем."
-  unlink-locked: "<dark_gray>Отвязать Discord"
-  unlink-locked-lore:
-    - "<red>✘ Пароль не установлен"
-    - "<gray>Без пароля вы потеряете доступ к аккаунту."
+    - "<dark_gray>Вход по паролю"
+    - ""
+    - "<dark_gray>▪ <gray>После клика:"
+    - "  <gray>Пароль: {now} <dark_gray>→ {next}"
+  toggle-enable-action: "включить вход по паролю"
+  toggle-disable-action: "выключить вход по паролю"
+  state-on: "<green>Вкл"
+  state-off: "<red>Выкл"
 
 # ── GUI: регистрация ─────────────────────────
 gui.register:
   title: "<gold>Регистрация</gold>"
   register-button: "<green>Зарегистрироваться"
   register-lore:
+    - "<dark_gray>Создание аккаунта"
+    - ""
     - "<gray>Создайте аккаунт с паролем."
-    - "<dark_gray><st>─────────────────────</st></dark_gray>"
-    - "<green>ЛКМ <dark_gray>— <gray>придумать пароль"
+  register-action: "придумать пароль"
 
 # ── GUI: Premium при первом входе ────────────
 gui.premium-welcome:
   title: "<gold>Добро пожаловать</gold>"
   add-password-button: "<green>Добавить пароль"
   add-password-lore:
+    - "<dark_gray>Защита аккаунта"
+    - ""
     - "<gray>Защитите аккаунт паролем."
-    - "<dark_gray><st>─────────────────────</st></dark_gray>"
-    - "<green>ЛКМ <dark_gray>— <gray>добавить"
+  add-password-action: "добавить пароль"
   bind-discord-button: "<#7289da>Привязать Discord"
   bind-discord-lore:
+    - "<dark_gray>Привязка Discord"
+    - ""
     - "<gray>Привяжите Discord-аккаунт."
-    - "<dark_gray><st>─────────────────────</st></dark_gray>"
-    - "<green>ЛКМ <dark_gray>— <gray>привязать"
+  bind-discord-action: "привязать"
   skip-button: "<gray>Пропустить"
   skip-lore:
+    - "<dark_gray>Без настройки"
+    - ""
     - "<gray>Войти без настройки."
-    - "<dark_gray>Настроить можно позже: /loveauth account"
+    - "<gray>Настроить можно позже: /loveauth account"
+  skip-action: "войти без настройки"
 
 # ── GUI: управление аккаунтом ────────────────
 gui.account:

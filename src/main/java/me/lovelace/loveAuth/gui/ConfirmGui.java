@@ -6,10 +6,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
-
-import java.util.Collections;
 
 public final class ConfirmGui implements LoveAuthHolder {
     public static final int CONFIRM_SLOT = 1;
@@ -37,13 +34,11 @@ public final class ConfirmGui implements LoveAuthHolder {
         this.inventory = Bukkit.createInventory(this, InventoryType.HOPPER, lang.component(descriptionKey));
         GuiManager.fillBackground(inventory, lang);
 
-        ItemStack confirm = HeadTextures.createSkull(HeadTextures.HEAD_CHECK,
-                lang.component("gui.confirm-button"), Collections.emptyList());
-        inventory.setItem(CONFIRM_SLOT, confirm);
-
-        ItemStack cancel = HeadTextures.createSkull(HeadTextures.HEAD_X,
-                lang.component("gui.cancel-button"), Collections.emptyList());
-        inventory.setItem(CANCEL_SLOT, cancel);
+        LoreBlocks blocks = new LoreBlocks(lang);
+        inventory.setItem(CONFIRM_SLOT, GuiManager.button(lang, HeadTextures.HEAD_CHECK, "gui.confirm-button", "gui.confirm-lore",
+                blocks.clicks(blocks.left("gui.confirm-action"))));
+        inventory.setItem(CANCEL_SLOT, GuiManager.button(lang, HeadTextures.HEAD_X, "gui.cancel-button", "gui.cancel-lore",
+                blocks.clicks(blocks.left("gui.cancel-action"))));
 
         player.openInventory(inventory);
     }
