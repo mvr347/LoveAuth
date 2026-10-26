@@ -299,7 +299,8 @@ public final class LimboManager {
         player.setFlySpeed(state.flySpeed());
         player.setAllowFlight(state.allowFlight());
         player.setFlying(state.isFlying());
-        player.setInvulnerable(state.isInvulnerable());
+        // SURVIVAL must not inherit a stale playerdata flag captured before authentication.
+        player.setInvulnerable(state.gameMode() != GameMode.SURVIVAL && state.isInvulnerable());
         player.setInvisible(state.isInvisible());
         frozenPlayers.invalidate(player.getUniqueId());
         frozenUuids.remove(player.getUniqueId());
