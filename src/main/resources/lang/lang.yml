@@ -519,6 +519,7 @@ log:
   discord-disabled: "[LoveAuth] Discord-интеграция отключена (discord.enabled=false)."
   discord-no-token: "[LoveAuth] ПРЕДУПРЕЖДЕНИЕ: Discord включён, но bot-token не указан!"
   discord-ready: "[LoveAuth] Discord-бот запущен: {tag}"
+  discord-ack-conflict: "[LoveAuth] На нажатие в Discord уже ответил другой процесс с этим же токеном бота (LoveCore или соседний сервер). Вход применён; чтобы убрать конфликт, используйте разные токены или не отвечайте на чужие кнопки."
   discord-start-error: "[LoveAuth] Ошибка запуска Discord-бота: {message}"
   discord-commands-error: "[LoveAuth] Не удалось зарегистрировать слэш-команды Discord: {message}"
   discord-dm-error: "[LoveAuth] Ошибка отправки DM в Discord: {message}"

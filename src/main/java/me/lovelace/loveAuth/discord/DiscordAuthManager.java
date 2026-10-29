@@ -114,6 +114,7 @@ public final class DiscordAuthManager implements DiscordService {
             plugin.getLogManager().warnKey("log.discord-no-token");
             return;
         }
+        installAckConflictHandler();
         try {
             jda = JDABuilder.createLight(token,
                     GatewayIntent.GUILD_MESSAGES,
@@ -135,6 +136,28 @@ public final class DiscordAuthManager implements DiscordService {
     }
 
     public boolean isEnabled() { return jda != null; }
+
+    private final java.util.concurrent.atomic.AtomicBoolean ackConflictReported = new java.util.concurrent.atomic.AtomicBoolean();
+
+    /**
+     * Another process on the same bot token answered the interaction first, so ours is rejected with 40060.
+     * That is harmless (the first answer wins) and its stack trace only hides real errors: report it once,
+     * hand everything else to JDA's own default handler. The default is static, but this JDA copy is
+     * relocated into LoveAuth, so no other plugin shares it.
+     */
+    private void installAckConflictHandler() {
+        Consumer<? super Throwable> jdaDefault = net.dv8tion.jda.api.requests.RestAction.getDefaultFailure();
+        net.dv8tion.jda.api.requests.RestAction.setDefaultFailure(error -> {
+            if (error instanceof net.dv8tion.jda.api.exceptions.ErrorResponseException response
+                    && AckConflict.isAlreadyAcknowledged(response.getErrorCode())) {
+                if (ackConflictReported.compareAndSet(false, true)) {
+                    plugin.getLogManager().warnKey("log.discord-ack-conflict");
+                }
+                return;
+            }
+            jdaDefault.accept(error);
+        });
+    }
 
     public void shutdown() {
         BukkitTask task = presenceTask;
