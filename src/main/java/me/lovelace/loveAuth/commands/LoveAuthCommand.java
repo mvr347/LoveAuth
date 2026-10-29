@@ -26,7 +26,7 @@ public final class LoveAuthCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("§cOnly for players.");
+            plugin.getLangManager().send(sender, "general.player-only");
             return true;
         }
 
@@ -66,7 +66,7 @@ public final class LoveAuthCommand implements CommandExecutor, TabCompleter {
                 if (!auth.isAuthenticated(uuid)) lang.send(player, "auth.not-logged-in");
                 else auth.forceLogout(uuid).thenRun(() -> Bukkit.getScheduler().runTask(plugin, () -> player.kick(lang.component("commands.session-reset"))));
             }
-            default -> lang.send(player, "general.unknown-command");
+            default -> sendHelp(player);
         }
 
         return true;

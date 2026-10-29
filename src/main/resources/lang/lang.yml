@@ -8,9 +8,7 @@ prefix: "<gradient:#ff6eb4:#a855f7><bold>LoveAuth</bold></gradient><dark_gray> �
 
 # ── Общие ───────────────────────────────────
 general:
-  no-permission: "{prefix}<red>У вас недостаточно прав."
   player-only: "{prefix}<red>Эта команда только для игроков."
-  unknown-command: "{prefix}<red>Неизвестная подкоманда. Используйте <white>/loveauth help</white>."
   player-not-found: "{prefix}<red>Игрок <white>{player}</white> не найден."
   reloaded: "{prefix}<green>Конфигурация и языковые файлы успешно перезагружены."
   reload-error: "{prefix}<red>Ошибка при перезагрузке: <white>{error}</white>"
