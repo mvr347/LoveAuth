@@ -14,9 +14,13 @@ commands:
     aliases: [ ладмин ]
     description: Панель администратора LoveAuth
     usage: /loveauthadmin <подкоманда>
+    permission: loveauth.admin
+    permission-message: ""
   ladmin:
     description: (устарело) переехала в /loveauthadmin
     usage: /loveauthadmin <подкоманда>
+    permission: loveauth.admin
+    permission-message: ""
 permissions:
   loveauth.admin:
     description: Полный доступ к административным командам LoveAuth

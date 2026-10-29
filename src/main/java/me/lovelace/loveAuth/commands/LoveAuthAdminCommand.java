@@ -37,16 +37,14 @@ public final class LoveAuthAdminCommand implements CommandExecutor, TabCompleter
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (command.getName().equalsIgnoreCase(LEGACY_COMMAND_NAME)) {
-            if (!sender.hasPermission("loveauth.admin")) {
-                plugin.getLangManager().send(sender, "general.no-permission");
-            } else {
+            // Silent on purpose: a command the sender cannot use is simply not theirs.
+            if (sender.hasPermission("loveauth.admin")) {
                 plugin.getLangManager().send(sender, "commands.admin-command-moved");
             }
             return true;
         }
 
         if (!sender.hasPermission("loveauth.admin")) {
-            plugin.getLangManager().send(sender, "general.no-permission");
             return true;
         }
 
@@ -69,7 +67,6 @@ public final class LoveAuthAdminCommand implements CommandExecutor, TabCompleter
                 // не проверялся: перезагрузка гейтилась только общим loveauth.admin, из-за чего
                 // выдать право исключительно на reload было невозможно.
                 if (!sender.hasPermission("loveauth.reload")) {
-                    lang.send(sender, "general.no-permission");
                     return;
                 }
                 plugin.getConfigManager().reload();
@@ -84,7 +81,7 @@ public final class LoveAuthAdminCommand implements CommandExecutor, TabCompleter
                 lang.send(sender, "general.reloaded");
             }
             case "unlock", "разблокировать" -> {
-                if (args.length < 2) return;
+                if (args.length < 2) { sendUsage(sender, "/loveauthadmin unlock <игрок>"); return; }
                 String target = args[1];
                 plugin.getDatabaseManager().findPlayerByName(target).thenAccept(record -> {
                     if (record.isEmpty()) lang.send(sender, "general.player-not-found", Map.of("player", target));
@@ -92,7 +89,7 @@ public final class LoveAuthAdminCommand implements CommandExecutor, TabCompleter
                 });
             }
             case "unblockip", "разблокироватьайпи" -> {
-                if (args.length < 2) return;
+                if (args.length < 2) { sendUsage(sender, "/loveauthadmin unblockip <ip>"); return; }
                 String partialIp = args[1];
                 plugin.getDatabaseManager().getRawIpFromBlocked(partialIp).thenAccept(optIp -> {
                     if (optIp.isEmpty()) lang.send(sender, "commands.ip-not-found");
@@ -100,7 +97,7 @@ public final class LoveAuthAdminCommand implements CommandExecutor, TabCompleter
                 });
             }
             case "session", "сессия" -> {
-                if (args.length < 3) return;
+                if (args.length < 3) { sendUsage(sender, "/loveauthadmin session reset <игрок>"); return; }
                 if (args[1].equalsIgnoreCase("reset") || args[1].equalsIgnoreCase("сброс")) {
                     String target = args[2];
                     plugin.getDatabaseManager().findPlayerByName(target).thenAccept(record -> {
@@ -115,7 +112,7 @@ public final class LoveAuthAdminCommand implements CommandExecutor, TabCompleter
                 }
             }
             case "info", "инфо" -> {
-                if (args.length < 2) return;
+                if (args.length < 2) { sendUsage(sender, "/loveauthadmin info <игрок>"); return; }
                 String target = args[1];
                 plugin.getDatabaseManager().findPlayerByName(target).thenAccept(record -> {
                     if (record.isEmpty()) lang.send(sender, "general.player-not-found", Map.of("player", target));
@@ -132,7 +129,7 @@ public final class LoveAuthAdminCommand implements CommandExecutor, TabCompleter
                 });
             }
             case "delete", "удалить" -> {
-                if (args.length < 2) return;
+                if (args.length < 2) { sendUsage(sender, "/loveauthadmin delete <игрок>"); return; }
                 doDeletePlayer(sender, args[1]);
             }
             case "setfirstspawn", "установитьпервыйспавн" -> {
@@ -156,7 +153,7 @@ public final class LoveAuthAdminCommand implements CommandExecutor, TabCompleter
                         );
                     });
             }
-            default -> lang.send(sender, "general.unknown-command");
+            default -> sendHelp(sender);
         }
     }
 
@@ -176,6 +173,10 @@ public final class LoveAuthAdminCommand implements CommandExecutor, TabCompleter
                 plugin.getLogManager().database(uuid, "PLAYER_DELETED", "By " + sender.getName(), null);
             });
         });
+    }
+
+    private void sendUsage(CommandSender sender, String usage) {
+        plugin.getLangManager().send(sender, "general.command-usage", Map.of("usage", usage));
     }
 
     private void sendHelp(CommandSender sender) {
