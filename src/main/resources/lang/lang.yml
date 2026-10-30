@@ -529,3 +529,8 @@ log:
   premium-verify-error: "[LoveAuth] Ошибка проверки лицензии для игрока {player}: {message}"
   premium-name-blocked: "[LoveAuth] Заблокирован вход под именем лицензионного игрока: {player}"
   placeholder-registered: "[LoveAuth] PlaceholderAPI expansion зарегистрирован."
+
+# ── Пасхалки (добавлено 2026-10-30) ─────────
+anniversary:
+  title: "<gradient:#ff6eb4:#a855f7><bold>С годовщиной!</bold></gradient>"
+  subtitle: "<gray>Вы с нами уже <white>{years}</white> лет, <white>{player}</white>"

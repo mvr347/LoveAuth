@@ -151,6 +151,7 @@ public final class LoveAuth extends JavaPlugin {
         pm.registerEvents(new PlayerLoginListener(this), this);
         pm.registerEvents(new PlayerJoinListener(this), this);
         pm.registerEvents(new PlayerQuitListener(this), this);
+        pm.registerEvents(new me.lovelace.loveAuth.listeners.AnniversaryListener(this), this);
         pm.registerEvents(new PlayerProtectionListener(this), this);
         pm.registerEvents(new GuiClickListener(this), this);
         pm.registerEvents(new GuiCloseListener(this), this);
