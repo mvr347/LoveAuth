@@ -22,6 +22,10 @@ import java.util.UUID;
  */
 public final class AnniversaryListener implements Listener {
     private final LoveAuth plugin;
+    /** Players whose celebration is scheduled but has not run yet. */
+    private final java.util.Set<UUID> pending = new java.util.HashSet<>();
+    /** The last year celebrated in this run, so a relog before the database write lands cannot repeat it. */
+    private final java.util.Map<UUID, Integer> celebrated = new java.util.HashMap<>();
 
     public AnniversaryListener(LoveAuth plugin) {
         this.plugin = plugin;
@@ -34,6 +38,7 @@ public final class AnniversaryListener implements Listener {
         UUID uuid = player.getUniqueId();
         ZoneId zone = ZoneId.systemDefault();
         LocalDate today = LocalDate.now(zone);
+        if (celebrated.getOrDefault(uuid, 0) >= today.getYear() || pending.contains(uuid)) return;
         plugin.getDatabaseManager().findAnniversary(uuid).thenAccept(info -> {
             if (info.isEmpty()) return;
             int years = Anniversary.years(info.get().registeredAt(), today, zone);
@@ -43,13 +48,16 @@ public final class AnniversaryListener implements Listener {
     }
 
     private void celebrate(Player player, int years, int year) {
-        if (!player.isOnline()) return;
-        // Remembered before the effects, so a quick relog in the same second cannot celebrate twice.
-        plugin.getDatabaseManager().markAnniversary(player.getUniqueId(), year);
+        UUID uuid = player.getUniqueId();
+        if (!player.isOnline() || celebrated.getOrDefault(uuid, 0) >= year || !pending.add(uuid)) return;
         // The login restores the player's place and mode a tick or two later; effects wait for that.
         long delay = Math.max(5L, plugin.getConfig().getLong("easter-eggs.anniversary.delay-ticks", 20L));
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            pending.remove(uuid);
+            // A player who left during the delay saw nothing, so the year is not used up: the next login celebrates.
             if (!player.isOnline()) return;
+            celebrated.put(uuid, year);
+            plugin.getDatabaseManager().markAnniversary(uuid, year);
             var at = player.getLocation().add(0, 1.2, 0);
             player.getWorld().spawnParticle(Particle.FIREWORK, at, 60, 0.6, 0.8, 0.6, 0.05);
             player.getWorld().spawnParticle(Particle.HAPPY_VILLAGER, at, 20, 0.6, 0.8, 0.6, 0.0);
@@ -58,7 +66,7 @@ public final class AnniversaryListener implements Listener {
             Map<String, String> placeholders = Map.of("years", Integer.toString(years), "player", player.getName());
             Notify.title(player, plugin.getLangManager().component("anniversary.title", placeholders),
                     plugin.getLangManager().component("anniversary.subtitle", placeholders));
-            me.lovelace.loveAuth.integration.SecretsHook.discover(player.getUniqueId(), "anniversary");
+            me.lovelace.loveAuth.integration.SecretsHook.discover(uuid, "anniversary");
         }, delay);
     }
 }
