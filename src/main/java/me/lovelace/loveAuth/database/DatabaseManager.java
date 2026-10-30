@@ -113,6 +113,7 @@ public final class DatabaseManager {
         runMigration(statement, "ALTER TABLE ip_blocks ADD COLUMN raw_ip TEXT;");
         runMigration(statement, "ALTER TABLE players ADD COLUMN discord_id_hash TEXT;");
         runMigration(statement, "ALTER TABLE players ADD COLUMN preferred_auth_method TEXT NOT NULL DEFAULT 'PASSWORD';");
+        runMigration(statement, "ALTER TABLE players ADD COLUMN last_anniversary_year INTEGER NOT NULL DEFAULT 0;");
     }
 
     /**
@@ -144,6 +145,36 @@ public final class DatabaseManager {
                     return Optional.of(readPlayer(resultSet));
                 }
             }
+        });
+    }
+
+    /** What the anniversary easter egg needs: when the player registered and the last year it was celebrated. */
+    public record AnniversaryInfo(long registeredAt, int lastYear) {}
+
+    public CompletableFuture<Optional<AnniversaryInfo>> findAnniversary(UUID uuid) {
+        return supplyAsync(() -> {
+            try (Connection connection = getConnection();
+                 PreparedStatement statement = connection.prepareStatement(
+                         "SELECT registered_at, last_anniversary_year FROM players WHERE uuid = ?")) {
+                statement.setString(1, uuid.toString());
+                try (ResultSet resultSet = statement.executeQuery()) {
+                    if (!resultSet.next()) return Optional.empty();
+                    return Optional.of(new AnniversaryInfo(resultSet.getLong(1), resultSet.getInt(2)));
+                }
+            }
+        });
+    }
+
+    public CompletableFuture<Void> markAnniversary(UUID uuid, int year) {
+        return supplyAsync(() -> {
+            try (Connection connection = getConnection();
+                 PreparedStatement statement = connection.prepareStatement(
+                         "UPDATE players SET last_anniversary_year = ? WHERE uuid = ?")) {
+                statement.setInt(1, year);
+                statement.setString(2, uuid.toString());
+                statement.executeUpdate();
+            }
+            return null;
         });
     }
 
