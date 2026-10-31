@@ -1170,6 +1170,7 @@ public final class DiscordAuthManager implements DiscordService {
             if (Bukkit.getPluginManager().isPluginEnabled("LoveCore")) {
                 dev.lovelace.lovecore.api.LoveCore.service(dev.lovelace.lovecore.api.discord.DiscordService.class)
                     .ifPresent(core -> {
+                        if (core == this) return;
                         if (discordId != null && !discordId.isBlank()) {
                             core.setLink(uuid, discordId);
                         } else {

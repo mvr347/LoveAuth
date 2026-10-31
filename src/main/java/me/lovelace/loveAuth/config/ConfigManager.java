@@ -115,7 +115,7 @@ public final class ConfigManager {
     public boolean isPremiumNameProtectionEnabled() { return config.getBoolean("premium-verification.block-cracked-with-premium-name", true); }
     public String getDiscordAppealsCategoryId() { return config.getString("discord.appeals-category-id", "").trim(); }
     public String getDiscordSupportCategoryId() { return config.getString("discord.support-category-id", "").trim(); }
-    public boolean isDiscordTicketsBridgeEnabled() { return config.getBoolean("discord.tickets-bridge.enabled", true); }
+    public boolean isDiscordTicketsBridgeEnabled() { return config.getBoolean("discord.tickets-bridge.enabled", false); }
     public boolean isDiscordPresenceEnabled() { return config.getBoolean("discord.presence.enabled", true); }
     public String getDiscordPresenceFormat() { return config.getString("discord.presence.format", "Играет: {online}/{max}"); }
     public int getDiscordPresenceIntervalSeconds() { return Math.max(10, config.getInt("discord.presence.interval-seconds", 60)); }
