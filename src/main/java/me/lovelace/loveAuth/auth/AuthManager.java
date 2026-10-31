@@ -549,6 +549,7 @@ public final class AuthManager {
             if (Bukkit.getPluginManager().isPluginEnabled("LoveCore")) {
                 dev.lovelace.lovecore.api.LoveCore.service(dev.lovelace.lovecore.api.discord.DiscordService.class)
                     .ifPresent(core -> {
+                        if (core == plugin.getDiscordAuthManager()) return;
                         if (record != null && record.hasDiscord()) {
                             core.setLink(uuid, record.discordId());
                         } else {

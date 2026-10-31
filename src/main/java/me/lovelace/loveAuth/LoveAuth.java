@@ -104,19 +104,25 @@ public final class LoveAuth extends JavaPlugin {
                 getLogger().warning("Не удалось зарегистрировать AuthOracle в LoveCore: " + t.getMessage());
             }
 
-            // Тикет-мост: когда наш Discord-бот реально поднят и discord.tickets-bridge.enabled
-            // не отключён явно, регистрируем DiscordAuthManager как DiscordService с приоритетом
-            // выше REST-реализации самого LoveCore — тикеты/репорты/апелляции LoveWebAdmin и
-            // остальная экосистема начинают идти через ЭТОГО (уже подключённого по gateway) бота
-            // вместо второго отдельного токена в LoveCore/config.yml.
-            if (discordAuthManager.isEnabled() && configManager.isDiscordTicketsBridgeEnabled()) {
+            // Тикет-мост: регистрируем DiscordAuthManager как DiscordService ТОЛЬКО если
+            // в самом LoveCore Discord выключен или не настроен, а в конфиге явно включён tickets-bridge.
+            // Если в LoveCore уже есть активный DiscordService (с полной реализацией ensureMessage,
+            // интерактивных панелей тикетов LoveWebAdmin и т.д.), мы НЕ переопределяем его.
+            var existingDiscordReg = Bukkit.getServicesManager().getRegistration(dev.lovelace.lovecore.api.discord.DiscordService.class);
+            boolean coreDiscordActive = existingDiscordReg != null
+                    && existingDiscordReg.getProvider() != null
+                    && existingDiscordReg.getProvider().isEnabled();
+
+            if (coreDiscordActive) {
+                getLogger().info("LoveCore integration: активный DiscordService обнаружен в LoveCore — DiscordAuthManager не переопределяет его.");
+            } else if (discordAuthManager.isEnabled() && configManager.isDiscordTicketsBridgeEnabled()) {
                 try {
                     Bukkit.getServicesManager().register(
                             dev.lovelace.lovecore.api.discord.DiscordService.class,
                             discordAuthManager,
                             this,
-                            org.bukkit.plugin.ServicePriority.High);
-                    getLogger().info("LoveCore integration: DiscordService (тикет-мост) зарегистрирован поверх бота LoveAuth.");
+                            org.bukkit.plugin.ServicePriority.Low);
+                    getLogger().info("LoveCore integration: DiscordService (запасной мост) зарегистрирован поверх бота LoveAuth с приоритетом Low.");
                 } catch (Throwable t) {
                     getLogger().warning("Не удалось зарегистрировать DiscordService в LoveCore: " + t.getMessage());
                 }
