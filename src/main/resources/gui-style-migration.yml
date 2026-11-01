@@ -1,0 +1,7 @@
+# Однократное обновление оформления; исходные файлы сохраняются рядом как .pre-style-20261101.bak.
+version: 20261101
+updates:
+- file: lang/lang.yml
+  path: prefix
+  before: "<gradient:#ff6eb4:#a855f7><bold>LoveAuth</bold></gradient><dark_gray> » </dark_gray>"
+  value: '<gradient:#FF6EB4:#A855F7>Авторизация</gradient> <white>»</white> '

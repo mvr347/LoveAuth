@@ -4,7 +4,7 @@
 lang-version: 3
 
 # Префикс — используется в каждом сообщении через {prefix}
-prefix: "<gradient:#ff6eb4:#a855f7><bold>LoveAuth</bold></gradient><dark_gray> » </dark_gray>"
+prefix: "<gradient:#FF6EB4:#A855F7>Авторизация</gradient> <white>»</white> "
 
 # ── Общие ───────────────────────────────────
 general:
