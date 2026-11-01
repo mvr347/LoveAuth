@@ -69,10 +69,16 @@ public final class HeadTextures {
     private static PlayerProfile buildProfile(String base64Texture) {
         String json = new String(Base64.getDecoder().decode(base64Texture), StandardCharsets.UTF_8);
         Matcher matcher = URL_PATTERN.matcher(json);
-        PlayerProfile profile = Bukkit.createPlayerProfile(UUID.randomUUID());
+        PlayerProfile profile =
+                Bukkit.createPlayerProfile(
+                        UUID.nameUUIDFromBytes(
+                                base64Texture.getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                        "LoveTexture");
         if (matcher.find()) {
             try {
-                profile.getTextures().setSkin(URI.create(matcher.group(1)).toURL());
+                var textures = profile.getTextures();
+                textures.setSkin(URI.create(matcher.group(1)).toURL());
+                profile.setTextures(textures);
             } catch (Exception ignored) {
                 // Malformed texture URL - fall back to the default Steve skin.
             }
