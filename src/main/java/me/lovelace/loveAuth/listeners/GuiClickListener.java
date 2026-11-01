@@ -105,7 +105,7 @@ public final class GuiClickListener implements Listener {
             DiscordGui.Action action = discordGui.actionAt(event.getRawSlot()).orElse(null);
             if (action == null) return;
             if (action == DiscordGui.Action.CLOSE) player.closeInventory();
-            else if (action == DiscordGui.Action.BACK) new AccountGui(player, plugin.getLangManager(), plugin.getAuthManager(), plugin.getConfigManager()).open();
+            else if (action == DiscordGui.Action.BACK) plugin.getGuiManager().reopenAccount(player);
             else if (action == DiscordGui.Action.BIND_OR_UNLINK) {
                 plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> Bukkit.getScheduler().runTask(plugin, () -> {
                     boolean hasDiscord = record.map(r -> r.hasDiscord()).orElse(false);
