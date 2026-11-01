@@ -66,8 +66,11 @@ public final class GuiManager {
     private final java.util.Map<java.util.UUID, String> accountReturn = new java.util.concurrent.ConcurrentHashMap<>();
 
     public void openAccount(Player player) {
+        // The saved mode changes only when the menu really opens: a request rejected by the cooldown
+        // must not alter the navigation of the menu that is still on screen.
+        if (checkCooldown(player)) return;
         accountReturn.remove(player.getUniqueId());
-        if (!checkCooldown(player)) new AccountGui(player, lang, auth, config).open();
+        new AccountGui(player, lang, auth, config).open();
     }
 
     /**
@@ -76,8 +79,9 @@ public final class GuiManager {
      */
     public void openAccount(Player player, String returnArgument) {
         String command = isCommand(returnArgument) ? returnArgument.strip() : "";
+        if (checkCooldown(player)) return;
         accountReturn.put(player.getUniqueId(), command);
-        if (!checkCooldown(player)) new AccountGui(player, lang, auth, config, true, command).open();
+        new AccountGui(player, lang, auth, config, true, command).open();
     }
 
     /** Снова открывает аккаунт в том режиме, в котором он был открыт в последний раз (Back из подменю). */
