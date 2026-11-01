@@ -40,10 +40,11 @@ public final class AccountGui implements LoveAuthHolder {
     private final LangManager lang;
     private final AuthManager auth;
     private final ConfigManager config;
-    /** true если меню открыто со скрытым аргументом ("/loveauth account &lt;что угодно&gt;") —
-     *  т.е. встроено кнопкой в чьё-то DeluxeMenus-меню. Само значение аргумента не используется:
-     *  команда возврата и видимость профиля берутся из config.yml (gui.account.*). */
+    /** true если меню открыто с аргументом ("/loveauth account &lt;что угодно&gt;") —
+     *  т.е. встроено кнопкой в чьё-то меню. Видимость профиля берётся из config.yml (gui.account.*). */
     private final boolean embedded;
+    /** Команда возврата, переданная аргументом (например "profile"); пусто — берётся gui.account.back-command. */
+    private final String returnCommand;
     private final SlotActions<Action> actions = new SlotActions<>();
     private volatile Inventory inventory;
 
@@ -52,11 +53,17 @@ public final class AccountGui implements LoveAuthHolder {
     }
 
     public AccountGui(Player player, LangManager lang, AuthManager auth, ConfigManager config, boolean embedded) {
+        this(player, lang, auth, config, embedded, "");
+    }
+
+    public AccountGui(Player player, LangManager lang, AuthManager auth, ConfigManager config, boolean embedded,
+                      String returnCommand) {
         this.player = player;
         this.lang = lang;
         this.auth = auth;
         this.config = config;
         this.embedded = embedded;
+        this.returnCommand = returnCommand == null ? "" : returnCommand;
     }
 
     /**
@@ -201,7 +208,7 @@ public final class AccountGui implements LoveAuthHolder {
     /** Выполняет команду возврата (gui.account.back-command из config.yml) в embedded-режиме. */
     public void goBack() {
         if (!embedded) return;
-        String cmd = config.getAccountBackCommand();
+        String cmd = returnCommand.isBlank() ? config.getAccountBackCommand() : returnCommand;
         if (!cmd.isBlank()) player.performCommand(cmd);
     }
 

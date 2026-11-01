@@ -62,8 +62,36 @@ public final class GuiManager {
     public void openDiscord(Player player) { if (config.isDiscordEnabled() && !checkCooldown(player)) new DiscordGui(player, lang, config, discord, auth).open(); }
     public void openRegister(Player player) { if (!checkCooldown(player)) new RegisterGui(player, lang, auth).open(); }
     public void openPremiumWelcome(Player player) { if (!checkCooldown(player)) new PremiumWelcomeGui(player, lang, config, discord, auth).open(); }
-    public void openAccount(Player player) { if (!checkCooldown(player)) new AccountGui(player, lang, auth, config).open(); }
-    public void openAccount(Player player, String returnCommand) { if (!checkCooldown(player)) new AccountGui(player, lang, auth, config, returnCommand != null).open(); }
+    /** Состояние встроенного режима аккаунта, чтобы подменю (Discord) возвращало в то же место. */
+    private final java.util.Map<java.util.UUID, String> accountReturn = new java.util.concurrent.ConcurrentHashMap<>();
+
+    public void openAccount(Player player) {
+        accountReturn.remove(player.getUniqueId());
+        if (!checkCooldown(player)) new AccountGui(player, lang, auth, config).open();
+    }
+
+    /**
+     * Встроенный режим. Аргумент — команда возврата, если он указывает на существующую команду
+     * (например "profile"); любой другой текст (заглушка из чужого меню) оставляет gui.account.back-command.
+     */
+    public void openAccount(Player player, String returnArgument) {
+        String command = isCommand(returnArgument) ? returnArgument.strip() : "";
+        accountReturn.put(player.getUniqueId(), command);
+        if (!checkCooldown(player)) new AccountGui(player, lang, auth, config, true, command).open();
+    }
+
+    /** Снова открывает аккаунт в том режиме, в котором он был открыт в последний раз (Back из подменю). */
+    public void reopenAccount(Player player) {
+        String command = accountReturn.get(player.getUniqueId());
+        if (command == null) new AccountGui(player, lang, auth, config).open();
+        else new AccountGui(player, lang, auth, config, true, command).open();
+    }
+
+    private static boolean isCommand(String text) {
+        if (text == null || text.isBlank() || text.indexOf('\n') >= 0 || text.indexOf('\r') >= 0) return false;
+        String root = text.strip().split(" ", 2)[0];
+        return !root.isEmpty() && org.bukkit.Bukkit.getCommandMap().getCommand(root) != null;
+    }
     public void openQueue(Player player) { if (!checkCooldown(player)) new QueueGui(player, lang, queue).open(); }
 
     /** Reopens an auth menu closed by the client itself; bypasses the click cooldown on purpose. */
