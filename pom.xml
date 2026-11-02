@@ -34,6 +34,7 @@
     </repositories>
 
     <dependencies>
+        <dependency><groupId>com.google.code.gson</groupId><artifactId>gson</artifactId><version>2.13.2</version><scope>provided</scope></dependency>
         <!-- LoveCore API - soft dependency, AuthOracle/PlayerAuthenticatedEvent -->
         <dependency>
             <groupId>com.github.mvr347.LoveCore</groupId>
