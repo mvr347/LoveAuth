@@ -30,7 +30,7 @@ final class CoreAuthMenu implements DiscordInteractionListener, AutoCloseable {
     }
   }
 
-  private record Login(UUID uuid, String name, String ip) {}
+  private record Login(UUID uuid, String name, String ip, String nonce) {}
 
   private final LoveAuth plugin;
   private final DiscordAuthManager manager;
@@ -40,7 +40,7 @@ final class CoreAuthMenu implements DiscordInteractionListener, AutoCloseable {
   private final java.util.concurrent.Semaphore sends = new java.util.concurrent.Semaphore(64);
   private final Map<String, String> latestAction = new ConcurrentHashMap<>();
   private volatile boolean closed;
-  private final Map<UUID, String> latestLogin = new ConcurrentHashMap<>();
+  private final LoginProofs latestLogin = new LoginProofs();
   private final Map<String, Request> requests = new ConcurrentHashMap<>();
   private final Gson json = new Gson();
 
@@ -70,7 +70,14 @@ final class CoreAuthMenu implements DiscordInteractionListener, AutoCloseable {
     database
         .discordPlayers()
         .thenAccept(
-            players -> players.forEach(rec -> {if(!closed){manager.cacheLink(rec.uuid(),rec.discordId());service.setLink(rec.uuid(), rec.discordId());}}));
+            players ->
+                players.forEach(
+                    rec -> {
+                      if (!closed) {
+                        manager.cacheLink(rec.uuid(), rec.discordId());
+                        service.setLink(rec.uuid(), rec.discordId());
+                      }
+                    }));
     try {
       var method =
           service
@@ -116,25 +123,38 @@ final class CoreAuthMenu implements DiscordInteractionListener, AutoCloseable {
 
   CompletableFuture<Boolean> login(Player player) {
     return manager
-        .onMain(() -> new Login(player.getUniqueId(), player.getName(), auth.getIp(player)))
+        .onMain(
+            () ->
+                player.isOnline()
+                    ? new Login(
+                        player.getUniqueId(),
+                        player.getName(),
+                        auth.getIp(player),
+                        latestLogin.begin(player.getUniqueId()))
+                    : null)
         .thenCompose(
-            snapshot ->
-                database
-                    .findPlayer(snapshot.uuid)
-                    .thenCompose(
-                        record -> {
-                          if (record.isEmpty() || !record.get().hasDiscord())
-                            return CompletableFuture.completedFuture(false);
-                          return send(
-                              snapshot.uuid,
-                              record.get().discordId(),
-                              "LOGIN",
-                              snapshot.ip,
-                              "**Это вы входите?**\nИгрок: "
-                                  + snapshot.name
-                                  + "\nАдрес: "
-                                  + snapshot.ip);
-                        }));
+            snapshot -> {
+              if (snapshot == null) return CompletableFuture.completedFuture(false);
+              return database
+                  .findPlayer(snapshot.uuid)
+                  .thenCompose(
+                      record -> {
+                        if (record.isEmpty()
+                            || !record.get().hasDiscord()
+                            || !latestLogin.current(snapshot.uuid, snapshot.nonce))
+                          return CompletableFuture.completedFuture(false);
+                        return send(
+                            snapshot.uuid,
+                            record.get().discordId(),
+                            "LOGIN",
+                            snapshot.ip,
+                            "**Это вы входите?**\nИгрок: "
+                                + snapshot.name
+                                + "\nАдрес: "
+                                + snapshot.ip,
+                            snapshot.nonce);
+                      });
+            });
   }
 
   CompletableFuture<Boolean> confirmation(UUID uuid, String action) {
@@ -155,9 +175,16 @@ final class CoreAuthMenu implements DiscordInteractionListener, AutoCloseable {
 
   private CompletableFuture<Boolean> send(
       UUID uuid, String owner, String action, String ip, String text) {
+    if (action.equals("LOGIN")) return CompletableFuture.completedFuture(false);
+    return send(uuid, owner, action, ip, text, UUID.randomUUID().toString().replace("-", ""));
+  }
+
+  private CompletableFuture<Boolean> send(
+      UUID uuid, String owner, String action, String ip, String text, String nonce) {
+    if (action.equals("LOGIN") && !latestLogin.current(uuid, nonce))
+      return CompletableFuture.completedFuture(false);
     if (closed || requests.size() >= 1024 || !sends.tryAcquire())
       return CompletableFuture.completedFuture(false);
-    String nonce = UUID.randomUUID().toString().replace("-", "");
     String actionKey = uuid + ":" + action;
     latestAction.put(actionKey, nonce);
     requests
@@ -165,7 +192,6 @@ final class CoreAuthMenu implements DiscordInteractionListener, AutoCloseable {
         .removeIf(e -> e.getValue().uuid.equals(uuid) && e.getValue().action.equals(action));
     // A newer login invalidates the older one before any network response can approve it.
     if (action.equals("LOGIN")) {
-      latestLogin.put(uuid, nonce);
       requests
           .entrySet()
           .removeIf(e -> e.getValue().uuid.equals(uuid) && e.getValue().action.equals("LOGIN"));
@@ -185,7 +211,7 @@ final class CoreAuthMenu implements DiscordInteractionListener, AutoCloseable {
             message -> {
               if (message == null || closed || !nonce.equals(latestAction.get(actionKey)))
                 return false;
-              if (action.equals("LOGIN") && !nonce.equals(latestLogin.get(uuid))) return false;
+              if (action.equals("LOGIN") && !latestLogin.current(uuid, nonce)) return false;
               var request =
                   new Request(
                       uuid,
@@ -204,7 +230,7 @@ final class CoreAuthMenu implements DiscordInteractionListener, AutoCloseable {
                       t -> {
                         if (requests.remove(nonce, request)) {
                           latestAction.remove(actionKey, nonce);
-                          latestLogin.remove(uuid, nonce);
+                          latestLogin.cancel(uuid, nonce);
                           edit(request, "Запрос истёк.");
                         }
                       },
@@ -232,8 +258,37 @@ final class CoreAuthMenu implements DiscordInteractionListener, AutoCloseable {
 
   @Override
   public boolean onInteraction(DiscordInteraction i) {
-    if(Set.of("привязать","отвязать","заблокировать","разблокировать","пароль","сессии","инфо","онлайн","помощь").contains(i.name())) {
-      service.respond(i,json.toJson(Map.of("type",4,"data",Map.of("content","Аккаунт и безопасность доступны в общем личном кабинете.","flags",64,"components",List.of(Map.of("type",1,"components",List.of(button("lc:menu:home","Личный кабинет"))))))));return true;
+    if (Set.of(
+            "привязать",
+            "отвязать",
+            "заблокировать",
+            "разблокировать",
+            "пароль",
+            "сессии",
+            "инфо",
+            "онлайн",
+            "помощь")
+        .contains(i.name())) {
+      service.respond(
+          i,
+          json.toJson(
+              Map.of(
+                  "type",
+                  4,
+                  "data",
+                  Map.of(
+                      "content",
+                      "Аккаунт и безопасность доступны в общем личном кабинете.",
+                      "flags",
+                      64,
+                      "components",
+                      List.of(
+                          Map.of(
+                              "type",
+                              1,
+                              "components",
+                              List.of(button("lc:menu:home", "Личный кабинет"))))))));
+      return true;
     }
     if (!i.name().startsWith("la:core:")) return false;
     String action = i.name().substring("la:core:".length());
@@ -364,7 +419,7 @@ final class CoreAuthMenu implements DiscordInteractionListener, AutoCloseable {
     String nonce = action.substring(action.indexOf(':') + 1);
     Request r = requests.get(nonce);
     if (r == null
-        || (r.action.equals("LOGIN") && !nonce.equals(latestLogin.get(r.uuid)))
+        || (r.action.equals("LOGIN") && !latestLogin.current(r.uuid, nonce))
         || !r.matches(i.userId(), i.values().get("_messageId"), System.currentTimeMillis())
         || !nonce.equals(latestAction.get(r.uuid + ":" + r.action))) {
       service.editResponse(i, "Запрос недоступен или истёк.");
@@ -383,7 +438,7 @@ final class CoreAuthMenu implements DiscordInteractionListener, AutoCloseable {
                   manager.onMain(
                       () -> {
                         var p = Bukkit.getPlayer(r.uuid);
-                        if (p != null && auth.getIp(p).equals(r.ip))
+                        if (p != null && latestLogin.current(r.uuid,nonce) && auth.getIp(p).equals(r.ip))
                           p.kick(
                               net.kyori.adventure.text.Component.text(
                                   "Вход отклонён владельцем Discord."));
@@ -401,7 +456,7 @@ final class CoreAuthMenu implements DiscordInteractionListener, AutoCloseable {
                     .onMain(
                         () -> {
                           var p = Bukkit.getPlayer(r.uuid);
-                          if (p == null || !auth.getIp(p).equals(r.ip)) return false;
+                          if (p == null || !latestLogin.current(r.uuid,nonce) || !auth.getIp(p).equals(r.ip)) return false;
                           auth.markAuthenticated(p, true);
                           return true;
                         })
@@ -426,7 +481,10 @@ final class CoreAuthMenu implements DiscordInteractionListener, AutoCloseable {
                     .applyCorePassword(r.uuid, r.passwordHash)
                     .thenAccept(
                         ok -> edit(r, ok ? "Пароль изменён." : "Запрос смены пароля устарел."));
-              else manager.runConfirmed(rec, r.action).thenAccept(text -> edit(r, text));
+              else {
+                if(Set.of("LOCK_ACCOUNT","UNLINK").contains(r.action))clear(r.uuid);
+                manager.runConfirmed(rec, r.action).thenAccept(text -> edit(r, text));
+              }
             });
   }
 
@@ -457,7 +515,7 @@ final class CoreAuthMenu implements DiscordInteractionListener, AutoCloseable {
 
   void clear(UUID uuid) {
     latestAction.keySet().removeIf(key -> key.startsWith(uuid + ":"));
-    latestLogin.remove(uuid);
+    latestLogin.cancel(uuid);
     requests.entrySet().removeIf(e -> e.getValue().uuid.equals(uuid));
   }
 
