@@ -107,7 +107,8 @@ register-spawn:
 discord:
   # Включить возможность входа/привязки через Discord-бота
   enabled: true
-  # Токен Discord-бота (требуется если enabled: true)
+  # Общий бот запускается в LoveCore. Эти значения используются только для переноса
+  # при пустом discord.bot-token ядра; перед переносом создаётся резервная копия.
   bot-token: ''
   # ID сервера Discord
   guild-id: ''

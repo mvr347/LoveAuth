@@ -104,38 +104,31 @@ public final class DiscordAuthManager implements DiscordService {
         this.auth = auth;
     }
 
+    private DiscordService coreTransport;
+    private CoreAuthMenu coreMenu;
+
     public void initialize() {
         if (!config.isDiscordEnabled()) {
             plugin.getLogManager().infoKey("log.discord-disabled");
             return;
         }
-        String token = config.getDiscordBotToken();
-        if (token.isBlank()) {
-            plugin.getLogManager().warnKey("log.discord-no-token");
+        var shared = dev.lovelace.lovecore.api.LoveCore.service(DiscordService.class);
+        if (shared.isPresent() && !shared.get().isEnabled()) {
+            try { shared.get().getClass().getMethod("adoptAuthBot", String.class, String.class, String.class, String.class)
+                .invoke(shared.get(), config.getDiscordBotToken(), config.getDiscordGuildId(), config.getDiscordSupportCategoryId(), config.getDiscordAppealsCategoryId()); }
+            catch (ReflectiveOperationException e) { plugin.getLogger().warning("Для переноса Discord-бота обновите LoveCore"); }
+        }
+        if (shared.isEmpty() || shared.get() == this || !shared.get().isEnabled()) {
+            plugin.getLogger().warning("Discord авторизации ожидает активный общий бот LoveCore. Настройте discord в LoveCore.");
             return;
         }
-        installAckConflictHandler();
-        try {
-            jda = JDABuilder.createLight(token,
-                    GatewayIntent.GUILD_MESSAGES,
-                    GatewayIntent.DIRECT_MESSAGES,
-                    GatewayIntent.MESSAGE_CONTENT)
-                .addEventListeners(new DiscordEventListener())
-                .build();
-            jda.awaitReady();
-            plugin.getLogManager().infoKey("log.discord-ready",
-                Map.of("tag", jda.getSelfUser().getAsTag()));
-            registerCommands();
-            lastPresence = null;
-            startPresence();
-        } catch (Exception e) {
-            plugin.getLogManager().errorKey("log.discord-start-error",
-                Map.of("message", e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()), e);
-            jda = null;
-        }
+        coreTransport = shared.get();
+        coreMenu = new CoreAuthMenu(plugin, this, database, auth, coreTransport);
+        coreMenu.start();
+        plugin.getLogger().info("Авторизация подключена к общему Discord-боту LoveCore.");
     }
 
-    public boolean isEnabled() { return jda != null; }
+    public boolean isEnabled() { return coreTransport != null && coreTransport.isEnabled(); }
 
     private final java.util.concurrent.atomic.AtomicBoolean ackConflictReported = new java.util.concurrent.atomic.AtomicBoolean();
 
@@ -159,7 +152,14 @@ public final class DiscordAuthManager implements DiscordService {
         });
     }
 
+    private volatile boolean stopping;
+    private final java.util.Set<CompletableFuture<?>> mainRequests=java.util.concurrent.ConcurrentHashMap.newKeySet();
     public void shutdown() {
+        stopping=true;
+        mainRequests.forEach(f->f.completeExceptionally(new java.util.concurrent.CancellationException("plugin-disabled")));
+        mainRequests.clear();pendingLinks.clear();pendingLogins.clear();pendingPasswordHashes.clear();
+        if (coreMenu != null) { coreMenu.close(); coreMenu = null; }
+        coreTransport = null;
         BukkitTask task = presenceTask;
         presenceTask = null;
         if (task != null) task.cancel();
@@ -200,7 +200,7 @@ public final class DiscordAuthManager implements DiscordService {
         return code;
     }
 
-    private void cacheLink(UUID uuid, String discordId) {
+    void cacheLink(UUID uuid, String discordId) {
         String prevDiscord = linkedDiscordCache.put(uuid, discordId);
         if (prevDiscord != null && !prevDiscord.equals(discordId)) linkedPlayerCache.remove(prevDiscord);
         linkedPlayerCache.put(discordId, uuid);
@@ -213,10 +213,12 @@ public final class DiscordAuthManager implements DiscordService {
 
     /** Drops a pending login request (player quit); a late button click then finds nothing to approve. */
     public void clearPendingLogin(UUID uuid) {
+        if (coreMenu != null) coreMenu.clear(uuid);
         pendingLogins.remove(uuid);
     }
 
     public CompletableFuture<Boolean> requestDiscordLogin(Player player) {
+        if (coreMenu != null) return coreMenu.login(player);
         if (!isEnabled()) return CompletableFuture.completedFuture(false);
         return database.findPlayer(player.getUniqueId()).thenCompose(record -> {
             if (record.isEmpty() || !record.get().hasDiscord()) return CompletableFuture.completedFuture(false);
@@ -261,6 +263,7 @@ public final class DiscordAuthManager implements DiscordService {
     }
 
     public void sendConfirmation(Player player, String action) {
+        if (coreMenu != null) { coreMenu.confirmation(player.getUniqueId(), action); return; }
         if (!isEnabled()) { lang.send(player, "discord.not-enabled"); return; }
         UUID owner = player.getUniqueId();
         database.findPlayer(owner).thenAccept(record -> {
@@ -332,42 +335,51 @@ public final class DiscordAuthManager implements DiscordService {
         return registerPendingLinkCode(playerUuid);
     }
 
-    @Override
+    String corePasswordSnapshot(UUID uuid) {return pendingPasswordHashes.get(uuid);}
+    CompletableFuture<Boolean> applyCorePassword(UUID uuid,String expected) {
+        if(expected==null||!pendingPasswordHashes.remove(uuid,expected))return CompletableFuture.completedFuture(false);
+        return auth.applyPasswordHash(uuid,expected).thenApply(ignored->true);
+    }
+    void prepareCorePassword(UUID uuid, String hash) {
+        pendingPasswordHashes.put(uuid, hash);
+        plugin.getServer().getAsyncScheduler().runDelayed(plugin, t -> pendingPasswordHashes.remove(uuid, hash), 120, TimeUnit.SECONDS);
+    }
+    CompletableFuture<Boolean> completeCoreLink(String discordId, String code) {
+        UUID uuid = pendingLinks.remove(code.trim().toUpperCase(Locale.ROOT));
+        if (uuid == null) return CompletableFuture.completedFuture(false);
+        return database.findPlayerByDiscordId(discordId).thenCompose(existing -> {
+            if (existing.isPresent() && !existing.get().uuid().equals(uuid)) return CompletableFuture.completedFuture(false);
+            return database.setDiscordId(uuid, discordId).thenCompose(v -> onMain(() -> {
+                cacheLink(uuid, discordId); syncWithLoveCore(uuid, discordId);
+                Player p = Bukkit.getPlayer(uuid);
+                if (p != null) { lang.send(p, "discord.bind-success"); auth.markAuthenticated(p, true); }
+                return true;
+            }));
+        });
+    }
     public boolean completeLink(String discordId, String code) {
         if (code == null || discordId == null || discordId.isBlank()) return false;
-        UUID uuid = pendingLinks.remove(code.trim().toUpperCase(Locale.ROOT));
-        if (uuid == null) return false;
-        database.findPlayerByDiscordId(discordId).thenAccept(existing -> {
-            if (existing.isPresent() && !existing.get().uuid().equals(uuid)) return;
-            database.setDiscordId(uuid, discordId).thenRun(() -> {
-                cacheLink(uuid, discordId);
-                Player p = Bukkit.getPlayer(uuid);
-                if (p != null) {
-                    lang.send(p, "discord.bind-success");
-                    auth.markAuthenticated(p, true);
-                }
-            });
-        });
+        if(!pendingLinks.containsKey(code.trim().toUpperCase(Locale.ROOT)))return false;
+        completeCoreLink(discordId,code).exceptionally(error->{plugin.getLogger().warning("Привязка Discord не завершена; повторите с новым кодом");return false;});
         return true;
     }
 
     @Override
     public void unlink(UUID playerUuid) {
         if (playerUuid == null) return;
-        uncacheLink(playerUuid);
-        database.setDiscordId(playerUuid, null);
+        database.setDiscordId(playerUuid,null).thenRun(()->{uncacheLink(playerUuid);syncWithLoveCore(playerUuid,null);});
     }
 
     @Override
     public void setLink(UUID playerUuid, String discordId) {
         if (playerUuid == null) return;
         if (discordId == null || discordId.isBlank()) { unlink(playerUuid); return; }
-        cacheLink(playerUuid, discordId);
-        database.setDiscordId(playerUuid, discordId);
+        database.setDiscordId(playerUuid,discordId).thenRun(()->{cacheLink(playerUuid,discordId);syncWithLoveCore(playerUuid,discordId);});
     }
 
     @Override
     public CompletableFuture<Boolean> sendDirectMessage(String discordUserId, String message, DiscordEmbed embed) {
+        if (coreTransport != null) return coreTransport.sendDirectMessage(discordUserId, message, embed);
         if (!isEnabled() || discordUserId == null || discordUserId.isBlank()) {
             return CompletableFuture.completedFuture(false);
         }
@@ -382,6 +394,7 @@ public final class DiscordAuthManager implements DiscordService {
 
     @Override
     public CompletableFuture<Boolean> sendChannelMessage(String channelId, String message, DiscordEmbed embed) {
+        if (coreTransport != null) return coreTransport.sendChannelMessage(channelId, message, embed);
         if (!isEnabled() || channelId == null || channelId.isBlank()) {
             return CompletableFuture.completedFuture(false);
         }
@@ -421,6 +434,7 @@ public final class DiscordAuthManager implements DiscordService {
 
     @Override
     public CompletableFuture<String> createTicketChannel(TicketType type, String ticketId, String playerName, String initialReason) {
+        if (coreTransport != null) return coreTransport.createTicketChannel(type,ticketId,playerName,initialReason);
         String guildId = config.getDiscordGuildId();
         if (!isEnabled() || guildId.isBlank()) {
             return CompletableFuture.completedFuture(null);
@@ -465,6 +479,7 @@ public final class DiscordAuthManager implements DiscordService {
 
     @Override
     public CompletableFuture<Boolean> closeTicketChannel(String channelId, String reason) {
+        if (coreTransport != null) return coreTransport.closeTicketChannel(channelId, reason);
         if (!isEnabled() || channelId == null || channelId.isBlank()) {
             return CompletableFuture.completedFuture(false);
         }
@@ -486,6 +501,7 @@ public final class DiscordAuthManager implements DiscordService {
 
     @Override
     public void registerTicketMessageListener(TicketMessageListener listener) {
+        if (coreTransport != null) { coreTransport.registerTicketMessageListener(listener); return; }
         if (listener != null) ticketMessageListeners.add(listener);
     }
 
@@ -579,10 +595,13 @@ public final class DiscordAuthManager implements DiscordService {
     // --- threading helpers ---
 
     /** Runs the supplier on the Bukkit main thread and completes the future with its result. */
-    private <T> CompletableFuture<T> onMain(Supplier<T> task) {
+    <T> CompletableFuture<T> onMain(Supplier<T> task) {
         CompletableFuture<T> future = new CompletableFuture<>();
+        mainRequests.add(future);future.whenComplete((v,e)->mainRequests.remove(future));
+        if(stopping) {future.completeExceptionally(new java.util.concurrent.CancellationException("plugin-disabled"));return future;}
         try {
             Bukkit.getScheduler().runTask(plugin, () -> {
+                if(future.isDone()||stopping)return;
                 try {
                     future.complete(task.get());
                 } catch (Throwable t) {
@@ -869,7 +888,7 @@ public final class DiscordAuthManager implements DiscordService {
     }
 
     /** Applies a confirmed action and resolves with the text to show on the card. */
-    private CompletableFuture<String> runConfirmed(DatabaseManager.PlayerRecord rec, String action) {
+    CompletableFuture<String> runConfirmed(DatabaseManager.PlayerRecord rec, String action) {
         UUID uuid = rec.uuid();
         String name = rec.username();
         switch (action) {

@@ -135,6 +135,16 @@ public final class DatabaseManager {
         }
     }
 
+    public CompletableFuture<List<PlayerRecord>> discordPlayers() {
+        return supplyAsync(() -> {
+            var players = new ArrayList<PlayerRecord>();
+            try (var connection = getConnection(); var q = connection.prepareStatement("SELECT * FROM players WHERE discord_id IS NOT NULL"); var r = q.executeQuery()) {
+                while(r.next()) { var rec = readPlayer(r); if(rec.hasDiscord()) players.add(rec); }
+            }
+            return List.copyOf(players);
+        });
+    }
+
     public CompletableFuture<Optional<PlayerRecord>> findPlayer(UUID uuid) {
         return supplyAsync(() -> {
             try (Connection connection = getConnection();
@@ -337,11 +347,13 @@ public final class DatabaseManager {
         String hash = discordId == null || discordId.isBlank() ? null : SecurityUtils.hashIp(discordId, masterKey);
         return supplyAsync(() -> {
             try (Connection connection = getConnection();
-                 PreparedStatement statement = connection.prepareStatement("UPDATE players SET discord_id = ?, discord_id_hash = ? WHERE uuid = ?")) {
+                 PreparedStatement statement = connection.prepareStatement("UPDATE players SET discord_id = ?, discord_id_hash = ? WHERE uuid = ? AND (? IS NULL OR NOT EXISTS(SELECT 1 FROM players other WHERE other.discord_id_hash=? AND other.uuid<>?))")) {
                 statement.setString(1, encrypted);
                 statement.setString(2, hash);
                 statement.setString(3, uuid.toString());
-                statement.executeUpdate();
+                statement.setString(4, hash);statement.setString(5, hash);statement.setString(6, uuid.toString());
+                int changed=statement.executeUpdate();
+                if(hash!=null && changed!=1)throw new SQLException("Discord уже привязан или аккаунт не найден");
             }
             return null;
         });
