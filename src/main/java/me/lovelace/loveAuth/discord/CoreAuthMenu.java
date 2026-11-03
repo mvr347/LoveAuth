@@ -133,6 +133,11 @@ final class CoreAuthMenu implements DiscordInteractionListener, AutoCloseable {
         controls);
   }
 
+  boolean pendingLogin(UUID uuid,String owner) {
+    long now=System.currentTimeMillis();
+    return !closed && requests.values().stream().anyMatch(r->r.uuid.equals(uuid)&&r.owner.equals(owner)&&r.action.equals("LOGIN")&&r.deadline>now);
+  }
+
   CompletableFuture<Boolean> login(Player player) {
     return manager
         .onMain(
