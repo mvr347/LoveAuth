@@ -595,6 +595,21 @@ public final class DiscordAuthManager implements DiscordService {
     // --- threading helpers ---
 
     /** Runs the supplier on the Bukkit main thread and completes the future with its result. */
+    /** Owner-bound, read-only diagnostics. Never includes IPs, passwords, sessions or codes. */
+    public CompletableFuture<java.util.Map<String,Object>> getDiscordLoginStatus(String owner) {
+      if(stopping) return CompletableFuture.failedFuture(new java.util.concurrent.CancellationException("plugin-disabled"));
+      return database.findPlayerByDiscordId(owner).thenCompose(record->{
+        if(record.isEmpty()) return CompletableFuture.completedFuture(java.util.Map.of("available",true,"linked",false));
+        var account=record.get();
+        return onMain(()->{
+          var player=Bukkit.getPlayer(account.uuid());
+          boolean online=player!=null&&player.isOnline();
+          boolean pending=coreMenu!=null?coreMenu.pendingLogin(account.uuid(),owner):pendingLogins.containsKey(account.uuid());
+          return LoginHelpSnapshot.of(account.uuid(),account.username(),account.locked(),online,auth.isAuthenticated(account.uuid()),pending);
+        });
+      });
+    }
+
     <T> CompletableFuture<T> onMain(Supplier<T> task) {
         CompletableFuture<T> future = new CompletableFuture<>();
         mainRequests.add(future);future.whenComplete((v,e)->mainRequests.remove(future));
