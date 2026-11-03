@@ -40,6 +40,7 @@ final class CoreAuthMenu implements DiscordInteractionListener, AutoCloseable {
   private final java.util.concurrent.Semaphore sends = new java.util.concurrent.Semaphore(64);
   private final Map<String, String> latestAction = new ConcurrentHashMap<>();
   private volatile boolean closed;
+  private final TemporaryDiscordMessages temporary;
   private final LoginProofs latestLogin = new LoginProofs();
   private final Map<String, Request> requests = new ConcurrentHashMap<>();
   private final Gson json = new Gson();
@@ -55,6 +56,17 @@ final class CoreAuthMenu implements DiscordInteractionListener, AutoCloseable {
     database = db;
     this.auth = auth;
     this.service = service;
+    temporary =
+        new TemporaryDiscordMessages(
+            this::delete,
+            (action, seconds) -> {
+              if (closed) action.run();
+              else
+                plugin
+                    .getServer()
+                    .getAsyncScheduler()
+                    .runDelayed(plugin, task -> action.run(), seconds, TimeUnit.SECONDS);
+            });
   }
 
   void start() {
@@ -152,7 +164,8 @@ final class CoreAuthMenu implements DiscordInteractionListener, AutoCloseable {
                                 + snapshot.name
                                 + "\nАдрес: "
                                 + snapshot.ip,
-                            snapshot.nonce);
+                            snapshot.nonce,
+                            snapshot.name);
                       });
             });
   }
@@ -176,42 +189,57 @@ final class CoreAuthMenu implements DiscordInteractionListener, AutoCloseable {
   private CompletableFuture<Boolean> send(
       UUID uuid, String owner, String action, String ip, String text) {
     if (action.equals("LOGIN")) return CompletableFuture.completedFuture(false);
-    return send(uuid, owner, action, ip, text, UUID.randomUUID().toString().replace("-", ""));
+    return send(uuid, owner, action, ip, text, UUID.randomUUID().toString().replace("-", ""), null);
   }
 
   private CompletableFuture<Boolean> send(
-      UUID uuid, String owner, String action, String ip, String text, String nonce) {
+      UUID uuid,
+      String owner,
+      String action,
+      String ip,
+      String text,
+      String nonce,
+      String playerName) {
     if (action.equals("LOGIN") && !latestLogin.current(uuid, nonce))
       return CompletableFuture.completedFuture(false);
     if (closed || requests.size() >= 1024 || !sends.tryAcquire())
       return CompletableFuture.completedFuture(false);
     String actionKey = uuid + ":" + action;
     latestAction.put(actionKey, nonce);
-    requests
-        .entrySet()
-        .removeIf(e -> e.getValue().uuid.equals(uuid) && e.getValue().action.equals(action));
+    discard(uuid, action);
     // A newer login invalidates the older one before any network response can approve it.
-    if (action.equals("LOGIN")) {
-      requests
-          .entrySet()
-          .removeIf(e -> e.getValue().uuid.equals(uuid) && e.getValue().action.equals("LOGIN"));
-    }
     String passwordHash =
         action.equals("PASSWORD_CHANGE") ? manager.corePasswordSnapshot(uuid) : null;
-    var card =
+    Map<String, Object> card =
         body(
             text,
             List.of(
                 button("la:core:yes:" + nonce, "Подтвердить"),
                 button("la:core:no:" + nonce, "Отклонить"),
                 button("lc:menu:home", "Главное меню")));
+    if (action.equals("LOGIN")) {
+      var lang = plugin.getLangManager();
+      card =
+          SecurityCards.login(
+              lang.plain("discord.login-embed-title"),
+              lang.plain("discord.login-embed-desc", Map.of("player", playerName)),
+              nonce,
+              lang.plain("discord.login-btn-confirm"),
+              lang.plain("discord.login-btn-deny"));
+    }
     return service
         .directMessage(owner, json.toJson(card))
         .thenApply(
             message -> {
-              if (message == null || closed || !nonce.equals(latestAction.get(actionKey)))
+              if (message == null) return false;
+              if (closed || !nonce.equals(latestAction.get(actionKey))) {
+                delete(owner, message);
                 return false;
-              if (action.equals("LOGIN") && !latestLogin.current(uuid, nonce)) return false;
+              }
+              if (action.equals("LOGIN") && !latestLogin.current(uuid, nonce)) {
+                delete(owner, message);
+                return false;
+              }
               var request =
                   new Request(
                       uuid,
@@ -222,6 +250,14 @@ final class CoreAuthMenu implements DiscordInteractionListener, AutoCloseable {
                       System.currentTimeMillis() + 120000,
                       passwordHash);
               requests.put(nonce, request);
+              if (action.equals("LOGIN"))
+                manager.onMain(
+                    () -> {
+                      var player = Bukkit.getPlayer(uuid);
+                      if (player != null && latestLogin.current(uuid, nonce))
+                        plugin.getLangManager().send(player, "discord.login-dm-sent");
+                      return true;
+                    });
               plugin
                   .getServer()
                   .getAsyncScheduler()
@@ -241,18 +277,39 @@ final class CoreAuthMenu implements DiscordInteractionListener, AutoCloseable {
         .whenComplete((result, error) -> sends.release());
   }
 
-  private void edit(Request r, String text) {
+  private void delete(String owner, String message) {
     try {
       service
           .getClass()
-          .getMethod("editDirectMessage", String.class, String.class, String.class)
-          .invoke(
-              service,
-              r.owner,
-              r.message,
-              json.toJson(body(text, List.of(button("lc:menu:home", "Главное меню")))));
-    } catch (ReflectiveOperationException e) {
-      plugin.getLogger().warning("Не удалось обновить карточку безопасности");
+          .getMethod("deleteDirectMessage", String.class, String.class)
+          .invoke(service, owner, message);
+    } catch (ReflectiveOperationException error) {
+      plugin.getLogger().fine("Не удалена временная карточка Discord");
+    }
+  }
+
+  private void discard(UUID uuid, String action) {
+    for (var entry : requests.entrySet()) {
+      var request = entry.getValue();
+      if (request.uuid.equals(uuid)
+          && (action == null || request.action.equals(action))
+          && requests.remove(entry.getKey(), request)) delete(request.owner, request.message);
+    }
+  }
+
+  private void edit(Request r, String text) {
+    var resolved = new LinkedHashMap<String, Object>(body(text, List.of()));
+    resolved.put("embeds", List.of());
+    try {
+      var update =
+          (CompletionStage<?>)
+              service
+                  .getClass()
+                  .getMethod("editDirectMessage", String.class, String.class, String.class)
+                  .invoke(service, r.owner, r.message, json.toJson(resolved));
+      temporary.resolved(r.owner, r.message, update);
+    } catch (ReflectiveOperationException error) {
+      delete(r.owner, r.message);
     }
   }
 
@@ -438,7 +495,9 @@ final class CoreAuthMenu implements DiscordInteractionListener, AutoCloseable {
                   manager.onMain(
                       () -> {
                         var p = Bukkit.getPlayer(r.uuid);
-                        if (p != null && latestLogin.current(r.uuid,nonce) && auth.getIp(p).equals(r.ip))
+                        if (p != null
+                            && latestLogin.current(r.uuid, nonce)
+                            && auth.getIp(p).equals(r.ip))
                           p.kick(
                               net.kyori.adventure.text.Component.text(
                                   "Вход отклонён владельцем Discord."));
@@ -456,7 +515,9 @@ final class CoreAuthMenu implements DiscordInteractionListener, AutoCloseable {
                     .onMain(
                         () -> {
                           var p = Bukkit.getPlayer(r.uuid);
-                          if (p == null || !latestLogin.current(r.uuid,nonce) || !auth.getIp(p).equals(r.ip)) return false;
+                          if (p == null
+                              || !latestLogin.current(r.uuid, nonce)
+                              || !auth.getIp(p).equals(r.ip)) return false;
                           auth.markAuthenticated(p, true);
                           return true;
                         })
@@ -482,7 +543,7 @@ final class CoreAuthMenu implements DiscordInteractionListener, AutoCloseable {
                     .thenAccept(
                         ok -> edit(r, ok ? "Пароль изменён." : "Запрос смены пароля устарел."));
               else {
-                if(Set.of("LOCK_ACCOUNT","UNLINK").contains(r.action))clear(r.uuid);
+                if (Set.of("LOCK_ACCOUNT", "UNLINK").contains(r.action)) clear(r.uuid);
                 manager.runConfirmed(rec, r.action).thenAccept(text -> edit(r, text));
               }
             });
@@ -500,7 +561,7 @@ final class CoreAuthMenu implements DiscordInteractionListener, AutoCloseable {
   }
 
   private static Map<String, Object> button(String id, String label) {
-    return Map.of("type", 2, "style", 2, "custom_id", id, "label", label);
+    return SecurityCards.button(id, label);
   }
 
   private static Map<String, Object> body(String text, List<Map<String, Object>> buttons) {
@@ -516,7 +577,7 @@ final class CoreAuthMenu implements DiscordInteractionListener, AutoCloseable {
   void clear(UUID uuid) {
     latestAction.keySet().removeIf(key -> key.startsWith(uuid + ":"));
     latestLogin.cancel(uuid);
-    requests.entrySet().removeIf(e -> e.getValue().uuid.equals(uuid));
+    discard(uuid, null);
   }
 
   @Override
@@ -525,6 +586,7 @@ final class CoreAuthMenu implements DiscordInteractionListener, AutoCloseable {
     latestAction.clear();
     latestLogin.clear();
     service.unregisterInteractionListener(this);
+    for (var request : requests.values()) delete(request.owner, request.message);
     requests.clear();
     for (String id : List.of("account", "security"))
       try {
