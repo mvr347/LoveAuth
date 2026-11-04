@@ -25,6 +25,8 @@ import java.util.regex.Pattern;
  * одних и тех же строк в разных классах.
  */
 public final class HeadTextures {
+    public static final String HEAD_ACCOUNT_INFO = HeadsConfig.get("account-info", "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvZWE0YzMzODU1YmQxZDAyMmNjOGVmOTQ5OTYzOTY1MDI3YmE5ZGI5NDFlY2VjMTAwMzUxMjBmMzAwYjc0NDg3MyJ9fX0=");
+
 
     public static final String HEAD_BARRIER = HeadsConfig.get("barrier", "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvM2VkMWFiYTczZjYzOWY0YmM0MmJkNDgxOTZjNzE1MTk3YmUyNzEyYzNiOTYyYzk3ZWJmOWU5ZWQ4ZWZhMDI1In19fQ==");
     public static final String HEAD_INFO = HeadsConfig.get("info", "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvZjgwZDMyOTVkM2Q5YWJkNjI3NzZhYmNiOGRhNzU2ZjI5OGE1NDVmZWU5NDk4YzRmNjlhMWMyYzc4NTI0YzgyNCJ9fX0=");

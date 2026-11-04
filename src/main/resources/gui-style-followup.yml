@@ -1,0 +1,18 @@
+# Обновление 04.11.2026: исходные файлы копируются в .pre-style-20261104.bak; свои значения сохраняются.
+version: 20261104
+updates:
+- file: heads.yml
+  path: account-info
+  before: null
+  value: eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvZWE0YzMzODU1YmQxZDAyMmNjOGVmOTQ5OTYzOTY1MDI3YmE5ZGI5NDFlY2VjMTAwMzUxMjBmMzAwYjc0NDg3MyJ9fX0=
+  preserve-custom: true
+- file: lang/lang.yml
+  path: gui.account.info-lore
+  before: null
+  value:
+  - <dark_gray>Безопасность аккаунта</dark_gray>
+  - ''
+  - <gray>Настройте пароль, подтверждение входа</gray>
+  - <gray>и привязку Discord.</gray>
+  - <gray>Доступные действия находятся ниже.</gray>
+  preserve-custom: true

@@ -138,7 +138,10 @@ public final class AccountGui implements LoveAuthHolder {
         // Slot 0 (профиль) виден только в embedded-режиме и только если это не отключено в
         // config.yml; иначе слот лежит в застеклённой строке, поэтому там стекло.
         current.setItem(0, embedded && config.isAccountProfileEnabled()
-                ? GuiManager.playerHead(player, lang) : GuiManager.glassPane(lang));
+                ? me.lovelace.loveAuth.textures.HeadTextures.createSkull(
+                        me.lovelace.loveAuth.textures.HeadTextures.HEAD_ACCOUNT_INFO,
+                        lang.component("gui.player-head", Map.of("player", player.getName())),
+                        lang.lore("gui.account.info-lore")) : GuiManager.glassPane(lang));
 
         Map<Integer, Action> map = new HashMap<>();
         for (int i = 0; i < visible.size(); i++) {

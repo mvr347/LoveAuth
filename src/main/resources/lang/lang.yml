@@ -342,6 +342,12 @@ gui.premium-welcome:
 
 # ── GUI: управление аккаунтом ────────────────
 gui.account:
+  info-lore:
+  - <dark_gray>Безопасность аккаунта</dark_gray>
+  - ''
+  - <gray>Настройте пароль, подтверждение входа</gray>
+  - <gray>и привязку Discord.</gray>
+  - <gray>Доступные действия находятся ниже.</gray>
   title: "<gold>Мой аккаунт</gold>"
   set-password: "<green>Установить пароль"
   set-password-lore:
