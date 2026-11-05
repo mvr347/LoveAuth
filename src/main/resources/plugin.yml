@@ -36,3 +36,7 @@ permissions:
   loveauth.queue.priority.<число>:
     description: Приоритет в очереди (меньше = выше)
     default: false
+
+# Paper caches this driver in the server libraries directory; do not shade/relocate JNI classes.
+libraries:
+- org.xerial:sqlite-jdbc:3.50.3.0
