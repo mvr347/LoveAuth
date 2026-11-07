@@ -83,6 +83,9 @@ kick:
 discord:
   not-enabled: "{prefix}<red>Discord-интеграция отключена на этом сервере."
   bind-instructions: "{prefix}<gray>Код для привязки: <click:copy_to_clipboard:'/привязать {code}'><hover:show_text:'<gray>Нажмите, чтобы скопировать <white>/привязать {code}'><white><underlined>{code}</underlined></white></hover></click> <gray>(отправьте боту командой <white>/привязать {code}</white> в Discord)"
+  # 2026-11-07: отдельная строка со ссылкой на ЛС с ботом (после кода привязки и после запроса входа).
+  # Новый ключ, а не правка старых текстов: языковые файлы серверов добавляют только недостающие ключи.
+  bot-link: "{prefix}<gray>Бот в личке: <click:open_url:'{url}'><hover:show_text:'<gray>Откроется профиль бота в Discord,<newline><gray>нажмите «Написать»'><#7289da><underlined>[Открыть ЛС с ботом]</underlined></#7289da></hover></click>"
   bind-success: "{prefix}<green>Discord-аккаунт успешно привязан!"
   bind-fail: "{prefix}<red>Неверный или устаревший код. Попробуйте снова."
   already-bound: "{prefix}<yellow>Discord уже привязан к вашему аккаунту."

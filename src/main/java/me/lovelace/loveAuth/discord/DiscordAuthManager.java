@@ -110,6 +110,28 @@ public final class DiscordAuthManager implements DiscordService {
                 net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
                         .deserialize(lang.get("discord.bind-instructions", Map.of("code", code)));
         player.sendMessage(msg);
+        sendBotLink(player);
+    }
+
+    /** The link to the bot's profile (private chat), asked from the shared bot, else from the config. */
+    Optional<String> botProfileUrl() {
+        String fromCore = null;
+        DiscordService core = coreTransport;
+        if (core != null) {
+            try {
+                // Reflection: an older LoveCore API has no getBotUserId().
+                Object id = core.getClass().getMethod("getBotUserId").invoke(core);
+                fromCore = id instanceof String text ? text : null;
+            } catch (ReflectiveOperationException olderCore) {
+                // fall back to discord.bot-user-id
+            }
+        }
+        return BotLink.profileUrl(fromCore, config.getDiscordBotUserId());
+    }
+
+    /** Sends the clickable "open the private chat with the bot" line; nothing when the bot id is unknown. */
+    void sendBotLink(Player player) {
+        botProfileUrl().ifPresent(url -> lang.send(player, "discord.bot-link", Map.of("url", url)));
     }
 
     private String registerPendingLinkCode(UUID uuid) {
