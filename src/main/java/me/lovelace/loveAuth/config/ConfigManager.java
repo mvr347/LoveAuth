@@ -108,6 +108,7 @@ public final class ConfigManager {
     public boolean isDiscordEnabled() { return config.getBoolean("discord.enabled", false); }
     public String getDiscordBotToken() { return config.getString("discord.bot-token", ""); }
     public String getDiscordGuildId() { return config.getString("discord.guild-id", ""); }
+    public String getDiscordBotUserId() { return config.getString("discord.bot-user-id", "").trim(); }
     public String getLanguage() { return config.getString("language", "lang"); }
     public boolean isPremiumSkipEnabled() { return config.getBoolean("auth.premium-skip", true); }
     public boolean isPremiumVerificationEnabled() { return config.getBoolean("premium-verification.enabled", false); }

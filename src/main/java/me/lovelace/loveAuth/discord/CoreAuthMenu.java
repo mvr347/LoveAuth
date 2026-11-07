@@ -260,7 +260,10 @@ final class CoreAuthMenu implements DiscordInteractionListener, AutoCloseable {
                     () -> {
                       var player = Bukkit.getPlayer(uuid);
                       if (player != null && latestLogin.current(uuid, nonce))
-                        plugin.getLangManager().send(player, "discord.login-dm-sent");
+                        {
+                          plugin.getLangManager().send(player, "discord.login-dm-sent");
+                          manager.sendBotLink(player);
+                        }
                       return true;
                     });
               plugin
