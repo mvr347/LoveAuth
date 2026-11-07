@@ -26,4 +26,10 @@ class BotLinkTest {
         assertTrue(BotLink.profileUrl("abc", "12").isEmpty());
         assertTrue(BotLink.profileUrl("1 2 3 4 5", "https://evil.example/").isEmpty(), "only digits are accepted");
     }
+
+    @Test
+    void onlyAPlayerWhoHasNotLoggedInGetsTheWayBackToTheMenu() {
+        assertTrue(DiscordAuthManager.showsMenuReturn(false));
+        org.junit.jupiter.api.Assertions.assertFalse(DiscordAuthManager.showsMenuReturn(true));
+    }
 }
