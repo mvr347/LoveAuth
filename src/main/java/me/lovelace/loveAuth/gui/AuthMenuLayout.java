@@ -30,21 +30,23 @@ public final class AuthMenuLayout {
 
     public enum Menu {
         REGISTER("<white>%img_offset_-8%%img_register_menu%",
-                new int[]{1, 2, 3, 10, 11, 12, 19, 20, 21}, new int[]{5, 6, 7, 14, 15, 16, 23, 24, 25}, null),
+                Map.of(Zone.PASSWORD, new int[]{1, 2, 3, 10, 11, 12, 19, 20, 21},
+                        Zone.DISCORD, new int[]{5, 6, 7, 14, 15, 16, 23, 24, 25})),
         PREMIUM_REGISTER("<white>%img_offset_-8%%img_premium_register_menu%",
-                new int[]{0, 1, 2, 9, 10, 11, 18, 19, 20}, new int[]{3, 4, 5, 12, 13, 14, 21, 22, 23},
-                new int[]{6, 7, 8, 15, 16, 17, 24, 25, 26});
+                Map.of(Zone.PASSWORD, new int[]{0, 1, 2, 9, 10, 11, 18, 19, 20},
+                        Zone.DISCORD, new int[]{3, 4, 5, 12, 13, 14, 21, 22, 23},
+                        Zone.SKIP, new int[]{6, 7, 8, 15, 16, 17, 24, 25, 26})),
+        /** The server's yes/no menu, the same picture and zones as in LoveShop and LoveClans. */
+        CONFIRM("<white>%img_offset_-8%%img_confirm_menu%",
+                Map.of(Zone.CONFIRM, new int[]{1, 2, 3, 10, 11, 12, 19, 20, 21},
+                        Zone.CANCEL, new int[]{5, 6, 7, 14, 15, 16, 23, 24, 25}));
 
         private final String title;
-        private final int[] password;
-        private final int[] discord;
-        private final int[] skip;
+        private final Map<Zone, int[]> zones;
 
-        Menu(String title, int[] password, int[] discord, int[] skip) {
+        Menu(String title, Map<Zone, int[]> zones) {
             this.title = title;
-            this.password = password;
-            this.discord = discord;
-            this.skip = skip;
+            this.zones = zones;
         }
 
         public String title() {
@@ -52,15 +54,19 @@ public final class AuthMenuLayout {
         }
 
         int[] slots(Zone zone) {
-            return switch (zone) {
-                case PASSWORD -> password;
-                case DISCORD -> discord;
-                case SKIP -> skip == null ? new int[0] : skip;
+            return zones.getOrDefault(zone, new int[0]);
+        }
+
+        String imageName() {
+            return switch (this) {
+                case REGISTER -> "register_menu";
+                case PREMIUM_REGISTER -> "premium_register_menu";
+                case CONFIRM -> "confirm_menu";
             };
         }
     }
 
-    public enum Zone { PASSWORD, DISCORD, SKIP }
+    public enum Zone { PASSWORD, DISCORD, SKIP, CONFIRM, CANCEL }
 
     private static final Pattern COLON_TOKEN = Pattern.compile(":[A-Za-z0-9_\\-]{2,}:");
 
@@ -91,10 +97,11 @@ public final class AuthMenuLayout {
 
     /**
      * Why the big window cannot be used for this viewer, or null when it can. A disabled Discord is a reason too:
-     * both big menus have a Discord button.
+     * the registration menus have a Discord button.
      */
     public static String reasonFor(Player viewer, Menu menu, boolean discordEnabled) {
-        if (!discordEnabled) return "discord.enabled is false in LoveAuth config.yml (both big menus have a Discord button)";
+        if (!discordEnabled && menu != Menu.CONFIRM)
+            return "discord.enabled is false in LoveAuth config.yml (the registration menus have a Discord button)";
         return unavailableReason(viewer, menu);
     }
 
@@ -103,9 +110,9 @@ public final class AuthMenuLayout {
         synchronized (reported) {
             if (!reported.add(menu)) return;
         }
-        String name = menu == Menu.REGISTER ? "register_menu" : "premium_register_menu";
-        if (why == null) Bukkit.getLogger().info("[LoveAuth] Registration menu " + name + ": the big ItemsAdder window is used");
-        else Bukkit.getLogger().warning("[LoveAuth] Registration menu " + name + ": the small window is shown instead: " + why);
+        String name = menu.imageName();
+        if (why == null) Bukkit.getLogger().info("[LoveAuth] Menu " + name + ": the big ItemsAdder window is used");
+        else Bukkit.getLogger().warning("[LoveAuth] Menu " + name + ": the small window is shown instead: " + why);
     }
 
     static String unavailableReason(Player viewer, Menu menu) {

@@ -48,4 +48,12 @@ class AuthMenuLayoutTest {
         assertFalse(AuthMenuLayout.backgroundResolved(":register_menu:"));
         assertFalse(AuthMenuLayout.backgroundResolved(""));
     }
+
+    @Test
+    void theConfirmMenuHasConfirmAndCancelSquares() {
+        AuthMenuLayout.Menu m = AuthMenuLayout.Menu.CONFIRM;
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.Optional.of(AuthMenuLayout.Zone.CONFIRM), AuthMenuLayout.zoneOf(m, 11));
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.Optional.of(AuthMenuLayout.Zone.CANCEL), AuthMenuLayout.zoneOf(m, 15));
+        org.junit.jupiter.api.Assertions.assertTrue(AuthMenuLayout.zoneOf(m, 4).isEmpty());
+    }
 }

@@ -31,8 +31,9 @@ public final class GuiClickListener implements Listener {
         if (holder instanceof ConfirmGui confirmGui) {
             event.setCancelled(true);
             SoundUtils.click(player);
-            if (event.getRawSlot() == ConfirmGui.CONFIRM_SLOT) confirmGui.handleConfirm();
-            else if (event.getRawSlot() == ConfirmGui.CANCEL_SLOT) confirmGui.handleCancel();
+            var zone = confirmGui.actionAt(event.getRawSlot()).orElse(null);
+            if (zone == AuthMenuLayout.Zone.CONFIRM) confirmGui.handleConfirm();
+            else if (zone == AuthMenuLayout.Zone.CANCEL) confirmGui.handleCancel();
             return;
         }
 
@@ -43,18 +44,25 @@ public final class GuiClickListener implements Listener {
             AccountGui.Action action = accountGui.actionAt(event.getRawSlot()).orElse(null);
             if (action == null) return;
 
-            if (action == AccountGui.Action.CHANGE_PASSWORD) {
-                plugin.getGuiManager().openConfirm(player, "gui.confirm.change-password",
-                    () -> auth.requestPasswordChange(player),
-                    () -> accountGui.open());
-            } else if (action == AccountGui.Action.DELETE_PASSWORD) {
+            if (action == AccountGui.Action.PASSWORD) {
+                ClickType passwordClick = event.getClick();
+                if (!passwordClick.isLeftClick() && !passwordClick.isRightClick()) return;
+                boolean delete = passwordClick.isRightClick();
                 plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> Bukkit.getScheduler().runTask(plugin, () -> {
-                    if (!record.map(r -> r.hasPassword() && r.passwordEnabled()).orElse(false)) {
+                    boolean hasPassword = record.map(r -> r.hasPassword() && r.passwordEnabled()).orElse(false);
+                    boolean hasDiscord = record.map(r -> r.hasDiscord()).orElse(false);
+                    if (!delete) {
+                        plugin.getGuiManager().openConfirm(player, "gui.confirm.change-password",
+                            () -> auth.requestPasswordChange(player),
+                            () -> accountGui.open());
+                    } else if (!hasPassword) {
                         plugin.getLangManager().send(player, "block.no-password-to-delete");
-                    } else if (record.map(r -> r.hasDiscord()).orElse(false)) {
-                        plugin.getDiscordAuthManager().sendConfirmation(player, "REMOVE_PASSWORD");
-                    } else {
+                    } else if (!AccountGui.canDeletePassword(true, hasDiscord, plugin.getConfigManager().isDiscordEnabled())) {
                         plugin.getLangManager().send(player, "block.password-required");
+                    } else {
+                        plugin.getGuiManager().openConfirm(player, "gui.confirm.delete-password",
+                            () -> plugin.getDiscordAuthManager().sendConfirmation(player, "REMOVE_PASSWORD"),
+                            () -> accountGui.open());
                     }
                 }));
             } else if (action == AccountGui.Action.SESSION) {
