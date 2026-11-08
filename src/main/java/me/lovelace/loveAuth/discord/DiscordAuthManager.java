@@ -106,11 +106,25 @@ public final class DiscordAuthManager implements DiscordService {
             return;
         }
         String code = registerPendingLinkCode(player.getUniqueId());
-        net.kyori.adventure.text.Component msg =
-                net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
-                        .deserialize(lang.get("discord.bind-instructions", Map.of("code", code)));
-        player.sendMessage(msg);
-        sendBotLink(player);
+        // The menu stays open otherwise and an unauthenticated player cannot reach the chat where the code is.
+        // A plugin-initiated close is ignored by GuiCloseListener (no kick, no reopen).
+        player.closeInventory();
+        // The message right behind closeInventory() can be dropped by the client; send it a tick later
+        // (same race GuiManager.awaitInput works around).
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (!player.isOnline()) return;
+            net.kyori.adventure.text.Component msg =
+                    net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                            .deserialize(lang.get("discord.bind-instructions", Map.of("code", code)));
+            player.sendMessage(msg);
+            sendBotLink(player);
+            if (showsMenuReturn(auth.isAuthenticated(player.getUniqueId()))) lang.send(player, "discord.bind-back");
+        }, 1L);
+    }
+
+    /** A player who has not logged in has no other way back to the auth menu than the command. */
+    static boolean showsMenuReturn(boolean authenticated) {
+        return !authenticated;
     }
 
     /** The link to the bot's profile (private chat), asked from the shared bot, else from the config. */
