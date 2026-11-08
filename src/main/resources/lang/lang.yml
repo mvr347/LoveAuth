@@ -92,6 +92,8 @@ discord:
   bot-link: "{prefix}<gray>Бот в личке: <click:open_url:'{url}'><hover:show_text:'<gray>Откроется профиль бота в Discord,<newline><gray>нажмите «Написать»'><#7289da><underlined>[Открыть ЛС с ботом]</underlined></#7289da></hover></click>"
   # 2026-11-07: меню теперь закрывается при выборе Discord (иначе из него нельзя было открыть чат);
   # неавторизованному игроку даём кликабельный путь обратно. Новый ключ: языковые файлы только дополняются.
+  # 2026-11-08: просто кнопка без показа команды (владелец). Новый ключ: языковые файлы только дополняются.
+  bind-back-button: "{prefix}<click:run_command:'/loveauth'><hover:show_text:'<gray>Откроет меню входа'><#a855f7><bold>[Вернуться в меню]</bold></#a855f7></hover></click>"
   bind-back: "{prefix}<gray>Вернуться в меню: <click:run_command:'/loveauth'><hover:show_text:'<gray>Откроет меню входа'><white><underlined>/loveauth</underlined></white></hover></click>"
   bind-success: "{prefix}<green>Discord-аккаунт успешно привязан!"
   bind-fail: "{prefix}<red>Неверный или устаревший код. Попробуйте снова."

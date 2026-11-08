@@ -118,7 +118,7 @@ public final class DiscordAuthManager implements DiscordService {
                             .deserialize(lang.get("discord.bind-instructions-2", Map.of("code", code)));
             player.sendMessage(msg);
             sendBotLink(player);
-            if (showsMenuReturn(auth.isAuthenticated(player.getUniqueId()))) lang.send(player, "discord.bind-back");
+            if (showsMenuReturn(auth.isAuthenticated(player.getUniqueId()))) lang.send(player, "discord.bind-back-button");
         }, 1L);
     }
 
