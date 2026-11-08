@@ -14,13 +14,10 @@ import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.InventoryHolder;
 
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 public final class GuiCloseListener implements Listener {
     private final LoveAuth plugin;
-    private final Map<UUID, Long> authMenuOpenedAt = new ConcurrentHashMap<>();
+    private final MenuOpenClock openClock = new MenuOpenClock();
 
     public GuiCloseListener(LoveAuth plugin) {
         this.plugin = plugin;
@@ -36,13 +33,13 @@ public final class GuiCloseListener implements Listener {
     @EventHandler
     public void onOpen(InventoryOpenEvent event) {
         if (isAuthGui(event.getInventory().getHolder())) {
-            authMenuOpenedAt.put(event.getPlayer().getUniqueId(), System.currentTimeMillis());
+            openClock.opened(event.getPlayer().getUniqueId(), System.currentTimeMillis());
         }
     }
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        authMenuOpenedAt.remove(event.getPlayer().getUniqueId());
+        openClock.forget(event.getPlayer().getUniqueId());
     }
 
     @EventHandler
@@ -65,8 +62,7 @@ public final class GuiCloseListener implements Listener {
         if (!isAuthGui(holder)) return;
 
         InventoryCloseEvent.Reason reason = event.getReason();
-        Long openedAt = authMenuOpenedAt.get(player.getUniqueId());
-        long sinceOpen = openedAt == null ? -1L : System.currentTimeMillis() - openedAt;
+        long sinceOpen = openClock.sinceOpen(player.getUniqueId(), System.currentTimeMillis());
         // The world-loading screen after a cross-world limbo teleport closes the menu client-side;
         // that must reopen it, not kick a player who never touched anything.
         switch (AuthCloseDecision.decide(
@@ -74,13 +70,16 @@ public final class GuiCloseListener implements Listener {
                 reason == InventoryCloseEvent.Reason.UNKNOWN,
                 sinceOpen, plugin.getConfigManager().getCloseGraceMs())) {
             case KICK -> player.kick(plugin.getLangManager().component("kick.closed-gui"));
-            case REOPEN -> org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
+            case REOPEN -> {
+                openClock.reopening(player.getUniqueId(), System.currentTimeMillis());
+                org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
                 if (!player.isOnline() || plugin.getAuthManager().isAuthenticated(player.getUniqueId())) return;
                 // Something else (another auth menu, chat input) may already have taken over.
                 if (isAuthGui(player.getOpenInventory().getTopInventory().getHolder())) return;
                 if (plugin.getChatInputHandler() != null && plugin.getChatInputHandler().isAwaiting(player)) return;
                 plugin.getGuiManager().reopenAuthMenu(player, holder);
-            });
+                });
+            }
             case IGNORE -> { }
         }
     }

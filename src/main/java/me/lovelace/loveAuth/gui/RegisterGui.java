@@ -28,7 +28,9 @@ public final class RegisterGui implements LoveAuthHolder {
     public void open() {
         boolean discordEnabled = auth.getPlugin().getConfigManager().isDiscordEnabled();
         LoreBlocks blocks = new LoreBlocks(lang);
-        if (discordEnabled && AuthMenuLayout.available(player, AuthMenuLayout.Menu.REGISTER)) {
+        String why = AuthMenuLayout.reasonFor(player, AuthMenuLayout.Menu.REGISTER, discordEnabled);
+        AuthMenuLayout.report(AuthMenuLayout.Menu.REGISTER, why);
+        if (why == null) {
             ItemStack password = AuthMenuLayout.button(GuiManager.button(lang, HeadTextures.HEAD_PASSWORD, "gui.register.register-button",
                     "gui.register.register-lore", blocks.clicks(blocks.left("gui.register.register-action"))));
             ItemStack discord = AuthMenuLayout.button(GuiManager.button(lang, HeadTextures.HEAD_DISCORD, "gui.discord.bind-button",

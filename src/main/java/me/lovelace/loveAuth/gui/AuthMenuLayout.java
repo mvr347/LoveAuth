@@ -63,7 +63,6 @@ public final class AuthMenuLayout {
     public enum Zone { PASSWORD, DISCORD, SKIP }
 
     private static final Pattern COLON_TOKEN = Pattern.compile(":[A-Za-z0-9_\\-]{2,}:");
-    private static boolean fallbackLogged;
 
     private AuthMenuLayout() {
     }
@@ -88,13 +87,25 @@ public final class AuthMenuLayout {
                 && !COLON_TOKEN.matcher(resolved).find();
     }
 
-    public static boolean available(Player viewer, Menu menu) {
-        String why = unavailableReason(viewer, menu);
-        if (why != null && !fallbackLogged) {
-            fallbackLogged = true;
-            Bukkit.getLogger().warning("[LoveAuth] Registration menu: the big window is not used, the small one is shown instead: " + why);
+    private static final java.util.Set<Menu> reported = java.util.EnumSet.noneOf(Menu.class);
+
+    /**
+     * Why the big window cannot be used for this viewer, or null when it can. A disabled Discord is a reason too:
+     * both big menus have a Discord button.
+     */
+    public static String reasonFor(Player viewer, Menu menu, boolean discordEnabled) {
+        if (!discordEnabled) return "discord.enabled is false in LoveAuth config.yml (both big menus have a Discord button)";
+        return unavailableReason(viewer, menu);
+    }
+
+    /** Logs once per menu and run which window is shown, so the console says what a player is looking at. */
+    public static void report(Menu menu, String why) {
+        synchronized (reported) {
+            if (!reported.add(menu)) return;
         }
-        return why == null;
+        String name = menu == Menu.REGISTER ? "register_menu" : "premium_register_menu";
+        if (why == null) Bukkit.getLogger().info("[LoveAuth] Registration menu " + name + ": the big ItemsAdder window is used");
+        else Bukkit.getLogger().warning("[LoveAuth] Registration menu " + name + ": the small window is shown instead: " + why);
     }
 
     static String unavailableReason(Player viewer, Menu menu) {

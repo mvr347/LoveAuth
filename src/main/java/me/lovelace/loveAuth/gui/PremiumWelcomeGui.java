@@ -34,7 +34,9 @@ public final class PremiumWelcomeGui implements LoveAuthHolder {
     public void open() {
         boolean discordEnabled = config.isDiscordEnabled();
         LoreBlocks blocks = new LoreBlocks(lang);
-        if (discordEnabled && AuthMenuLayout.available(player, AuthMenuLayout.Menu.PREMIUM_REGISTER)) {
+        String why = AuthMenuLayout.reasonFor(player, AuthMenuLayout.Menu.PREMIUM_REGISTER, discordEnabled);
+        AuthMenuLayout.report(AuthMenuLayout.Menu.PREMIUM_REGISTER, why);
+        if (why == null) {
             ItemStack password = AuthMenuLayout.button(GuiManager.button(lang, HeadTextures.HEAD_PASSWORD, "gui.premium-welcome.add-password-button",
                     "gui.premium-welcome.add-password-lore", blocks.clicks(blocks.left("gui.premium-welcome.add-password-action"))));
             ItemStack discordItem = AuthMenuLayout.button(GuiManager.button(lang, HeadTextures.HEAD_DISCORD, "gui.premium-welcome.bind-discord-button",
