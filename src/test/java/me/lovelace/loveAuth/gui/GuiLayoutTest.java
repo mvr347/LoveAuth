@@ -182,4 +182,11 @@ class GuiLayoutTest {
         assertTrue(!AccountGui.visibleActions(false, true, true).contains(AccountGui.Action.DISCORD), "unlink needs a password");
         assertTrue(AccountGui.visibleActions(true, true, true).contains(AccountGui.Action.DISCORD));
     }
+
+    @org.junit.jupiter.api.Test
+    void premiumAccountsMayDeleteTheirPasswordWithoutDiscord() {
+        assertTrue(AccountGui.canDeletePassword(true, false, true, true));
+        assertTrue(!AccountGui.canDeletePassword(true, false, true, false));
+        assertTrue(!AccountGui.canDeletePassword(false, false, true, true), "needs a password to delete");
+    }
 }

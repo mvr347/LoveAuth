@@ -57,11 +57,24 @@ public final class GuiClickListener implements Listener {
                             () -> accountGui.open());
                     } else if (!hasPassword) {
                         plugin.getLangManager().send(player, "block.no-password-to-delete");
-                    } else if (!AccountGui.canDeletePassword(true, hasDiscord, plugin.getConfigManager().isDiscordEnabled())) {
+                    } else if (!AccountGui.canDeletePassword(true, hasDiscord, plugin.getConfigManager().isDiscordEnabled(), auth.isPremium(player))) {
                         plugin.getLangManager().send(player, "block.password-required");
                     } else {
+                        // With a bound Discord the removal is confirmed there as before; a premium account
+                        // without one is confirmed by the menu alone and falls back to the premium login.
+                        boolean viaDiscord = hasDiscord && plugin.getConfigManager().isDiscordEnabled();
                         plugin.getGuiManager().openConfirm(player, "gui.confirm.delete-password",
-                            () -> plugin.getDiscordAuthManager().sendConfirmation(player, "REMOVE_PASSWORD"),
+                            () -> {
+                                if (viaDiscord) {
+                                    plugin.getDiscordAuthManager().sendConfirmation(player, "REMOVE_PASSWORD");
+                                } else {
+                                    plugin.getDatabaseManager().setPasswordEnabled(player.getUniqueId(), false)
+                                        .thenRun(() -> Bukkit.getScheduler().runTask(plugin, () -> {
+                                            plugin.getLangManager().send(player, "commands.password-removed-premium");
+                                            accountGui.open();
+                                        }));
+                                }
+                            },
                             () -> accountGui.open());
                     }
                 }));

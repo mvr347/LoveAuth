@@ -87,7 +87,12 @@ public final class AccountGui implements LoveAuthHolder {
 
     /** Whether the password can be deleted: it needs a working password and a Discord to log in with afterwards. */
     public static boolean canDeletePassword(boolean hasWorkingPassword, boolean hasDiscord, boolean discordEnabled) {
-        return hasWorkingPassword && hasDiscord && discordEnabled;
+        return canDeletePassword(hasWorkingPassword, hasDiscord, discordEnabled, false);
+    }
+
+    /** A premium (licensed) account can always drop its password: it logs in through the premium check afterwards. */
+    public static boolean canDeletePassword(boolean hasWorkingPassword, boolean hasDiscord, boolean discordEnabled, boolean premium) {
+        return hasWorkingPassword && (premium || (hasDiscord && discordEnabled));
     }
 
     /** Loads the data, lays the menu out once and opens it. */
@@ -174,7 +179,7 @@ public final class AccountGui implements LoveAuthHolder {
                     yield item(HeadTextures.HEAD_ACCOUNT_SET_PASSWORD, "gui.account.set-password", "gui.account.set-password-lore", Map.of(),
                             blocks.clicks(blocks.left("gui.account.set-password-action")));
                 }
-                boolean deletable = canDeletePassword(true, hasDiscord, config.isDiscordEnabled());
+                boolean deletable = canDeletePassword(true, hasDiscord, config.isDiscordEnabled(), player.getUniqueId().version() == 4);
                 yield item(HeadTextures.HEAD_ACCOUNT_PASSWORD, "gui.account.password", "gui.account.password-lore", Map.of(),
                         deletable
                                 ? blocks.clicks(blocks.left("gui.account.password-change-action"), blocks.right("gui.account.password-delete-action"))
