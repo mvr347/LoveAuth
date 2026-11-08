@@ -115,10 +115,10 @@ public final class DiscordAuthManager implements DiscordService {
             if (!player.isOnline()) return;
             net.kyori.adventure.text.Component msg =
                     net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
-                            .deserialize(lang.get("discord.bind-instructions", Map.of("code", code)));
+                            .deserialize(lang.get("discord.bind-instructions-2", Map.of("code", code)));
             player.sendMessage(msg);
             sendBotLink(player);
-            if (showsMenuReturn(auth.isAuthenticated(player.getUniqueId()))) lang.send(player, "discord.bind-back");
+            if (showsMenuReturn(auth.isAuthenticated(player.getUniqueId()))) lang.send(player, "discord.bind-back-button");
         }, 1L);
     }
 

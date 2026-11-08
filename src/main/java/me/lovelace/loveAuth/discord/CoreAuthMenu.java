@@ -323,8 +323,34 @@ final class CoreAuthMenu implements DiscordInteractionListener, AutoCloseable {
 
   @Override
   public boolean onInteraction(DiscordInteraction i) {
+    // Legacy /привязать (the guild command may still be registered): with a code it links right away,
+    // without one it opens the code window. Before, it only pointed to the cabinet and never linked.
+    boolean legacyLink = "привязать".equals(i.name());
+    if (legacyLink) {
+      String code =
+          i.values().entrySet().stream()
+              .filter(e -> !e.getKey().startsWith("_"))
+              .map(java.util.Map.Entry::getValue)
+              .findFirst()
+              .orElse("")
+              .trim();
+      if (!code.isEmpty()) {
+        service
+            .respond(i, "{\"type\":5,\"data\":{\"flags\":64}}")
+            .thenAccept(
+                acknowledged -> {
+                  if (!acknowledged || closed) return;
+                  manager
+                      .completeCoreLink(i.userId(), code)
+                      .thenAccept(
+                          ok ->
+                              service.editResponse(
+                                  i, ok ? "Аккаунт привязан." : "Код не найден или истёк."));
+                });
+        return true;
+      }
+    }
     if (Set.of(
-            "привязать",
             "отвязать",
             "заблокировать",
             "разблокировать",
@@ -355,8 +381,8 @@ final class CoreAuthMenu implements DiscordInteractionListener, AutoCloseable {
                               List.of(button("lc:menu:home", "Личный кабинет"))))))));
       return true;
     }
-    if (!i.name().startsWith("la:core:")) return false;
-    String action = i.name().substring("la:core:".length());
+    if (!legacyLink && !i.name().startsWith("la:core:")) return false;
+    String action = legacyLink ? "link" : i.name().substring("la:core:".length());
     if (action.equals("link") || action.equals("password")) {
       String field = action.equals("link") ? "code" : "password";
       var fields =
