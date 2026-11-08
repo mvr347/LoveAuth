@@ -355,6 +355,17 @@ gui.account:
   - <gray>и привязку Discord.</gray>
   - <gray>Доступные действия находятся ниже.</gray>
   title: "<gold>Мой аккаунт</gold>"
+  # 2026-11-08: «Сменить пароль» и «Удалить пароль» объединены в одну кнопку «Пароль» (ЛКМ - сменить, ПКМ - удалить);
+  # ПКМ показывается только когда удалять можно (есть пароль и привязанный Discord для входа).
+  password: "<yellow>Пароль"
+  password-lore:
+    - "<dark_gray>Защита аккаунта"
+    - ""
+    - "<dark_gray>▪ <gray>Назначение:"
+    - "  <gray>Вход по паролю в чате. Смена и удаление"
+    - "  <gray>подтверждаются в отдельном окне."
+  password-change-action: "сменить пароль"
+  password-delete-action: "удалить пароль"
   set-password: "<green>Установить пароль"
   set-password-lore:
     - "<dark_gray>Пароль"
@@ -439,6 +450,7 @@ gui.queue:
 # вместо общего "Подтверждение действия".
 gui.confirm:
   change-password: "<gold>Изменить пароль?</gold>"
+  delete-password: "<gold>Удалить пароль?</gold>"
   reset-session: "<gold>Сбросить сессию?</gold>"
   lock-account: "<gold>Заблокировать аккаунт?</gold>"
   logout: "<gold>Выйти из аккаунта?</gold>"

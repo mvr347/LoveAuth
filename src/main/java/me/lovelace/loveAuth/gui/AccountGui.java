@@ -29,7 +29,7 @@ import java.util.concurrent.CompletableFuture;
  * expiry), and only then laid out in one go, so the player never sees a half-filled menu.
  */
 public final class AccountGui implements LoveAuthHolder {
-    public enum Action { CHANGE_PASSWORD, DELETE_PASSWORD, SESSION, LOGIN_METHOD, DISCORD, LOGOUT, BACK, CLOSE }
+    public enum Action { PASSWORD, SESSION, LOGIN_METHOD, DISCORD, LOGOUT, BACK, CLOSE }
 
     /** The longest session the stepper offers; 0 means the session is off. Shown as the bar's 100 % mark. */
     public static final int MAX_SESSION_DAYS = 28;
@@ -73,14 +73,19 @@ public final class AccountGui implements LoveAuthHolder {
      * Discord-related disappears when the integration is switched off.
      */
     public static List<Action> visibleActions(boolean hasWorkingPassword, boolean hasDiscord, boolean discordEnabled) {
-        List<Action> list = new ArrayList<>(6);
-        list.add(Action.CHANGE_PASSWORD);
-        if (hasWorkingPassword && hasDiscord && discordEnabled) list.add(Action.DELETE_PASSWORD);
+        List<Action> list = new ArrayList<>(5);
+        // One password button: left click sets/changes it, right click deletes it (only when that is allowed).
+        list.add(Action.PASSWORD);
         if (hasWorkingPassword) list.add(Action.SESSION);
         if (hasWorkingPassword && hasDiscord && discordEnabled) list.add(Action.LOGIN_METHOD);
         if (discordEnabled) list.add(Action.DISCORD);
         list.add(Action.LOGOUT);
         return list;
+    }
+
+    /** Whether the password can be deleted: it needs a working password and a Discord to log in with afterwards. */
+    public static boolean canDeletePassword(boolean hasWorkingPassword, boolean hasDiscord, boolean discordEnabled) {
+        return hasWorkingPassword && hasDiscord && discordEnabled;
     }
 
     /** Loads the data, lays the menu out once and opens it. */
@@ -162,18 +167,22 @@ public final class AccountGui implements LoveAuthHolder {
         boolean hasDiscord = pr != null && pr.hasDiscord();
         LoreBlocks blocks = new LoreBlocks(lang);
         return switch (action) {
-            case CHANGE_PASSWORD -> hasPassword
-                    ? item(HeadTextures.HEAD_CHANGE_PASS, "gui.account.change-password", "gui.account.change-password-lore", Map.of(),
-                            blocks.clicks(blocks.left("gui.account.change-password-action")))
-                    : item(HeadTextures.HEAD_CHANGE_PASS, "gui.account.set-password", "gui.account.set-password-lore", Map.of(),
+            case PASSWORD -> {
+                if (!hasPassword) {
+                    yield item(HeadTextures.HEAD_ACCOUNT_SET_PASSWORD, "gui.account.set-password", "gui.account.set-password-lore", Map.of(),
                             blocks.clicks(blocks.left("gui.account.set-password-action")));
-            case DELETE_PASSWORD -> item(HeadTextures.HEAD_BARRIER, "gui.account.delete-password", "gui.account.delete-password-lore", Map.of(),
-                    blocks.clicks(blocks.left("gui.account.delete-password-action")));
+                }
+                boolean deletable = canDeletePassword(true, hasDiscord, config.isDiscordEnabled());
+                yield item(HeadTextures.HEAD_ACCOUNT_PASSWORD, "gui.account.password", "gui.account.password-lore", Map.of(),
+                        deletable
+                                ? blocks.clicks(blocks.left("gui.account.password-change-action"), blocks.right("gui.account.password-delete-action"))
+                                : blocks.clicks(blocks.left("gui.account.password-change-action")));
+            }
             case SESSION -> {
                 int days = pr.sessionDuration();
                 String status = lang.plain(sessionExpiry.isPresent() ? "gui.account.session-active" : "gui.account.session-disabled");
                 String expires = sessionExpiry.map(e -> DF.format(Instant.ofEpochSecond(e))).orElse("---");
-                yield item(days == 0 ? HeadTextures.HEAD_INACTIVE : HeadTextures.HEAD_SESSION,
+                yield item(days == 0 ? HeadTextures.HEAD_INACTIVE : HeadTextures.HEAD_ACCOUNT_SESSION,
                         days == 0 ? "gui.session.disable" : "gui.session.days", "gui.account.session-lore",
                         Map.of("days", String.valueOf(days), "status", status, "expires", expires,
                                 "max", String.valueOf(MAX_SESSION_DAYS), "bar", LoreBlocks.bar(days, MAX_SESSION_DAYS)),

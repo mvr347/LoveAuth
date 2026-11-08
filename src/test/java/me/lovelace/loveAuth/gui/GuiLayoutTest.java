@@ -92,15 +92,15 @@ class GuiLayoutTest {
     @Test
     void accountMenuHidesWhatIsUnavailable() {
         // no password, no Discord, Discord integration on
-        assertEquals(List.of(AccountGui.Action.CHANGE_PASSWORD, AccountGui.Action.DISCORD, AccountGui.Action.LOGOUT),
+        assertEquals(List.of(AccountGui.Action.PASSWORD, AccountGui.Action.DISCORD, AccountGui.Action.LOGOUT),
                 AccountGui.visibleActions(false, false, true));
         // Discord integration off: nothing Discord-related, whatever the account has
-        assertEquals(List.of(AccountGui.Action.CHANGE_PASSWORD, AccountGui.Action.SESSION, AccountGui.Action.LOGOUT),
+        assertEquals(List.of(AccountGui.Action.PASSWORD, AccountGui.Action.SESSION, AccountGui.Action.LOGOUT),
                 AccountGui.visibleActions(true, true, false));
         // everything available
-        assertEquals(6, AccountGui.visibleActions(true, true, true).size());
+        assertEquals(5, AccountGui.visibleActions(true, true, true).size(), "delete is a right click on the one password button");
         // password but no Discord: no delete-password, no method switch
-        assertEquals(List.of(AccountGui.Action.CHANGE_PASSWORD, AccountGui.Action.SESSION,
+        assertEquals(List.of(AccountGui.Action.PASSWORD, AccountGui.Action.SESSION,
                 AccountGui.Action.DISCORD, AccountGui.Action.LOGOUT), AccountGui.visibleActions(true, false, true));
         for (boolean p : new boolean[]{false, true}) for (boolean d : new boolean[]{false, true}) for (boolean e : new boolean[]{false, true}) {
             assertTrue(AccountGui.visibleActions(p, d, e).size() <= 6);
