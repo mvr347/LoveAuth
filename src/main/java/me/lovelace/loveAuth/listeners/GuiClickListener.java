@@ -180,20 +180,33 @@ public final class GuiClickListener implements Listener {
             return;
         }
 
-        if (isGui(title, "gui.register.title")) {
+        if (holder instanceof RegisterGui registerGui) {
             event.setCancelled(true);
             SoundUtils.click(player);
             int slot = event.getRawSlot();
             boolean discordEnabled = plugin.getConfigManager().isDiscordEnabled();
+            if (registerGui.zoned()) {
+                var zone = registerGui.zoneAt(slot).orElse(null);
+                if (zone == AuthMenuLayout.Zone.PASSWORD) auth.requestRegistration(player);
+                else if (zone == AuthMenuLayout.Zone.DISCORD && discordEnabled) plugin.getDiscordAuthManager().startBinding(player);
+                return;
+            }
             int[] slots = RegisterGui.slots(discordEnabled);
             if (slot == slots[0]) auth.requestRegistration(player);
             else if (discordEnabled && slot == slots[1]) plugin.getDiscordAuthManager().startBinding(player);
             else if (slot == 26) closeAuthGate(player);
-        } else if (isGui(title, "gui.premium-welcome.title")) {
+        } else if (holder instanceof PremiumWelcomeGui premiumGui) {
             event.setCancelled(true);
             SoundUtils.click(player);
             int slot = event.getRawSlot();
             boolean discordEnabled = plugin.getConfigManager().isDiscordEnabled();
+            if (premiumGui.zoned()) {
+                var zone = premiumGui.zoneAt(slot).orElse(null);
+                if (zone == AuthMenuLayout.Zone.PASSWORD) auth.requestRegistration(player);
+                else if (zone == AuthMenuLayout.Zone.DISCORD && discordEnabled) plugin.getDiscordAuthManager().startBinding(player);
+                else if (zone == AuthMenuLayout.Zone.SKIP) auth.completeNewAccountAuth(player);
+                return;
+            }
             int[] slots = PremiumWelcomeGui.slots(discordEnabled);
             if (slot == slots[0]) auth.requestRegistration(player);
             else if (discordEnabled && slot == slots[1]) plugin.getDiscordAuthManager().startBinding(player);

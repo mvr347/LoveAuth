@@ -422,14 +422,8 @@ public final class AuthManager {
                 Bukkit.getScheduler().runTaskLater(plugin, () -> { if (player.isOnline()) requestRegistration(player); }, VALIDATION_RETRY_DELAY_TICKS);
                 return;
             }
-            plugin.getGuiManager().awaitInput(player, "register.prompt-confirm", p2 -> {
-                if (p1.equals(p2)) register(player, p1);
-                else {
-                    lang.sendActionBar(player, "register.password-mismatch", Map.of());
-                    SoundUtils.error(player);
-                    Bukkit.getScheduler().runTaskLater(plugin, () -> { if (player.isOnline()) requestRegistration(player); }, VALIDATION_RETRY_DELAY_TICKS);
-                }
-            });
+            // 2026-11-08: the password is typed once (the repeat step was outdated, owner request).
+            register(player, p1);
         });
     }
 
