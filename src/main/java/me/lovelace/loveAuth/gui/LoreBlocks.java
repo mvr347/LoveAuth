@@ -20,7 +20,7 @@ public final class LoreBlocks {
 
     /** Mouse click a line belongs to; {@link #key} is the lang key under {@code gui.style.click}. */
     public enum Click {
-        LEFT("left", "ЛКМ"), RIGHT("right", "ПКМ");
+        LEFT("left", "ЛКМ"), RIGHT("right", "ПКМ"), MIDDLE("middle", "СКМ");
 
         final String key;
         final String label;
@@ -54,6 +54,11 @@ public final class LoreBlocks {
     /** Right-click hint whose action text is the lang key {@code actionKey}. */
     public Hint right(String actionKey) {
         return new Hint(Click.RIGHT, texts.apply(actionKey));
+    }
+
+    /** Middle-click hint whose action text is the lang key {@code actionKey}. */
+    public Hint middle(String actionKey) {
+        return new Hint(Click.MIDDLE, texts.apply(actionKey));
     }
 
     /** Separator followed by one line per hint. No hints give no lines, so a separator never dangles. */

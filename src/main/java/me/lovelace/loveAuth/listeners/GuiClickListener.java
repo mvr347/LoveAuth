@@ -67,12 +67,14 @@ public final class GuiClickListener implements Listener {
                 }));
             } else if (action == AccountGui.Action.SESSION) {
                 ClickType click = event.getClick();
-                if (!click.isLeftClick() && !click.isRightClick()) return;
+                if (!click.isLeftClick() && !click.isRightClick() && click != ClickType.MIDDLE) return;
                 plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> {
                     if (!record.map(r -> r.hasPassword() && r.passwordEnabled()).orElse(false)) return;
                     int current = record.map(r -> r.sessionDuration()).orElse(7);
                     int next;
-                    if (click.isLeftClick()) {
+                    if (click == ClickType.MIDDLE) {
+                        next = 0;
+                    } else if (click.isLeftClick()) {
                         next = current + 1;
                         if (next > AccountGui.MAX_SESSION_DAYS) next = 0;
                     } else {
@@ -93,7 +95,18 @@ public final class GuiClickListener implements Listener {
                 auth.switchAuthMethod(player).thenRun(() -> Bukkit.getScheduler().runTask(plugin, accountGui::refresh));
             } else if (action == AccountGui.Action.DISCORD) {
                 if (!plugin.getConfigManager().isDiscordEnabled()) return;
-                new DiscordGui(player, plugin.getLangManager(), plugin.getConfigManager(), plugin.getDiscordAuthManager(), auth).open();
+                // No extra mini window: bind straight away, or unlink after the confirm menu.
+                plugin.getDatabaseManager().findPlayer(player.getUniqueId()).thenAccept(record -> Bukkit.getScheduler().runTask(plugin, () -> {
+                    if (!record.map(r -> r.hasDiscord()).orElse(false)) {
+                        plugin.getDiscordAuthManager().startBinding(player);
+                    } else if (!record.map(r -> r.hasPassword() && r.passwordEnabled()).orElse(false)) {
+                        plugin.getLangManager().send(player, "block.discord-unlink-requires-password");
+                    } else {
+                        plugin.getGuiManager().openConfirm(player, "gui.confirm.unlink-discord",
+                            () -> plugin.getDiscordAuthManager().sendConfirmation(player, "UNLINK"),
+                            () -> accountGui.open());
+                    }
+                }));
             } else if (action == AccountGui.Action.LOGOUT) {
                 plugin.getGuiManager().openConfirm(player, "gui.confirm.logout",
                     () -> auth.forceLogout(player.getUniqueId()).thenRun(() -> Bukkit.getScheduler().runTask(plugin, () -> player.kick(plugin.getLangManager().component("commands.session-reset")))),

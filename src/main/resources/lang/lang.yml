@@ -223,6 +223,7 @@ gui:
     click:
       left: "<green>ЛКМ <dark_gray>— <gray>{action}"
       right: "<gold>ПКМ <dark_gray>— <gray>{action}"
+      middle: "<aqua>СКМ <dark_gray>— <gray>{action}"
     reason: "<red>Причина: <gray>{reason}"
     blocked-click: "<dark_gray>{click} — {action} (заблокировано)"
     status:
@@ -398,6 +399,7 @@ gui.account:
     - "  <gray>Максимум: <white>{max} дней"
   session-add-action: "добавить день"
   session-remove-action: "убрать день"
+  session-off-action: "выключить сессию"
   # Имя несёт текущий способ; в лоре оба варианта, текущий отмечен ▶.
   login-method: "<gold>Способ входа <dark_gray>| <yellow>{method}"
   login-method-lore:
@@ -454,6 +456,7 @@ gui.confirm:
   reset-session: "<gold>Сбросить сессию?</gold>"
   lock-account: "<gold>Заблокировать аккаунт?</gold>"
   logout: "<gold>Выйти из аккаунта?</gold>"
+  unlink-discord: "<gold>Отвязать Discord?</gold>"
 
 # ── Команды ──────────────────────────────────
 commands:
