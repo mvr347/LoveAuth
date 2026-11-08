@@ -34,6 +34,8 @@ public final class AuthMethodGui implements LoveAuthHolder {
     private final DiscordAuthManager discord;
     private final SlotActions<Action> actions = new SlotActions<>();
     private volatile Inventory inventory;
+    /** True when the big register_menu window is shown (two zones instead of single slots). */
+    private volatile boolean zoned;
 
     public AuthMethodGui(Player player, LangManager lang, ConfigManager config, AuthManager auth, DiscordAuthManager discord) {
         this.player = player;
@@ -44,6 +46,13 @@ public final class AuthMethodGui implements LoveAuthHolder {
     }
 
     public Optional<Action> actionAt(int slot) {
+        if (zoned) {
+            return AuthMenuLayout.zoneOf(AuthMenuLayout.Menu.REGISTER, slot).map(zone -> switch (zone) {
+                case PASSWORD -> Action.PASSWORD;
+                case DISCORD -> Action.DISCORD;
+                default -> null;
+            });
+        }
         return actions.at(slot);
     }
 
@@ -68,6 +77,9 @@ public final class AuthMethodGui implements LoveAuthHolder {
 
     /** Main thread only. */
     private void render(boolean registered, boolean hasPassword, boolean hasDiscord) {
+        // Password + Discord is the same two-button choice as the registration menu: use its big picture too.
+        if (tryBigMenu(registered, hasPassword)) return;
+        zoned = false;
         Inventory inv = Bukkit.createInventory(this, SIZE, lang.component("gui.auth-method.title"));
         inventory = inv;
         GuiManager.applyFrame(inv, lang, false);
@@ -115,6 +127,33 @@ public final class AuthMethodGui implements LoveAuthHolder {
         actions.replace(map);
 
         player.openInventory(inv);
+    }
+
+    /** Opens the two-zone window when both methods are offered and the ItemsAdder picture is available. */
+    private boolean tryBigMenu(boolean registered, boolean hasPassword) {
+        boolean discordEnabled = config.isDiscordEnabled();
+        if (!discordEnabled || (registered && !hasPassword)) return false;
+        String why = AuthMenuLayout.reasonFor(player, AuthMenuLayout.Menu.REGISTER, true);
+        AuthMenuLayout.report(AuthMenuLayout.Menu.REGISTER, why);
+        if (why != null) return false;
+        LoreBlocks blocks = new LoreBlocks(lang);
+        ItemStack password = AuthMenuLayout.button(registered
+                ? GuiManager.button(lang, HeadTextures.HEAD_PASSWORD, "gui.auth-method.password-button",
+                        "gui.auth-method.password-lore", blocks.clicks(blocks.left("gui.auth-method.password-action")))
+                : GuiManager.button(lang, HeadTextures.HEAD_PASSWORD, "gui.register.register-button",
+                        "gui.register.register-lore", blocks.clicks(blocks.left("gui.register.register-action"))));
+        ItemStack discordItem = AuthMenuLayout.button(GuiManager.button(lang, HeadTextures.HEAD_DISCORD,
+                registered ? "gui.auth-method.discord-button" : "gui.auth-method.discord-bind-button",
+                registered ? "gui.auth-method.discord-lore" : "gui.auth-method.discord-bind-lore",
+                blocks.clicks(blocks.left(registered ? "gui.auth-method.discord-action" : "gui.auth-method.discord-bind-action"))));
+        if (password == null || discordItem == null) return false;
+        zoned = true;
+        Inventory inv = Bukkit.createInventory(this, AuthMenuLayout.SIZE, AuthMenuLayout.title(player, AuthMenuLayout.Menu.REGISTER));
+        inventory = inv;
+        AuthMenuLayout.fill(inv, AuthMenuLayout.Menu.REGISTER,
+                Map.of(AuthMenuLayout.Zone.PASSWORD, password, AuthMenuLayout.Zone.DISCORD, discordItem));
+        player.openInventory(inv);
+        return true;
     }
 
     @Override
