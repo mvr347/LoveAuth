@@ -78,7 +78,9 @@ public final class AccountGui implements LoveAuthHolder {
         list.add(Action.PASSWORD);
         if (hasWorkingPassword) list.add(Action.SESSION);
         if (hasWorkingPassword && hasDiscord && discordEnabled) list.add(Action.LOGIN_METHOD);
-        if (discordEnabled) list.add(Action.DISCORD);
+        // A bound Discord can only be unlinked while a working password exists (otherwise the account
+        // would be lost), so the button then disappears; an unbound one can always be bound.
+        if (discordEnabled && (!hasDiscord || hasWorkingPassword)) list.add(Action.DISCORD);
         list.add(Action.LOGOUT);
         return list;
     }
@@ -186,7 +188,10 @@ public final class AccountGui implements LoveAuthHolder {
                         days == 0 ? "gui.session.disable" : "gui.session.days", "gui.account.session-lore",
                         Map.of("days", String.valueOf(days), "status", status, "expires", expires,
                                 "max", String.valueOf(MAX_SESSION_DAYS), "bar", LoreBlocks.bar(days, MAX_SESSION_DAYS)),
-                        blocks.clicks(blocks.left("gui.account.session-add-action"), blocks.right("gui.account.session-remove-action")));
+                        days == 0
+                                ? blocks.clicks(blocks.left("gui.account.session-add-action"), blocks.right("gui.account.session-remove-action"))
+                                : blocks.clicks(blocks.left("gui.account.session-add-action"), blocks.right("gui.account.session-remove-action"),
+                                        blocks.middle("gui.account.session-off-action")));
             }
             case LOGIN_METHOD -> {
                 boolean preferDiscord = pr.preferredAuthMethod() == AuthMethod.DISCORD;

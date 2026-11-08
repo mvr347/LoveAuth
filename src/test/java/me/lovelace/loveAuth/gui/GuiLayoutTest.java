@@ -175,4 +175,11 @@ class GuiLayoutTest {
             }
         }
     }
+
+    @org.junit.jupiter.api.Test
+    void discordButtonIsHiddenWhenBoundWithoutAWorkingPassword() {
+        assertTrue(AccountGui.visibleActions(false, false, true).contains(AccountGui.Action.DISCORD), "binding is always offered");
+        assertTrue(!AccountGui.visibleActions(false, true, true).contains(AccountGui.Action.DISCORD), "unlink needs a password");
+        assertTrue(AccountGui.visibleActions(true, true, true).contains(AccountGui.Action.DISCORD));
+    }
 }
