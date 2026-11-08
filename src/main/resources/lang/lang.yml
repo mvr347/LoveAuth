@@ -480,6 +480,7 @@ commands:
   admin-help-footer: "<gradient:#ff0000:#a855f7>══════════════════════════════</gradient>"
   password-changed: "{prefix}<green>Пароль успешно изменён."
   password-removed: "{prefix}<yellow>Пароль удалён. Теперь вход только через Discord."
+  password-removed-premium: "{prefix}<yellow>Пароль удалён. Теперь вход идёт по лицензии аккаунта."
   account-locked: "{prefix}<red>Ваш аккаунт был заблокирован вручную."
   session-reset: "{prefix}<yellow>Сессия сброшена."
   session-info: "{prefix}<gray>Сессия истекает: <white>{expires}</white>."
