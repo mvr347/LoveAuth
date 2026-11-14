@@ -61,6 +61,7 @@ public final class LoveAuthAdminCommand implements CommandExecutor, TabCompleter
         LangManager lang = plugin.getLangManager();
         String sub = args[0].toLowerCase();
         switch (sub) {
+            case "visibility" -> visibility(sender, args);
             case "help", "помощь" -> sendHelp(sender);
             case "reload", "перезагрузка" -> {
                 // loveauth.reload объявлен в plugin.yml (и как child loveauth.admin), но нигде
@@ -198,18 +199,53 @@ public final class LoveAuthAdminCommand implements CommandExecutor, TabCompleter
         sender.sendMessage(lang.component("commands.admin-help-entry", Map.of("command", cmd, "description", lang.plain(key))));
     }
 
+    private void visibility(CommandSender sender, String[] args) {
+        if (args.length < 2 || args.length > 3 || (args.length == 3 && !args[2].equalsIgnoreCase("repair"))) {
+            sendUsage(sender, "/loveauthadmin visibility <игрок в сети> [repair]");
+            return;
+        }
+        Player target = Bukkit.getPlayerExact(args[1]);
+        if (target == null) {
+            plugin.getLangManager().send(sender, "general.player-not-found", Map.of("player", args[1]));
+            return;
+        }
+        boolean potion = target.hasPotionEffect(org.bukkit.potion.PotionEffectType.INVISIBILITY);
+        boolean authenticated = plugin.getAuthManager().isAuthenticated(target.getUniqueId());
+        boolean vanished = target.getMetadata("vanished").stream().anyMatch(value -> value.asBoolean());
+        // Check every registered presence provider: an explicit repair must not reveal a vanished player.
+        try {
+            for (var registration : Bukkit.getServicesManager().getRegistrations(
+                    dev.lovelace.lovecore.api.presence.PresenceOracle.class))
+                vanished |= registration.getProvider().vanished(target.getUniqueId());
+        } catch (LinkageError coreMissingOrOld) {
+            // LoveCore is optional; without it only the explicit metadata can report vanish.
+        }
+        sender.sendMessage("§7" + target.getName() + ": invisible=" + target.isInvisible()
+                + ", potion=" + potion + ", vanish=" + vanished + ", authenticated=" + authenticated);
+        if (args.length == 2) return;
+        if (!authenticated || potion || vanished || target.getGameMode() == org.bukkit.GameMode.SPECTATOR
+                || !plugin.getLimboManager().repairStaleInvisibility(target)) {
+            sender.sendMessage("§cСброс запрещён: активна авторизация, невидимость или режим наблюдения.");
+            return;
+        }
+        sender.sendMessage("§aЗависший флаг невидимости сброшен для " + target.getName() + ".");
+        plugin.getLogger().info(sender.getName() + " repaired stale invisibility for " + target.getUniqueId());
+    }
+
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (command.getName().equalsIgnoreCase(LEGACY_COMMAND_NAME)) return List.of();
         if (!sender.hasPermission("loveauth.admin")) return List.of();
-        if (args.length == 1) return List.of("help", "reload", "unlock", "unblockip", "session", "info", "delete", "setfirstspawn", "amnesty", "помощь", "перезагрузка", "разблокировать", "разблокироватьайпи", "сессия", "инфо", "удалить", "установитьпервыйспавн", "амнистия");
+        if (args.length == 1) return List.of("help", "reload", "unlock", "unblockip", "session", "info", "delete", "setfirstspawn", "amnesty", "visibility", "помощь", "перезагрузка", "разблокировать", "разблокироватьайпи", "сессия", "инфо", "удалить", "установитьпервыйспавн", "амнистия");
         if (args.length == 2) {
             String sub = args[0].toLowerCase();
+            if (sub.equals("visibility")) return null;
             if (sub.equals("unlock") || sub.equals("info") || sub.equals("delete") || sub.equals("разблокировать") || sub.equals("инфо") || sub.equals("удалить")) return null;
             if (sub.equals("session") || sub.equals("сессия")) return List.of("reset", "сброс");
         }
         if (args.length == 3) {
             String sub = args[0].toLowerCase();
+            if (sub.equals("visibility")) return List.of("repair");
             if ((sub.equals("session") || sub.equals("сессия")) && (args[1].equalsIgnoreCase("reset") || args[1].equalsIgnoreCase("сброс"))) return null;
         }
         return List.of();

@@ -52,6 +52,7 @@ public final class LimboManager {
     // Players whose location will be set by someone else right after restore() (register-spawn).
     private final java.util.Set<UUID> skipLocationRestore = ConcurrentHashMap.newKeySet();
     private final NamespacedKey returnKey;
+    private final NamespacedKey invisibilityKey = new NamespacedKey("loveauth", "limbo_invisible_before");
 
     public LimboManager(LoveAuth plugin, ConfigManager config, LangManager lang, LogManager log) {
         this.plugin = plugin;
@@ -183,9 +184,18 @@ public final class LimboManager {
     public void freeze(Player player) {
         if (frozenPlayers.asMap().containsKey(player.getUniqueId())) return;
 
+        // The entity's temporary invisible flag can survive an interrupted shutdown in playerdata.
+        // Keep ownership and the original value with that playerdata, across cache expiry and restarts.
+        var data = player.getPersistentDataContainer();
+        Byte originalInvisible = data.get(invisibilityKey, PersistentDataType.BYTE);
+        if (originalInvisible == null) {
+            originalInvisible = (byte) (player.isInvisible() ? 1 : 0);
+            data.set(invisibilityKey, PersistentDataType.BYTE, originalInvisible);
+        }
+
         PlayerState state = new PlayerState(
                 player.getGameMode(), player.getWalkSpeed(), player.getFlySpeed(),
-                player.getAllowFlight(), player.isFlying(), player.isInvulnerable(), player.isInvisible()
+                player.getAllowFlight(), player.isFlying(), player.isInvulnerable(), originalInvisible != 0
         );
         frozenPlayers.put(player.getUniqueId(), state);
         frozenUuids.add(player.getUniqueId());
@@ -210,7 +220,6 @@ public final class LimboManager {
      */
     public void restore(Player player) {
         UUID uuid = player.getUniqueId();
-        boolean wasFrozen = frozenPlayers.getIfPresent(uuid) != null;
         Location original = originalLocations.remove(uuid);
 
         boolean skipLocation = skipLocationRestore.remove(uuid);
@@ -228,7 +237,7 @@ public final class LimboManager {
             } else {
                 leaveLimbo(player, original);
             }
-            if (wasFrozen) unfreeze(player);
+            unfreeze(player);
         });
     }
 
@@ -261,8 +270,8 @@ public final class LimboManager {
             if (original != null && teleport(player, original)) {
                 clearReturnLocation(player);
             }
-            unfreeze(player);
         }
+        unfreeze(player);
         originalLocations.remove(uuid);
         skipLocationRestore.remove(uuid);
     }
@@ -290,10 +299,13 @@ public final class LimboManager {
         }
     }
 
-    /** Only ever called while a frozen {@link PlayerState} exists - both call sites guard on it. */
+    /** Restore the live snapshot, or just the durable invisibility marker after a restart/cache expiry. */
     private void unfreeze(Player player) {
         PlayerState state = frozenPlayers.getIfPresent(player.getUniqueId());
-        if (state == null) return;
+        if (state == null) {
+            restoreInvisibility(player, null);
+            return;
+        }
         player.setGameMode(state.gameMode());
         player.setWalkSpeed(state.walkSpeed());
         player.setFlySpeed(state.flySpeed());
@@ -301,9 +313,26 @@ public final class LimboManager {
         player.setFlying(state.isFlying());
         // SURVIVAL must not inherit a stale playerdata flag captured before authentication.
         player.setInvulnerable(state.gameMode() != GameMode.SURVIVAL && state.isInvulnerable());
-        player.setInvisible(state.isInvisible());
+        restoreInvisibility(player, state.isInvisible());
         frozenPlayers.invalidate(player.getUniqueId());
         frozenUuids.remove(player.getUniqueId());
+    }
+
+    private void restoreInvisibility(Player player, Boolean fallback) {
+        var data = player.getPersistentDataContainer();
+        Byte original = data.get(invisibilityKey, PersistentDataType.BYTE);
+        if (original != null || fallback != null) {
+            player.setInvisible(original != null ? original != 0 : fallback);
+            data.remove(invisibilityKey);
+        }
+    }
+
+    /** Explicit administrator repair for old, unmarked playerdata; never run during authentication. */
+    public boolean repairStaleInvisibility(Player player) {
+        if (frozenPlayers.getIfPresent(player.getUniqueId()) != null) return false;
+        player.setInvisible(false);
+        player.getPersistentDataContainer().remove(invisibilityKey);
+        return true;
     }
 
     private static class VoidGenerator extends ChunkGenerator {
