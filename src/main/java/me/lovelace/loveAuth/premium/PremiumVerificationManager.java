@@ -3,8 +3,6 @@ package me.lovelace.loveAuth.premium;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandler;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelPipeline;
 import me.lovelace.loveAuth.LoveAuth;
 import org.bukkit.Bukkit;
@@ -28,7 +26,7 @@ public final class PremiumVerificationManager {
 
     private final MojangSessionClient sessionClient = new MojangSessionClient();
     private final List<Channel> hookedParents = new java.util.concurrent.CopyOnWriteArrayList<>();
-    private NmsHandles handles;
+    private volatile NmsHandles handles;
     private volatile boolean active;
 
     public PremiumVerificationManager(LoveAuth plugin) {
@@ -117,7 +115,7 @@ public final class PremiumVerificationManager {
      * this, a new connection arriving after the plugin jar is closed (e.g. on /reload)
      * would fail to load the handler classes with "zip file closed".
      */
-    public void shutdown() {
+    public synchronized void shutdown() {
         active = false;
         for (Channel parent : hookedParents) {
             try {
@@ -139,28 +137,18 @@ public final class PremiumVerificationManager {
     }
 
     private void installAcceptHook(Channel parentChannel) {
+        parentChannel.pipeline().addFirst(ACCEPT_HOOK_NAME,
+                new AcceptedChannelHook(this::isActive, this::attachLoginIntercept));
         hookedParents.add(parentChannel);
-        parentChannel.pipeline().addFirst(ACCEPT_HOOK_NAME, new ChannelInboundHandlerAdapter() {
-            @Override
-            public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-                ctx.fireChannelRead(msg);
-                if (msg instanceof Channel child) {
-                    // Defer the attach onto the child's own event loop. The server registers
-                    // the child (which runs its ChannelInitializer and adds "packet_handler")
-                    // as a task on that loop; queueing our attach there guarantees it runs
-                    // AFTER the pipeline is built but BEFORE the first client packet is read,
-                    // avoiding a race where "packet_handler" isn't present yet.
-                    child.eventLoop().execute(() -> attachLoginIntercept(child));
-                }
-            }
-        });
     }
 
-    private void attachLoginIntercept(Channel child) {
+    private synchronized void attachLoginIntercept(Channel child) {
+        NmsHandles snapshot = handles;
+        if (!active || snapshot == null || !child.isOpen() || !child.isRegistered()) return;
         try {
             ChannelPipeline pipeline = child.pipeline();
-            String anchor = findConnectionHandlerName(pipeline);
-            if (anchor == null) return;
+            String anchor = findConnectionHandlerName(pipeline, snapshot);
+            if (anchor == null || pipeline.get("loveauth_login_intercept") != null) return;
             pipeline.addBefore(anchor, "loveauth_login_intercept", new LoginInterceptHandler(this, anchor));
         } catch (Exception e) {
             plugin.getLogManager().errorKey("log.premium-verify-error",
@@ -168,10 +156,10 @@ public final class PremiumVerificationManager {
         }
     }
 
-    private String findConnectionHandlerName(ChannelPipeline pipeline) {
+    private String findConnectionHandlerName(ChannelPipeline pipeline, NmsHandles snapshot) {
         if (pipeline.get("packet_handler") != null) return "packet_handler";
         for (Map.Entry<String, ChannelHandler> entry : pipeline.toMap().entrySet()) {
-            if (handles.connectionClass.isInstance(entry.getValue())) return entry.getKey();
+            if (snapshot.connectionClass.isInstance(entry.getValue())) return entry.getKey();
         }
         return null;
     }
