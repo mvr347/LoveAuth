@@ -1,7 +1,7 @@
 name: LoveAuth
 version: '${version}'
 main: me.lovelace.loveAuth.LoveAuth
-api-version: '26.2'
+api-version: '26.3'
 authors: [ Lovelace ]
 depend: []
 softdepend: [ PlaceholderAPI, LoveCore ]
